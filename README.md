@@ -1,5 +1,9 @@
 <div align="center">
 
+<img src="./docs/assets/brand/icons/primary-logo.png"
+     alt="ManthanOS logo — circular badge with stylized M and circuit motif"
+     width="120" />
+
 # ManthanOS
 
 ### Continuity infrastructure for multi-model engineering workflows.
