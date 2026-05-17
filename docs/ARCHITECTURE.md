@@ -31,22 +31,38 @@ indexed in [NOTES.md](./NOTES.md) — not required for writing code.
 
 ## 1. Vision
 
-ManthanOS is a **persistent AI engineering runtime**.
+ManthanOS is a **local workspace for AI-assisted engineering** —
+a CLI that runs and exits, and a `.manthan/` directory that persists.
 
-Many language models collaborate through one coherent **project brain** that
-survives across sessions, accumulates engineering knowledge, and treats
-debate, review, and implementation as first-class operations on a shared
-substrate of context, memory, and audit.
+The motivating workflow is the one most engineers actually live in:
+ChatGPT for early framing, Claude for implementation, Codex or Gemini
+for review. Each tool starts every session as if the project never
+happened, and the human is the only one keeping the books across them.
+ManthanOS records the structured commitments each session produces,
+lets the human promote what's worth keeping into a trust ladder, and
+presents that record on the next workflow — regardless of which
+adapter routes the call.
 
-It is not a chatbot wrapper, an IDE plugin, or a memory store. Those are
-features. The product is the *runtime*: a local-first process model in
-which the project itself becomes the unit of intelligence, and any number
-of agents can be invoked against it without losing coherence.
+It is not a chatbot wrapper, an IDE plugin, a memory store, a daemon,
+or an agent orchestrator. The substrate is the trust ladder and the
+audit chain; provider adapters are how the substrate reaches the
+tools. The brain layer has no provider-specific code by design — the
+same workspace state is presented whether the next adapter is Claude
+(API or CLI), Codex CLI, Gemini CLI, or OpenAI.
 
 The name *Manthan* — Sanskrit for the churning that separates signal
-from noise through collaboration — captures the operating principle:
-truth emerges from structured collaboration between agents whose
-disagreements are preserved, not erased.
+from noise — names the operating principle: project commitments are
+surfaced through structured human review of AI output, not synthesized
+by autonomous agents.
+
+> **Measurement boundary.** The product records continuity across
+> tools and presents it on the next run. Whether populating the
+> trusted layer in one tool measurably improves a *different* tool's
+> output is being measured; see [`PHASE3_CPT.md`](./PHASE3_CPT.md)
+> and [`TRUTH_CHECKPOINT.md` §6.4](./TRUTH_CHECKPOINT.md#64-measurement).
+> The architectural design supports cross-model continuity by
+> construction; the claim that it improves the second tool's output
+> has not been asserted.
 
 ---
 
@@ -77,13 +93,16 @@ Concretely, the limitations are structural:
 
 The gap none of them close:
 
-> A single runtime where (a) multiple agents share evolving project
-> cognition across sessions, (b) debate becomes a first-class artifact
-> that compounds, (c) every effectful action is gated and audited, and
-> (d) the engineering loop itself — plan, debate, implement, review,
-> remember — is a queryable, replayable program.
+> A small local substrate that sits beside whichever AI tool runs the
+> next workflow — capturing the structured commitments each run
+> produces, gating their trust through human review, and presenting
+> the resulting record on every subsequent run regardless of which
+> adapter routes the call.
 
-ManthanOS is positioned at exactly this gap.
+That is what ManthanOS is. It is deliberately *not* an autonomous
+agent, an orchestrator, a debate engine, or a runtime daemon — see
+the README's "intentionally deferred" list for the full set of
+adjacent ideas that were considered and explicitly cut.
 
 ---
 

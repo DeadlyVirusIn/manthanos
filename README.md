@@ -99,7 +99,7 @@ Supported providers in the tree today:
 | Claude (CLI subscription) | `manthan plan` (default) |
 | Codex CLI | `manthan plan --adapter=codex-cli` |
 | Gemini CLI | `manthan plan --adapter=gemini-cli` |
-| OpenAI (E6.1 path) | available via the orchestrator |
+| OpenAI | used by the measurement harness; not currently exposed as a `--adapter=` flag |
 
 Capability surface:
 
@@ -161,7 +161,8 @@ checkpoint:
   The CpT harness exists; the live cross-model run (E6.1) has not
   been executed. Until it has, the project does **not** claim that
   populating the brain with one tool makes the next tool's output
-  better. See `docs/PHASE3_CPT.md` and `docs/TRUTH_CHECKPOINT.md` §6.4.
+  better. See [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) and
+  [`docs/TRUTH_CHECKPOINT.md` §6.4](./docs/TRUTH_CHECKPOINT.md#64-measurement).
 - **Whether real users will use the promotion queue at the cadence
   the design assumes.** The promotion UX has not been used by
   anyone other than the author.
@@ -331,15 +332,27 @@ npm link          # use `npm link`, not `pnpm link` — pnpm v11 packaging quirk
 which manthan     # should resolve to your node bin dir
 ```
 
+### Sanity check the install
+
+```bash
+manthan doctor    # reports environment + adapter availability without running an LLM call
+```
+
+If `manthan doctor` reports clean, the install is good. If it flags
+missing adapters or PATH issues, fix those before the loop below.
+
 ### 60-second loop
 
 ```bash
 cd ~/my-project
 manthan init
-manthan plan "Add OAuth login with Google"      # burns ~$0.10 of Claude Code subscription quota
-manthan brain review                             # type: p 1 2 3, then q
+manthan plan "Add OAuth login with Google"   # ~$0.10 if --adapter=api; covered by your Claude Code subscription otherwise
+manthan brain review                          # promote facts you want to keep
 manthan plan "Implement OAuth refresh" --show-trusted
 ```
+
+Inside `manthan brain review`: `p N M …` promotes facts, `d N` demotes,
+`s N` skips, `q` commits and exits, `?` shows full help.
 
 Plan → review → next plan uses what you promoted.
 
