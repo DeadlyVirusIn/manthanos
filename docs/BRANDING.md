@@ -6,7 +6,7 @@
 This document covers usage. The actual brand assets live under
 [`docs/assets/brand/`](./assets/brand/). The locked-in canonical
 master reference is
-[`docs/assets/brand/mockups/brand-sheet.png`](./assets/brand/mockups/brand-sheet.png).
+[`docs/assets/brand/mockups/section-1-full.png`](./assets/brand/mockups/section-1-full.png).
 
 This is not a marketing document. It is operational guidance so the
 logo gets used consistently without slowing anyone down.
@@ -66,50 +66,37 @@ Avoid when:
 
 ## 3. Secondary marks
 
-### 3.1 Monochrome — Dark Themes
+### 3.1 Icon variations grid (4 cells, section 2 of the brand sheet)
 
-- File: [`icons/icon-monochrome-black.png`](./assets/brand/icons/icon-monochrome-black.png)
-- Black background, white M outline + circuit motif.
-- Use when: dark UI themes, terminal banners with a dark prompt theme,
-  badges where the background is solid black.
+The brand sheet's ICON VARIATIONS GRID provides four labeled treatments:
 
-### 3.2 Monochrome — Print / Light Themes / Badges
+| Variant | File | Use |
+|---|---|---|
+| FULL COLOR | [`icons/icon-full-color.png`](./assets/brand/icons/icon-full-color.png) | Gradient M without glow. Use for compact reproduction where the primary's heavier glow would feel oversized. |
+| NEON GLOW | [`icons/icon-neon-glow.png`](./assets/brand/icons/icon-neon-glow.png) | Same gradient M with stronger neon glow. Use sparingly — visually loud. |
+| SINGLE COLOR | [`icons/icon-single-color.png`](./assets/brand/icons/icon-single-color.png) | Solid teal/cyan M (not white — "single color" means single-hue here). Use on backgrounds where the gradient fights the surface. |
+| WHITE | [`icons/icon-white.png`](./assets/brand/icons/icon-white.png) | Solid white M. Use on dark backgrounds where you need maximum contrast and no chromatic interference. |
 
-- File: [`icons/icon-monochrome-white.png`](./assets/brand/icons/icon-monochrome-white.png)
-- White background, black M outline + circuit motif.
-- Use when: printed materials, light-mode rendering surfaces, GitHub
-  badges, paper presentations, anywhere a colored gradient would not
-  reproduce.
+### 3.2 App icons (section 3)
 
-### 3.3 Flat icon (no glow)
+Three square app-icon variants for avatars and tiles:
 
-- File: [`icons/icon-flat.png`](./assets/brand/icons/icon-flat.png)
-- Gradient M with circuit ring, flat treatment without the glow effect
-  of the primary mark.
-- Use when: a smaller, less assertive variant fits better than the
-  primary — small inline icons, compact UI surfaces, footer marks.
+| File | Use |
+|---|---|
+| [`icons/app-icon-1.png`](./assets/brand/icons/app-icon-1.png) | First in the section 3 stack — gradient/dark treatment (M on dark with circuit ring) |
+| [`icons/app-icon-2.png`](./assets/brand/icons/app-icon-2.png) | Second — white-background variant (cyan M on white) |
+| [`icons/app-icon-3.png`](./assets/brand/icons/app-icon-3.png) | Third — blue gradient variant (white M on blue gradient) |
 
-### 3.4 Color logo (vector master)
+(Names are positional because the brand sheet does not label the
+three app icons by color or theme. Use the `mockups/app-icons-stack.png`
+visual reference to pick the right one for a given context.)
 
-- File: [`icons/logo-vector-color.png`](./assets/brand/icons/logo-vector-color.png)
-- The canonical brand sheet's "logo.svg" reference rendering —
-  gradient badge with circle outline highlighted on right/top.
-- Use when: mid-size docs/cards where a slightly different lighting
-  from the primary is desirable.
-
-### 3.5 Hero (presentation only)
+### 3.3 Hero (presentation only)
 
 - File: [`mockups/hero-presentation.png`](./assets/brand/mockups/hero-presentation.png)
-- Chrome / metallic 3D treatment from the HERO VARIANT (PRESENTATION)
-  panel.
+- Chrome / metallic 3D treatment from the HERO VARIANT panel.
 - **Do not use** in the README or CLI. Reserved for slides, social
   cards, and anywhere "polish" is a feature rather than a liability.
-
-### 3.6 Restrained glow (presentation only)
-
-- File: [`mockups/restrained-glow.png`](./assets/brand/mockups/restrained-glow.png)
-- Chrome pedestal variant with a subtle green glow. Even more decorative
-  than the Hero — reserved strictly for presentation.
 
 ---
 
@@ -140,7 +127,6 @@ embeds.
 | 64×64 | [`icons/favicon-64.png`](./assets/brand/icons/favicon-64.png) |
 | 128×128 | [`icons/favicon-128.png`](./assets/brand/icons/favicon-128.png) |
 | 256×256 | [`icons/favicon-256.png`](./assets/brand/icons/favicon-256.png) |
-| 512×512 | [`icons/favicon-512.png`](./assets/brand/icons/favicon-512.png) |
 
 At 16px the M is barely legible; the circular silhouette is the
 primary recognition cue. At 32px+ the M is readable. **Don't use
@@ -205,7 +191,7 @@ ASCII drawing.
 ### GitHub repo social preview
 
 - Use the canonical brand sheet:
-  [`mockups/brand-sheet.png`](./assets/brand/mockups/brand-sheet.png).
+  [`mockups/section-1-full.png`](./assets/brand/mockups/section-1-full.png).
 - Or compose a custom 1280×640 image using `primary-logo.png` + wordmark
   on the dark-navy background color (`#04091A`).
 
@@ -223,14 +209,14 @@ ASCII drawing.
 
 - 256×256 or 512×512 favicon variant for circular crops.
 - For square avatars where a flatter treatment fits, use
-  [`icons/icon-flat.png`](./assets/brand/icons/icon-flat.png) or
-  [`icons/icon-monochrome-black.png`](./assets/brand/icons/icon-monochrome-black.png).
+  [`icons/icon-full-color.png`](./assets/brand/icons/icon-full-color.png) or
+  [`icons/icon-white.png`](./assets/brand/icons/icon-white.png).
 - Source #5 does not provide a separate square app-icon set;
   a future vector pass would add tinted treatments.
 
 ### Twitter / X / LinkedIn
 
-Same primary mark, white background for LinkedIn (`icon-monochrome-white.png`),
+Same primary mark, white background for LinkedIn (`icon-single-color.png`),
 dark background elsewhere (`primary-logo.png`).
 
 ---
@@ -239,28 +225,43 @@ dark background elsewhere (`primary-logo.png`).
 
 | Background | Use |
 |---|---|
-| Dark (#04091A, near-black) | Primary mark (`primary-logo.png`) or `icon-monochrome-black.png` (the dark-themes variant — black bg / white M). |
-| Light (white, paper, #F2F2F2) | `icon-monochrome-white.png` (the print/badges variant — white bg / black M). |
-| Mid-tone (slate, gray) | Primary mark works; if the gradient fights the background, fall back to `icon-monochrome-white.png` or `icon-monochrome-black.png` per contrast. |
+| Dark (#04091A, near-black) | Primary mark (`primary-logo.png`) or `icon-white.png` (the dark-themes variant — black bg / white M). |
+| Light (white, paper, #F2F2F2) | `icon-single-color.png` (the print/badges variant — white bg / black M). |
+| Mid-tone (slate, gray) | Primary mark works; if the gradient fights the background, fall back to `icon-single-color.png` or `icon-white.png` per contrast. |
 | Colored / brand-conflicting | Always monochrome. Never overlay the gradient mark on a chromatic background. |
 
 ---
 
-## 10. Spacing guidance
+## 10. Spacing + usage rules
+
+The canonical brand sheet's §9 (USAGE GUIDELINES & VARIATIONS) declares
+three rules verbatim. They are the source of truth here:
+
+1. **Use on dark backgrounds to maximize impact and signal visibility.**
+2. **Ensure clear space and maintain horizontal alignment for consistency.**
+3. **Do not rotate, stretch, or alter the color palette of any asset.**
+
+Practical interpretations of those rules:
 
 - **Minimum clear space around the badge:** equal to the height of the
   M (so if the badge is 120px tall, leave at least 60px of breathing
-  room on every side).
+  room on every side). This is the "clear space" the §9 rule demands.
 - **Minimum spacing between badge and wordmark when paired:** 24px.
+  When pairing, keep badge and wordmark on the same baseline — that's
+  the "horizontal alignment" of §9.
 - **Do not crop the circular outline.** If you need to fit the mark
   into a tight space, scale it down or substitute a favicon size.
+- **Do not recolor.** The §9 rule "do not alter the color palette"
+  means: do not retint the gradient, do not swap the M's color for a
+  brand color other than those in §11, do not invert. Use the
+  monochrome variants when a color version is wrong for the surface.
 
 ---
 
 ## 11. Color palette
 
 Source: OFFICIAL COLOR PALETTE declared on the locked-in canonical
-brand sheet (`mockups/brand-sheet.png`). Use these hex values when
+brand sheet (`mockups/section-1-full.png`). Use these hex values when
 producing any new asset (e.g., a social card composed in another tool).
 
 | Role | Name | Hex |
@@ -307,38 +308,44 @@ Listed by folder. All assets are raster (PNG) for now; SVG masters
 are TODO (see §15).
 
 All assets in this inventory are derived from the **locked-in canonical
-brand sheet** (`mockups/brand-sheet.png`). Nothing in the kit comes
+brand sheet** (`mockups/section-1-full.png`). Nothing in the kit comes
 from any earlier brand-sheet iteration.
 
 ### `docs/assets/brand/icons/`
 
 | File | Use |
 |---|---|
-| `primary-logo.png` | Primary mark, docs/CLI (PRIMARY LOGO panel) |
-| `icon-monochrome-black.png` | Dark themes (black bg / white M) |
-| `icon-monochrome-white.png` | Print/badges (white bg / black M) |
-| `icon-flat.png` | Flat gradient variant, no glow (FLAT icon from vector master row) |
-| `logo-vector-color.png` | Color glow variant (logo.svg from vector master row) |
+| `primary-logo.png` | Primary mark, docs/CLI — from the PRIMARY LOGO (DOCS/CLI) panel of section 1 |
+| `icon-full-color.png` | Full gradient M without glow — section 2 ICON VARIATIONS GRID, first cell |
+| `icon-neon-glow.png` | Same gradient M with neon glow — section 2, second cell |
+| `icon-single-color.png` | Solid teal/cyan M (single-color treatment) — section 2, third cell |
+| `icon-white.png` | Solid white M — section 2, fourth cell |
+| `app-icon-{top,middle,bottom}.png` | Square app icon variants from section 3 (positional names because the brand sheet doesn't label them by color) |
 | `favicon-{16,32,64,128,256,512}.png` | Browser / package icon sizes, downscaled from `primary-logo.png` |
 
 ### `docs/assets/brand/wordmark/`
 
 | File | Use |
 |---|---|
-| `wordmark-color.png` | The "ManthanOS" wordmark from the PRIMARY LOGO panel |
+| `wordmark-color.png` | The "ManthanOS" wordmark from the PRIMARY LOGO panel — small inline use |
+| `wordmark-large.png` | The large "ManthanOS" master file from section 5 — for headers, social cards |
 
 ### `docs/assets/brand/mockups/`
 
-| File | Use |
-|---|---|
-| `brand-sheet.png` | **Locked-in canonical master reference.** If any guidance in this document conflicts with this image, this image wins. |
-| `hero-presentation.png` | 3D chrome HERO VARIANT — presentation only, not for docs/CLI |
-| `restrained-glow.png` | Chrome pedestal RESTRAINED GLOW — presentation only |
-| `monochrome-pair.png` | The two monochromes shown side-by-side as reference |
-| `color-palette.png` | The OFFICIAL COLOR PALETTE swatches in isolation (6 colors) |
-| `favicon-stress.png` | The FAVICON STRESS TEST panel showing 10/60/128/256px renderings |
-| `cli-example.png` | CLI prompt mockup as composed on the canonical sheet |
-| `meaning.png` | The MEANING (REFINED DESCRIPTIONS) panel |
+All cropped from the brand sheet's labeled sections.
+
+| File | Section | Use |
+|---|---|---|
+| `brand-sheet.png` | (whole sheet) | **Locked-in canonical master reference.** If any guidance in this document conflicts with this image, this image wins. |
+| `hero-presentation.png` | §1 HERO | 3D chrome variant — presentation only |
+| `icon-variations-grid.png` | §2 | The four icon variations shown together as reference |
+| `app-icons-stack.png` | §3 | The three app icons stacked as reference |
+| `meaning.png` | §4 BRAND SYMBOLISM (English Descriptions) | The three meaning concepts panel |
+| `master-files.png` | §5 MASTER FILES (.SVG) | Large wordmark + icon/wordmark/logo svg references |
+| `color-palette.png` | §6 OFFICIAL COLOR PALETTE | The 6 colors with hex values |
+| `favicon-stress.png` | §7 FAVICON STRESS TEST | Multi-size favicon renderings |
+| `cli-example.png` | §8 TERMINAL INTEGRATION MOCKUP | `manthan plan` CLI prompt visualization |
+| `usage-guidelines.png` | §9 USAGE GUIDELINES & VARIATIONS | The three usage rules + RESTRAINED variant |
 
 ---
 
@@ -382,7 +389,7 @@ None of these block current usage.
 ## 16. Locked-in canonical reference
 
 The single source of truth is
-[`docs/assets/brand/mockups/brand-sheet.png`](./assets/brand/mockups/brand-sheet.png).
+[`docs/assets/brand/mockups/section-1-full.png`](./assets/brand/mockups/section-1-full.png).
 
 If any guidance in this document conflicts with that image, the image
 wins. The sheet labels each variant with its intended use

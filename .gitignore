@@ -37,3 +37,9 @@ secrets.enc
 
 # npm pack tarballs
 *.tgz
+
+# Windows NTFS alternate data streams
+*:Zone.Identifier
+
+# Generated source images (not committed)
+/Gemini_Generated_Image_*.png
