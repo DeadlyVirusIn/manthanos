@@ -81,35 +81,45 @@ Avoid when:
   badges, paper presentations, anywhere a colored gradient would not
   reproduce.
 
-### 3.3 Line-art icon
+### 3.3 Flat icon (no glow)
 
-- File: [`icons/icon-vector-line.png`](./assets/brand/icons/icon-vector-line.png)
-- Cyan-on-dark line-art version. Less assertive than the primary mark.
-- Use when: inline doc icons, small-format references, places where the
-  filled primary would visually dominate.
+- File: [`icons/icon-flat.png`](./assets/brand/icons/icon-flat.png)
+- Gradient M with circuit ring, flat treatment without the glow effect
+  of the primary mark.
+- Use when: a smaller, less assertive variant fits better than the
+  primary — small inline icons, compact UI surfaces, footer marks.
 
-### 3.4 Color logo (small)
+### 3.4 Color logo (vector master)
 
 - File: [`icons/logo-vector-color.png`](./assets/brand/icons/logo-vector-color.png)
-- Compact gradient version of the badge. Mid-size docs/cards.
+- The canonical brand sheet's "logo.svg" reference rendering —
+  gradient badge with circle outline highlighted on right/top.
+- Use when: mid-size docs/cards where a slightly different lighting
+  from the primary is desirable.
 
 ### 3.5 Hero (presentation only)
 
 - File: [`mockups/hero-presentation.png`](./assets/brand/mockups/hero-presentation.png)
-- Chrome / metallic 3D treatment.
+- Chrome / metallic 3D treatment from the HERO VARIANT (PRESENTATION)
+  panel.
 - **Do not use** in the README or CLI. Reserved for slides, social
   cards, and anywhere "polish" is a feature rather than a liability.
+
+### 3.6 Restrained glow (presentation only)
+
+- File: [`mockups/restrained-glow.png`](./assets/brand/mockups/restrained-glow.png)
+- Chrome pedestal variant with a subtle green glow. Even more decorative
+  than the Hero — reserved strictly for presentation.
 
 ---
 
 ## 4. Wordmark
 
-Two variants:
+One canonical variant, extracted from the PRIMARY LOGO (DOCS/CLI)
+panel of the locked-in brand sheet:
 
 - [`wordmark/wordmark-color.png`](./assets/brand/wordmark/wordmark-color.png)
-  — "ManthanOS" with the gradient `OS`. For colored surfaces.
-- [`wordmark/wordmark-light.png`](./assets/brand/wordmark/wordmark-light.png)
-  — Lighter weight version from the SVG master area.
+  — "ManthanOS" with the white "Manthan" + gradient (blue→purple) "OS".
 
 Pair the wordmark with the primary logo (badge to the left, wordmark
 to the right) only when both elements have at least 24px of breathing
@@ -212,10 +222,11 @@ ASCII drawing.
 ### Avatars (org / contributor / Discord)
 
 - 256×256 or 512×512 favicon variant for circular crops.
-- For square avatars, use one of the app-icon treatments:
-  - [`icons/app-icon-blue.png`](./assets/brand/icons/app-icon-blue.png)
-  - [`icons/app-icon-white.png`](./assets/brand/icons/app-icon-white.png)
-  - [`icons/app-icon-gradient.png`](./assets/brand/icons/app-icon-gradient.png)
+- For square avatars where a flatter treatment fits, use
+  [`icons/icon-flat.png`](./assets/brand/icons/icon-flat.png) or
+  [`icons/icon-monochrome-black.png`](./assets/brand/icons/icon-monochrome-black.png).
+- Source #5 does not provide a separate square app-icon set;
+  a future vector pass would add tinted treatments.
 
 ### Twitter / X / LinkedIn
 
@@ -295,40 +306,38 @@ Do not introduce a third typeface family. Two is the ceiling.
 Listed by folder. All assets are raster (PNG) for now; SVG masters
 are TODO (see §15).
 
+All assets in this inventory are derived from the **locked-in canonical
+brand sheet** (`mockups/brand-sheet.png`). Nothing in the kit comes
+from any earlier brand-sheet iteration.
+
 ### `docs/assets/brand/icons/`
 
-| File | Use | Provenance |
-|---|---|---|
-| `primary-logo.png` | Primary mark, docs/CLI | Source #4 (categorized sheet) |
-| `icon-monochrome-black.png` | Dark themes (black bg / white M) | Source #4 |
-| `icon-monochrome-white.png` | Print/badges (white bg / black M) | Source #4 |
-| `icon-vector-line.png` | Line-art (cyan on dark) | Source #3 (vector master row) |
-| `logo-vector-color.png` | Compact color logo | Source #3 |
-| `svg-icon-mockup.png` | Illustration of icon.svg target | Source #4 |
-| `svg-logo-mockup.png` | Illustration of logo.svg target | Source #4 |
-| `app-icon-blue.png` | Square app icon, blue treatment | Source #2 |
-| `app-icon-white.png` | Square app icon, white treatment | Source #2 |
-| `app-icon-gradient.png` | Square app icon, gradient | Source #2 |
-| `favicon-{16,32,64,128,256,512}.png` | Browser / package icon sizes | Downscaled from `primary-logo.png` |
+| File | Use |
+|---|---|
+| `primary-logo.png` | Primary mark, docs/CLI (PRIMARY LOGO panel) |
+| `icon-monochrome-black.png` | Dark themes (black bg / white M) |
+| `icon-monochrome-white.png` | Print/badges (white bg / black M) |
+| `icon-flat.png` | Flat gradient variant, no glow (FLAT icon from vector master row) |
+| `logo-vector-color.png` | Color glow variant (logo.svg from vector master row) |
+| `favicon-{16,32,64,128,256,512}.png` | Browser / package icon sizes, downscaled from `primary-logo.png` |
 
 ### `docs/assets/brand/wordmark/`
 
 | File | Use |
 |---|---|
-| `wordmark-color.png` | Colored wordmark, dark backgrounds |
-| `wordmark-light.png` | Light-weight wordmark variant |
+| `wordmark-color.png` | The "ManthanOS" wordmark from the PRIMARY LOGO panel |
 
 ### `docs/assets/brand/mockups/`
 
 | File | Use |
 |---|---|
 | `brand-sheet.png` | **Locked-in canonical master reference.** If any guidance in this document conflicts with this image, this image wins. |
-| `hero-presentation.png` | 3D chrome variant for presentation contexts only — not for docs/CLI |
+| `hero-presentation.png` | 3D chrome HERO VARIANT — presentation only, not for docs/CLI |
+| `restrained-glow.png` | Chrome pedestal RESTRAINED GLOW — presentation only |
 | `monochrome-pair.png` | The two monochromes shown side-by-side as reference |
 | `color-palette.png` | The OFFICIAL COLOR PALETTE swatches in isolation (6 colors) |
 | `favicon-stress.png` | The FAVICON STRESS TEST panel showing 10/60/128/256px renderings |
 | `cli-example.png` | CLI prompt mockup as composed on the canonical sheet |
-| `wordmark-on-dark.png` | Wordmark in repo-card context |
 | `meaning.png` | The MEANING (REFINED DESCRIPTIONS) panel |
 
 ---
