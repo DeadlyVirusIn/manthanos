@@ -21,10 +21,11 @@ Local-first, audit-first, single-user. Currently honest about what it has and ha
 - **Phase 3 measurement:** the CpT harness ships; live cross-model results have not been run yet.
 - **License:** BSL 1.1, converts to Apache 2.0 after four years.
 
-See [`docs/TRUTH_CHECKPOINT.md`](./docs/TRUTH_CHECKPOINT.md) for the
-substrate's evidence trail and
-[`docs/POSITIONING_CORRECTION.md`](./docs/POSITIONING_CORRECTION.md) for
-why this README is framed the way it is.
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for how the
+substrate is built and [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md)
+for the measurement design. Internal working notes (positioning
+history, stabilization process, phase governance, founder ops) are
+indexed in [`docs/NOTES.md`](./docs/NOTES.md).
 
 ---
 
@@ -360,25 +361,21 @@ once the cross-tool benefit has been measured rather than asserted.
 
 ## Documentation
 
-Substrate, evidence, and reasoning:
-
-- [`docs/POSITIONING.md`](./docs/POSITIONING.md) — current positioning.
-- [`docs/POSITIONING_CORRECTION.md`](./docs/POSITIONING_CORRECTION.md) —
-  why the framing changed and how it's bounded.
-- [`docs/TRUTH_CHECKPOINT.md`](./docs/TRUTH_CHECKPOINT.md) — what is
-  proven, what is assumed, what is being measured.
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — how the substrate
   is built.
 - [`docs/SAFETY_MODEL.md`](./docs/SAFETY_MODEL.md) — threat model and
   honest disclaimers.
-- [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) — continuity-per-token
-  measurement design.
-- [`docs/STABILIZATION.md`](./docs/STABILIZATION.md) and
-  [`docs/STABILIZATION_VERDICT.md`](./docs/STABILIZATION_VERDICT.md) —
-  the narrowing decision and its scope.
+- [`docs/CONTINUITY_THEORY.md`](./docs/CONTINUITY_THEORY.md) — why
+  trust ladder + audit chain is the design.
+- [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) — the measurement
+  design.
 - [`docs/MVP_ROADMAP.md`](./docs/MVP_ROADMAP.md) — what is next.
 - [`docs/LICENSING_STRATEGY.md`](./docs/LICENSING_STRATEGY.md) —
   why BSL.
+
+Internal working notes (positioning history, stabilization process,
+phase governance, founder ops) are indexed in
+[`docs/NOTES.md`](./docs/NOTES.md).
 
 ---
 

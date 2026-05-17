@@ -5,6 +5,30 @@
 
 ---
 
+## For contributors
+
+If you are writing code in this repo, the docs scoped to a single
+concern each are:
+
+- [ADAPTER_SPEC.md](./ADAPTER_SPEC.md) — provider adapter interface.
+- [WORKFLOWS_SPEC.md](./WORKFLOWS_SPEC.md) — workflow shape (currently
+  one workflow, `plan`).
+- [PLATFORM_LAYER.md](./PLATFORM_LAYER.md) — cross-platform PAL seam.
+- [BOOTSTRAP_PROTOCOL.md](./BOOTSTRAP_PROTOCOL.md) — workspace init
+  and charter extraction.
+- [CRASH_CONSISTENCY.md](./CRASH_CONSISTENCY.md) — audit chain
+  invariants under crash.
+- [FACT_HYGIENE.md](./FACT_HYGIENE.md) — dedup, decay, shaping rules.
+- [OBSERVABILITY.md](./OBSERVABILITY.md) — runtime metrics and
+  diagnostics.
+- [TRUST_OPERATIONS.md](./TRUST_OPERATIONS.md) — promotion / demotion
+  / undo semantics.
+
+Process artifacts, narrative corrections, and phase governance are
+indexed in [NOTES.md](./NOTES.md) — not required for writing code.
+
+---
+
 ## 1. Vision
 
 ManthanOS is a **persistent AI engineering runtime**.
