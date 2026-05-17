@@ -13,10 +13,9 @@ import { getPlatform } from '@manthanos/platform';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-async function openWorkspace(cwd: string): Promise<
-  | { workspaceId: string; m: Awaited<ReturnType<typeof openDb>> }
-  | null
-> {
+async function openWorkspace(
+  cwd: string,
+): Promise<{ workspaceId: string; m: Awaited<ReturnType<typeof openDb>> } | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -103,24 +102,9 @@ export async function runQueueHealth(opts: { cwd: string }): Promise<number> {
     // shows only events written today as a "session burst" — that's
     // a known property of back-dated simulations and not a bug).
     const intros7 = countEventsInWindow(ws.m.handle, ws.workspaceId, 'brain.fact_quarantined', 7);
-    const corrections7 = countEventsInWindow(
-      ws.m.handle,
-      ws.workspaceId,
-      'brain.correction',
-      7,
-    );
-    const intros30 = countEventsInWindow(
-      ws.m.handle,
-      ws.workspaceId,
-      'brain.fact_quarantined',
-      30,
-    );
-    const corrections30 = countEventsInWindow(
-      ws.m.handle,
-      ws.workspaceId,
-      'brain.correction',
-      30,
-    );
+    const corrections7 = countEventsInWindow(ws.m.handle, ws.workspaceId, 'brain.correction', 7);
+    const intros30 = countEventsInWindow(ws.m.handle, ws.workspaceId, 'brain.fact_quarantined', 30);
+    const corrections30 = countEventsInWindow(ws.m.handle, ws.workspaceId, 'brain.correction', 30);
 
     // Unresolved contradiction-shaped clusters across ALL trusted facts.
     const clusters = findDuplicateClusters({
@@ -150,7 +134,9 @@ export async function runQueueHealth(opts: { cwd: string }): Promise<number> {
 
     process.stdout.write('\nRecent activity\n');
     process.stdout.write(`  last 7d  — introductions: ${intros7}  corrections: ${corrections7}\n`);
-    process.stdout.write(`  last 30d — introductions: ${intros30}  corrections: ${corrections30}\n`);
+    process.stdout.write(
+      `  last 30d — introductions: ${intros30}  corrections: ${corrections30}\n`,
+    );
 
     process.stdout.write('\nUnresolved contradiction-shaped clusters\n');
     if (clusters.length === 0) {
@@ -189,8 +175,7 @@ export async function runQueueHealth(opts: { cwd: string }): Promise<number> {
     const warnings: string[] = [];
     if (buckets.stale >= 3) warnings.push(`${buckets.stale} T0 facts older than 60 days`);
     if (oldestDays >= 90) warnings.push(`oldest T0 fact is ${Math.round(oldestDays)}d`);
-    if (net30 > 0 && corrections30 > 0)
-      warnings.push(`queue growing: net +${net30} over last 30d`);
+    if (net30 > 0 && corrections30 > 0) warnings.push(`queue growing: net +${net30} over last 30d`);
     if (clusters.length >= 5) warnings.push(`${clusters.length} duplicate clusters unresolved`);
 
     let status: 'HEALTHY' | 'STRESSED' | 'DEGRADED';

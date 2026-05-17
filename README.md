@@ -315,7 +315,7 @@ read end-to-end and audit end-to-end.
 ### Prerequisites
 
 ```bash
-node --version    # need v20+
+node --version    # need v22.13+ (pnpm 11 requirement)
 pnpm --version    # if missing: `npm install -g pnpm`
 claude --version  # Claude Code CLI: https://claude.com/code
 git --version

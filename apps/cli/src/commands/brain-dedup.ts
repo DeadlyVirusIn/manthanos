@@ -16,15 +16,12 @@ import {
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: ReturnType<typeof createBlobStore>;
-      jsonlPath: string;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: ReturnType<typeof createBlobStore>;
+  jsonlPath: string;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -94,9 +91,7 @@ export async function runDuplicates(opts: DuplicatesOpts): Promise<number> {
       process.stdout.write('\nNo duplicate clusters detected.\n');
       return 0;
     }
-    process.stdout.write(
-      `\n${clusters.length} cluster(s) found — review each before merging.\n`,
-    );
+    process.stdout.write(`\n${clusters.length} cluster(s) found — review each before merging.\n`);
     clusters.forEach((c, i) => renderCluster(c, i));
 
     process.stdout.write(

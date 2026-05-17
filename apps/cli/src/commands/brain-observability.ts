@@ -8,24 +8,21 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { estimateFactTokens, shapeTrustedFacts, type TrustedFact } from '@manthanos/context';
+import { type TrustedFact, estimateFactTokens, shapeTrustedFacts } from '@manthanos/context';
 import { type ManthanSqliteHandle, openDb } from '@manthanos/memory';
 import {
-  computeBrainMetrics,
   DECAY_THRESHOLDS,
   type DecayProfile,
+  computeBrainMetrics,
   findDuplicateClusters,
   planDecay,
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -142,7 +139,9 @@ export async function runHealth(opts: { cwd: string }): Promise<number> {
     process.stdout.write('\nTrusted layer\n');
     process.stdout.write(`  facts (T+1/T+2/T+3):     ${metrics.trustedFacts}\n`);
     process.stdout.write(`  estimated tokens:        ${metrics.trustedTokensEstimated}\n`);
-    process.stdout.write(`  window:                  ${metrics.windowStart || '(none)'} → ${metrics.windowEnd || '(none)'}\n`);
+    process.stdout.write(
+      `  window:                  ${metrics.windowStart || '(none)'} → ${metrics.windowEnd || '(none)'}\n`,
+    );
 
     process.stdout.write('\nRecent activity (last 14d)\n');
     if (recent14.size === 0) {
@@ -155,7 +154,9 @@ export async function runHealth(opts: { cwd: string }): Promise<number> {
     }
 
     process.stdout.write('\nHygiene pressure\n');
-    process.stdout.write(`  stale facts (>60d):      ${metrics.staleFacts}  (ratio ${(metrics.staleRatio * 100).toFixed(1)}%)\n`);
+    process.stdout.write(
+      `  stale facts (>60d):      ${metrics.staleFacts}  (ratio ${(metrics.staleRatio * 100).toFixed(1)}%)\n`,
+    );
     process.stdout.write(`  duplicate clusters:      ${dupClusters.length}\n`);
     if (dupClusters.length > 0) {
       const byArea = new Map<string, number>();
@@ -227,7 +228,9 @@ export async function runEntropy(opts: EntropyOpts): Promise<number> {
 
     process.stdout.write(`manthan brain entropy  (profile=${opts.profile})\n\n`);
     const w = DECAY_THRESHOLDS[opts.profile];
-    process.stdout.write(`Decay thresholds: warn=${w.warn}d, demote=${w.demote}d, archive=${w.archive}d\n`);
+    process.stdout.write(
+      `Decay thresholds: warn=${w.warn}d, demote=${w.demote}d, archive=${w.archive}d\n`,
+    );
 
     process.stdout.write('\nAging breakdown (trusted + T0 facts)\n');
     process.stdout.write(`  fresh:               ${plan.summary.noChange}\n`);
@@ -245,7 +248,9 @@ export async function runEntropy(opts: EntropyOpts): Promise<number> {
           `  [${c.area}] ${c.facts.length} facts  min-jaccard=${c.minPairwiseJaccard.toFixed(2)}\n`,
         );
       }
-      process.stdout.write('\n  → manthan brain duplicates  (for full details + suggested survivor)\n');
+      process.stdout.write(
+        '\n  → manthan brain duplicates  (for full details + suggested survivor)\n',
+      );
     }
 
     process.stdout.write('\nRecent decay/correction activity (last 30d)\n');
@@ -309,7 +314,9 @@ export async function runTokenPressure(opts: TokenPressureOpts): Promise<number>
       });
       const keptTokens = shaped.kept.reduce((s, f) => s + estimateFactTokens(f), 0);
       const droppedByBudget = shaped.omitted.filter((o) => o.reason === 'budget_overflow').length;
-      const droppedByFloor = shaped.omitted.filter((o) => o.reason === 'below_min_confidence').length;
+      const droppedByFloor = shaped.omitted.filter(
+        (o) => o.reason === 'below_min_confidence',
+      ).length;
       const droppedSummary =
         droppedByFloor > 0
           ? `${droppedByBudget} budget + ${droppedByFloor} floor`
@@ -330,7 +337,9 @@ export async function runTokenPressure(opts: TokenPressureOpts): Promise<number>
     process.stdout.write('\nBy area (descending token spend)\n');
     const areaSorted = [...byArea.entries()].sort((a, b) => b[1].tokens - a[1].tokens);
     for (const [area, v] of areaSorted) {
-      process.stdout.write(`  ${area.padEnd(10)} ${String(v.tokens).padStart(5)}t  (${v.count} facts)\n`);
+      process.stdout.write(
+        `  ${area.padEnd(10)} ${String(v.tokens).padStart(5)}t  (${v.count} facts)\n`,
+      );
     }
 
     // Top-5 individual facts.

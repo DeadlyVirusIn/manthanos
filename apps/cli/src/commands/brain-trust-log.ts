@@ -12,14 +12,11 @@ import path from 'node:path';
 import { type BlobStore, createBlobStore, openDb } from '@manthanos/memory';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: BlobStore;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: BlobStore;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -53,7 +50,10 @@ function shortId(id: string): string {
   return id.length > 14 ? `${id.slice(0, 14)}…` : id;
 }
 
-async function readPayload(blobs: BlobStore, hash: string): Promise<Record<string, unknown> | null> {
+async function readPayload(
+  blobs: BlobStore,
+  hash: string,
+): Promise<Record<string, unknown> | null> {
   try {
     const content = await readFile(blobs.pathFor(hash), 'utf8');
     return JSON.parse(content) as Record<string, unknown>;
@@ -70,7 +70,8 @@ function summarizeCorrection(p: Record<string, unknown> | null): string {
   const factId = typeof p.fact_id === 'string' ? p.fact_id : null;
   const note = typeof p.note === 'string' ? p.note : null;
   const factStr = factId ? `  fact=${shortId(factId)}` : '';
-  const noteStr = note && note.length > 0 ? `  note=${note.length > 50 ? `${note.slice(0, 47)}...` : note}` : '';
+  const noteStr =
+    note && note.length > 0 ? `  note=${note.length > 50 ? `${note.slice(0, 47)}...` : note}` : '';
   return `${fromTier} → ${toTier}  reason=${reason}${factStr}${noteStr}`;
 }
 

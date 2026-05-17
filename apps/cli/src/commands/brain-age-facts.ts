@@ -16,15 +16,12 @@ import {
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: ReturnType<typeof createBlobStore>;
-      jsonlPath: string;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: ReturnType<typeof createBlobStore>;
+  jsonlPath: string;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -132,10 +129,7 @@ export async function runAgeFacts(opts: AgeFactsOpts): Promise<number> {
       asOf: opts.asOf,
     });
 
-    renderPlan(
-      plan,
-      `manthan brain age-facts  (${opts.dryRun ? 'DRY RUN' : 'plan preview'})`,
-    );
+    renderPlan(plan, `manthan brain age-facts  (${opts.dryRun ? 'DRY RUN' : 'plan preview'})`);
 
     const actionable = plan.candidates.filter((c) => c.action !== 'none').length;
 
@@ -183,7 +177,7 @@ export async function runAgeFacts(opts: AgeFactsOpts): Promise<number> {
       approver: os.userInfo().username || 'cli',
     });
 
-    process.stdout.write(`\n✓ Decay pass complete.\n`);
+    process.stdout.write('\n✓ Decay pass complete.\n');
     process.stdout.write(`  audit events written: ${result.auditEventsWritten}\n`);
     process.stdout.write(
       `  trusted tokens:       ${plan.trustedTokensBefore} → ${plan.trustedTokensAfter}\n`,

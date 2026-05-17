@@ -13,9 +13,9 @@
 // means different things.
 
 import {
-  auditedWrite,
   type AuditedWriteContext,
   type ManthanSqliteHandle,
+  auditedWrite,
 } from '@manthanos/memory';
 import type { FactTier } from './brain-trust.js';
 
@@ -284,11 +284,7 @@ interface FactRow {
   confidence: number;
 }
 
-function fetchFact(
-  db: ManthanSqliteHandle,
-  workspaceId: string,
-  factId: string,
-): FactRow | null {
+function fetchFact(db: ManthanSqliteHandle, workspaceId: string, factId: string): FactRow | null {
   return (
     (db
       .prepare(
@@ -308,10 +304,7 @@ export async function mergeDuplicates(opts: MergeDuplicatesOptions): Promise<Mer
     throw new DedupError('EMPTY_SUPERSEDED', 'must supersede at least one fact');
   }
   if (opts.supersededIds.includes(opts.survivorId)) {
-    throw new DedupError(
-      'SURVIVOR_IN_SUPERSEDED',
-      'survivor id appears in the superseded list',
-    );
+    throw new DedupError('SURVIVOR_IN_SUPERSEDED', 'survivor id appears in the superseded list');
   }
 
   const survivor = fetchFact(opts.db, opts.workspaceId, opts.survivorId);

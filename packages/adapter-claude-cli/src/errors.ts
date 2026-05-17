@@ -25,7 +25,7 @@ export function mapCliFailure(args: {
   // First, try to parse stdout as a JSON error result (Claude Code emits one
   // for content_filter / context_window even on non-zero exits sometimes).
   const json = tryParseResultJson(args.stdout);
-  if (json && json.is_error) {
+  if (json?.is_error) {
     const code = classifyApiError(json.api_error_status, json.subtype, text);
     return new AdapterError({
       code,
@@ -74,7 +74,8 @@ export function mapCliFailure(args: {
 
   return new AdapterError({
     code: 'internal',
-    message: args.stderr.trim() || args.stdout.trim() || `claude --print exited with ${args.exitCode}`,
+    message:
+      args.stderr.trim() || args.stdout.trim() || `claude --print exited with ${args.exitCode}`,
     retriable: false,
   });
 }

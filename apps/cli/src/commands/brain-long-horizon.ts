@@ -13,16 +13,13 @@ import {
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      manthanDir: string;
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: BlobStore;
-      jsonlPath: string;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  manthanDir: string;
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: BlobStore;
+  jsonlPath: string;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -68,7 +65,10 @@ function summarize(result: LongHorizonResult): string {
   if (!first || !last) return 'no snapshots\n';
 
   const peak = (key: keyof LongHorizonSnapshot) =>
-    s.reduce((m, x) => (typeof x[key] === 'number' && (x[key] as number) > m ? (x[key] as number) : m), 0);
+    s.reduce(
+      (m, x) => (typeof x[key] === 'number' && (x[key] as number) > m ? (x[key] as number) : m),
+      0,
+    );
 
   lines.push('Long-horizon experiment complete.\n');
   lines.push(`  duration:           ${result.weeks} weeks (${result.corpusCycles} corpus cycles)`);
@@ -103,7 +103,9 @@ function summarize(result: LongHorizonResult): string {
   const dTokens = last.trustedTokens - first.trustedTokens;
   const dStale = last.staleRatio - first.staleRatio;
   lines.push('Trend (first snapshot → last)');
-  lines.push(`  T0 queue:          ${first.t0Count} → ${last.t0Count}  (${dt0 >= 0 ? '+' : ''}${dt0})`);
+  lines.push(
+    `  T0 queue:          ${first.t0Count} → ${last.t0Count}  (${dt0 >= 0 ? '+' : ''}${dt0})`,
+  );
   lines.push(
     `  trusted tokens:    ${first.trustedTokens} → ${last.trustedTokens}  (${dTokens >= 0 ? '+' : ''}${dTokens})`,
   );
@@ -122,7 +124,8 @@ function summarize(result: LongHorizonResult): string {
     const monotonicUp = t0s.every((v, i) => i === 0 || v >= (t0s[i - 1] ?? 0));
     lines.push('');
     lines.push('Equilibrium heuristic (last 4 snapshots)');
-    if (allWithin) lines.push('  signal: T0 queue is within ±15% of its tail median → equilibrium-shaped');
+    if (allWithin)
+      lines.push('  signal: T0 queue is within ±15% of its tail median → equilibrium-shaped');
     else if (monotonicUp) lines.push('  signal: T0 queue strictly increasing → runaway-shaped');
     else lines.push('  signal: T0 queue oscillating, not yet at equilibrium');
   }
@@ -187,8 +190,8 @@ export async function runBrainLongHorizon(opts: LongHorizonOpts): Promise<number
 
     process.stdout.write(`\n${summarize(result)}\n`);
     process.stdout.write(`Inspect:  cat ${out} | head\n`);
-    process.stdout.write(`Doctor:   manthan doctor\n`);
-    process.stdout.write(`State:    manthan brain health / queue-health / token-pressure\n`);
+    process.stdout.write('Doctor:   manthan doctor\n');
+    process.stdout.write('State:    manthan brain health / queue-health / token-pressure\n');
 
     // Sanity: print first and last JSONL row as a quick visual check.
     try {

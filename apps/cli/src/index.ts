@@ -284,9 +284,7 @@ brain
   .action(async (opts: { threshold: string; area?: string }) => {
     const threshold = Number.parseFloat(opts.threshold);
     if (!Number.isFinite(threshold) || threshold <= 0 || threshold > 1) {
-      process.stderr.write(
-        'manthan brain duplicates: --threshold must be in (0, 1]\n',
-      );
+      process.stderr.write('manthan brain duplicates: --threshold must be in (0, 1]\n');
       process.exitCode = 2;
       return;
     }
@@ -456,11 +454,7 @@ brain
 brain
   .command('entropy')
   .description('Entropy signals: aging breakdown, dup pressure, recent decay activity')
-  .option(
-    '--threshold-profile <profile>',
-    'conservative | normal | aggressive',
-    'normal',
-  )
+  .option('--threshold-profile <profile>', 'conservative | normal | aggressive', 'normal')
   .action(async (opts: { thresholdProfile: string }) => {
     const valid = ['conservative', 'normal', 'aggressive'];
     if (!valid.includes(opts.thresholdProfile)) {
@@ -487,9 +481,7 @@ brain
     if (opts.minConfidence !== undefined) {
       const v = Number.parseFloat(opts.minConfidence);
       if (!Number.isFinite(v) || v < 0 || v > 1) {
-        process.stderr.write(
-          'manthan brain token-pressure: --min-confidence must be in [0, 1]\n',
-        );
+        process.stderr.write('manthan brain token-pressure: --min-confidence must be in [0, 1]\n');
         process.exitCode = 2;
         return;
       }
@@ -506,11 +498,7 @@ brain
 brain
   .command('age-facts')
   .description('Apply stale-fact decay (confidence reduce / demote / archive)')
-  .option(
-    '--threshold-profile <profile>',
-    'conservative | normal | aggressive',
-    'normal',
-  )
+  .option('--threshold-profile <profile>', 'conservative | normal | aggressive', 'normal')
   .option('--area <area>', 'limit decay to one area')
   .option('--as-of <date>', 'treat <date> as "now" (YYYY-MM-DD or ISO)')
   .option('--dry-run', 'compute the plan but write no audit events')
@@ -567,15 +555,9 @@ brain
   .option('--note <text>', 'note recorded in the dedup_merge audit event')
   .option('--yes', 'skip the confirmation prompt')
   .action(
-    async (
-      survivorId: string,
-      supersededIds: string[],
-      opts: { note?: string; yes?: boolean },
-    ) => {
+    async (survivorId: string, supersededIds: string[], opts: { note?: string; yes?: boolean }) => {
       if (supersededIds.length === 0) {
-        process.stderr.write(
-          'manthan brain merge: provide at least one superseded fact id\n',
-        );
+        process.stderr.write('manthan brain merge: provide at least one superseded fact id\n');
         process.exitCode = 2;
         return;
       }
@@ -608,9 +590,7 @@ brain
     process.exitCode = await runBrainUndo({ cwd: process.cwd(), auditSeq: seq, yes: opts.yes });
   });
 
-const experiments = program
-  .command('experiments')
-  .description('Phase 3 measurement harnesses');
+const experiments = program.command('experiments').description('Phase 3 measurement harnesses');
 
 experiments
   .command('cpt-probe')
@@ -653,7 +633,9 @@ experiments
       }
       const usd = Number.parseFloat(opts.budget);
       if (!Number.isFinite(usd) || usd <= 0) {
-        process.stderr.write('manthan experiments cpt-probe: --budget must be a positive USD value\n');
+        process.stderr.write(
+          'manthan experiments cpt-probe: --budget must be a positive USD value\n',
+        );
         process.exitCode = 2;
         return;
       }

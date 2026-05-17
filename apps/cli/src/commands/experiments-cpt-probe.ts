@@ -20,8 +20,8 @@ import {
   presetToConfig as presetToConfigCli,
 } from '@manthanos/adapter-claude-cli';
 import {
-  createOpenAIAdapter,
   type OpenAIPresetId,
+  createOpenAIAdapter,
   presetToConfig as presetToConfigOpenAI,
 } from '@manthanos/adapter-openai';
 import type { AgentAdapter } from '@manthanos/adapters-sdk';
@@ -125,7 +125,12 @@ async function loadWorkspaceFacts(cwd: string): Promise<WorkspaceFacts | null> {
         `SELECT id, area, statement, tier FROM semantic_facts
          WHERE workspace_id = ? AND tier IN ('T-1','T-2')`,
       )
-      .all(workspaceId) as Array<{ id: string; area: string; statement: string; tier: 'T-1' | 'T-2' }>;
+      .all(workspaceId) as Array<{
+      id: string;
+      area: string;
+      statement: string;
+      tier: 'T-1' | 'T-2';
+    }>;
 
     return {
       trusted: trustedRows.map((r) => ({
@@ -159,10 +164,49 @@ async function loadWorkspaceFacts(cwd: string): Promise<WorkspaceFacts | null> {
 // --------------------------------------------------------------------------
 
 const STOPWORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'be', 'in', 'of', 'and', 'to', 'for', 'with',
-  'on', 'as', 'at', 'by', 'from', 'or', 'we', 'our', 'this', 'that', 'use',
-  'used', 'using', 'will', 'can', 'no', 'not', 'all', 'any', 'should', 'must',
-  'do', 'does', 'did', 'have', 'has', 'had', 'it', 'its', 'their', 'there',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'be',
+  'in',
+  'of',
+  'and',
+  'to',
+  'for',
+  'with',
+  'on',
+  'as',
+  'at',
+  'by',
+  'from',
+  'or',
+  'we',
+  'our',
+  'this',
+  'that',
+  'use',
+  'used',
+  'using',
+  'will',
+  'can',
+  'no',
+  'not',
+  'all',
+  'any',
+  'should',
+  'must',
+  'do',
+  'does',
+  'did',
+  'have',
+  'has',
+  'had',
+  'it',
+  'its',
+  'their',
+  'there',
 ]);
 
 function tokens(text: string): Set<string> {
@@ -239,15 +283,18 @@ function computeObjectiveMetrics(
     outputText === null
       ? []
       : computeFactReferences(
-          facts.trusted.map((f) => ({ id: f.id, area: f.area, statement: f.statement, tier: f.tier })),
+          facts.trusted.map((f) => ({
+            id: f.id,
+            area: f.area,
+            statement: f.statement,
+            tier: f.tier,
+          })),
           outputText,
           4,
         );
 
   const archivedSignals =
-    outputText === null
-      ? []
-      : computeFactReferences(facts.archivedStatements, outputText, 4);
+    outputText === null ? [] : computeFactReferences(facts.archivedStatements, outputText, 4);
 
   const brainAreas = new Set<string>();
   for (const f of facts.trusted) brainAreas.add(f.area);
@@ -379,7 +426,7 @@ async function loadOpenAIKey(): Promise<string | null> {
     const content = await readFile(`${home}/.config/manthan/api-keys.env`, 'utf8');
     for (const line of content.split(/\r?\n/)) {
       const m = /^\s*(?:export\s+)?OPENAI_API_KEY\s*=\s*(['"]?)(.*)\1\s*$/.exec(line);
-      if (m && m[2] && m[2].length > 0) return m[2];
+      if (m?.[2] && m[2].length > 0) return m[2];
     }
   } catch {
     /* file missing — fall through */
@@ -581,7 +628,6 @@ export async function runCptProbe(opts: CptProbeOpts): Promise<number> {
         await writeFile(path.join(outBase, `${wsLabel}.json`), `${JSON.stringify(cap, null, 2)}\n`);
       } catch (err) {
         process.stderr.write(`  ✗ ${wsLabel}: ${(err as Error).message}\n`);
-        continue;
       }
     }
   }

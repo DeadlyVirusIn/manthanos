@@ -197,7 +197,13 @@ function parseCodexOutput(stdout: string): {
     // Fallback: take everything except the metadata header (split on the
     // first '--------' separator after metadata).
     const sepIdx = lines.findIndex((l) => l.trim() === '--------');
-    text = sepIdx >= 0 ? lines.slice(sepIdx + 1).join('\n').trim() : stdout.trim();
+    text =
+      sepIdx >= 0
+        ? lines
+            .slice(sepIdx + 1)
+            .join('\n')
+            .trim()
+        : stdout.trim();
   }
 
   // We don't have a clean input/output split. Estimate input as half the

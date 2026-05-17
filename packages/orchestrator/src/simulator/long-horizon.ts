@@ -20,12 +20,12 @@
 import { writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { type TrustedFact, estimateFactTokens, shapeTrustedFacts } from '@manthanos/context';
 import type { AuditedWriteContext, ManthanSqliteHandle } from '@manthanos/memory';
-import { estimateFactTokens, shapeTrustedFacts, type TrustedFact } from '@manthanos/context';
 import { promoteFact } from '../brain-trust.js';
 import { runDecay } from '../decay.js';
 import { findDuplicateClusters, mergeDuplicates } from '../dedup.js';
-import { ALPHA_SERVICE_CORPUS, runAging, type CorpusFact } from './aging.js';
+import { ALPHA_SERVICE_CORPUS, type CorpusFact, runAging } from './aging.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -228,14 +228,15 @@ async function snapshot(
   let stale = 0;
   for (const f of trusted) {
     const row = facts.find((x) => x.id === f.id);
-    const ts = row ? Date.parse(row.last_corroborated) : NaN;
+    const ts = row ? Date.parse(row.last_corroborated) : Number.NaN;
     if (Number.isFinite(ts) && ts < staleCutoffMs) stale += 1;
   }
   const staleRatio = trusted.length === 0 ? 0 : stale / trusted.length;
 
   // Shaping projection at 1500 token budget.
   const shaped = shapeTrustedFacts(trusted, { trustedFactsTokenBudget: 1500 });
-  const shapingOmissionRateAt1500t = trusted.length === 0 ? 0 : shaped.omitted.length / trusted.length;
+  const shapingOmissionRateAt1500t =
+    trusted.length === 0 ? 0 : shaped.omitted.length / trusted.length;
 
   const trustedTokensPerArchive = tc['T-2'] === 0 ? null : trustedTokens / tc['T-2'];
 
@@ -252,7 +253,8 @@ async function snapshot(
   const avgPromotionLatencyDays =
     windowPromotionLatenciesDays.length === 0
       ? null
-      : windowPromotionLatenciesDays.reduce((a, b) => a + b, 0) / windowPromotionLatenciesDays.length;
+      : windowPromotionLatenciesDays.reduce((a, b) => a + b, 0) /
+        windowPromotionLatenciesDays.length;
 
   return {
     week,
@@ -382,8 +384,7 @@ export async function runLongHorizon(opts: LongHorizonOptions): Promise<LongHori
           weekPromotions += 1;
           const intro = introductionTs.get(f.id);
           if (intro) {
-            const lat =
-              (simulatedNow.getTime() - Date.parse(intro)) / DAY_MS;
+            const lat = (simulatedNow.getTime() - Date.parse(intro)) / DAY_MS;
             if (Number.isFinite(lat) && lat >= 0) weekPromotionLatencies.push(lat);
           }
         } catch {

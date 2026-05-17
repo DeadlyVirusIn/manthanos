@@ -17,16 +17,13 @@ import {
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      manthanDir: string;
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: ReturnType<typeof createBlobStore>;
-      jsonlPath: string;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  manthanDir: string;
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: ReturnType<typeof createBlobStore>;
+  jsonlPath: string;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -87,9 +84,7 @@ export async function runSimulateAging(opts: SimulateAgingOpts): Promise<number>
         );
         return 3;
       }
-      process.stdout.write(
-        'This will write ~150 audit events to the workspace. Continue? [y/N] ',
-      );
+      process.stdout.write('This will write ~150 audit events to the workspace. Continue? [y/N] ');
       const answer = await new Promise<string>((resolve) => {
         process.stdin.once('data', (chunk) => resolve(String(chunk).trim().toLowerCase()));
       });
@@ -184,9 +179,7 @@ export async function runMetrics(opts: { cwd: string }): Promise<number> {
     // PHASE2_THEORY.md §3 — flag the metrics that hint at entropy stress.
     const warnings: string[] = [];
     if (m.trustedFacts >= 30) {
-      warnings.push(
-        `trusted set has ${m.trustedFacts} facts — bundle bloat risk; consider dedup`,
-      );
+      warnings.push(`trusted set has ${m.trustedFacts} facts — bundle bloat risk; consider dedup`);
     }
     if (m.staleRatio >= 0.3) {
       warnings.push(

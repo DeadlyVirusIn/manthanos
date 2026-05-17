@@ -29,10 +29,7 @@ export interface ContextLayer {
   readonly provenance: string;
 }
 
-export type OmissionReason =
-  | 'below_min_confidence'
-  | 'budget_overflow'
-  | 'tier_below_floor';
+export type OmissionReason = 'below_min_confidence' | 'budget_overflow' | 'tier_below_floor';
 
 export interface OmittedFact {
   readonly id: string;

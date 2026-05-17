@@ -18,7 +18,6 @@
 //   - A drop-in for production. The Phase 3 question is binary: does
 //     a healthy brain influence the second model's output?
 
-import OpenAI from 'openai';
 import type {
   AgentAdapter,
   AgentMetadata,
@@ -30,6 +29,7 @@ import type {
   Message,
   ToolCallPart,
 } from '@manthanos/adapters-sdk';
+import OpenAI from 'openai';
 
 export interface OpenAIAdapterConfig {
   readonly apiKey: string;
@@ -76,9 +76,9 @@ function mapFinishReason(stop: string | null | undefined): FinishReason {
   }
 }
 
-function buildResponseFormat(req: AgentRequest):
-  | OpenAI.Chat.Completions.ChatCompletionCreateParams['response_format']
-  | undefined {
+function buildResponseFormat(
+  req: AgentRequest,
+): OpenAI.Chat.Completions.ChatCompletionCreateParams['response_format'] | undefined {
   // E6.1: if a tool is declared, use its input_schema as the strict
   // json_schema response_format. We do NOT use OpenAI's tools/function
   // calling — that path has its own quirks; the user explicitly chose
@@ -97,10 +97,7 @@ function buildResponseFormat(req: AgentRequest):
   };
 }
 
-function synthesizeToolCallFromJson(
-  toolName: string,
-  rawJson: string,
-): ToolCallPart {
+function synthesizeToolCallFromJson(toolName: string, rawJson: string): ToolCallPart {
   // E6.1: response_format guarantees the content is valid JSON conforming
   // to the schema. parse failures throw, which is the documented stopping
   // condition — NO fallback per STABILIZATION §5.2.

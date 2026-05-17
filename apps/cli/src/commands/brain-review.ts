@@ -22,8 +22,8 @@ import readline from 'node:readline/promises';
 import {
   AsyncMutex,
   type BlobStore,
-  createBlobStore,
   type ManthanSqliteHandle,
+  createBlobStore,
   openDb,
 } from '@manthanos/memory';
 import {
@@ -42,15 +42,12 @@ function approver(): string {
   }
 }
 
-async function openWorkspace(cwd: string): Promise<
-  | {
-      workspaceId: string;
-      m: Awaited<ReturnType<typeof openDb>>;
-      blobs: BlobStore;
-      jsonlPath: string;
-    }
-  | null
-> {
+async function openWorkspace(cwd: string): Promise<{
+  workspaceId: string;
+  m: Awaited<ReturnType<typeof openDb>>;
+  blobs: BlobStore;
+  jsonlPath: string;
+} | null> {
   const platform = getPlatform();
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -137,9 +134,7 @@ async function loadCandidates(
        LIMIT ?`,
     )
     .all(
-      ...(opts.area
-        ? [workspaceId, opts.area, opts.limit]
-        : [workspaceId, opts.limit]),
+      ...(opts.area ? [workspaceId, opts.area, opts.limit] : [workspaceId, opts.limit]),
     ) as Array<{
     id: string;
     area: string;
@@ -167,8 +162,7 @@ async function loadCandidates(
     const ageMs = now - Date.parse(r.last_corroborated);
     const ageDays = Math.max(0, Math.round(ageMs / (24 * 60 * 60 * 1000)));
     const similar = trusted.filter(
-      (t) =>
-        t.area === r.area && tokenJaccard(t.statement, r.statement) >= 0.3,
+      (t) => t.area === r.area && tokenJaccard(t.statement, r.statement) >= 0.3,
     );
     result.push({
       factId: r.id,
@@ -186,9 +180,37 @@ async function loadCandidates(
 }
 
 const STOPWORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'be', 'in', 'of', 'and', 'to', 'for', 'with',
-  'on', 'as', 'at', 'by', 'from', 'or', 'we', 'our', 'this', 'that', 'use',
-  'used', 'using', 'will', 'can', 'no', 'not', 'all', 'any',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'be',
+  'in',
+  'of',
+  'and',
+  'to',
+  'for',
+  'with',
+  'on',
+  'as',
+  'at',
+  'by',
+  'from',
+  'or',
+  'we',
+  'our',
+  'this',
+  'that',
+  'use',
+  'used',
+  'using',
+  'will',
+  'can',
+  'no',
+  'not',
+  'all',
+  'any',
 ]);
 
 function tokenSet(text: string): Set<string> {
@@ -276,7 +298,10 @@ const ACTION_LABEL: Record<SelectionAction, string> = {
 function parseRanges(spec: string, max: number): number[] | string {
   // Returns either a sorted unique list of 1-based indices, or an error string.
   const out = new Set<number>();
-  const tokens = spec.trim().split(/[,\s]+/).filter((t) => t.length > 0);
+  const tokens = spec
+    .trim()
+    .split(/[,\s]+/)
+    .filter((t) => t.length > 0);
   for (const t of tokens) {
     if (/^\d+$/.test(t)) {
       const n = Number.parseInt(t, 10);
@@ -388,9 +413,7 @@ async function runInteractive(
       history.push({ factId: id, prev: selections.get(id) });
       selections.set(id, action);
     }
-    process.stdout.write(
-      `  marked ${factIds.length} → ${ACTION_LABEL[action]}\n`,
-    );
+    process.stdout.write(`  marked ${factIds.length} → ${ACTION_LABEL[action]}\n`);
   }
 }
 
@@ -407,7 +430,10 @@ function collect(map: Map<string, SelectionAction>, candidates: ReviewFact[]): S
 function parseBatchSpec(spec: string, count: number): Selection[] | string {
   // Single-shot syntax: "1p 2-3p 4P 5s" — letter suffix per token.
   // Returns selections in input order.
-  const tokens = spec.trim().split(/[,\s]+/).filter((t) => t.length > 0);
+  const tokens = spec
+    .trim()
+    .split(/[,\s]+/)
+    .filter((t) => t.length > 0);
   const seen = new Map<number, SelectionAction>();
   for (const t of tokens) {
     const m = /^(\d+(?:-\d+)?)([pPs])$/.exec(t);
@@ -468,7 +494,7 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
       selections = parsed
         .map((s) => {
           const m = /^__index_(\d+)__$/.exec(s.factId);
-          const idx = m && m[1] ? Number.parseInt(m[1], 10) : -1;
+          const idx = m?.[1] ? Number.parseInt(m[1], 10) : -1;
           const cand = candidates[idx - 1];
           return cand ? { factId: cand.factId, action: s.action } : null;
         })

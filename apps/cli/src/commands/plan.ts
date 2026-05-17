@@ -54,7 +54,7 @@ async function printTrustedFactsPreview(cwd: string): Promise<void> {
   const dbPath = path.join(workspaceRoot, '.manthan', 'memory', 'manthan.db');
   if (!existsSync(dbPath)) {
     process.stdout.write(
-      "Trusted facts entering this prompt: (workspace not initialized — run `manthan init`)\n\n",
+      'Trusted facts entering this prompt: (workspace not initialized — run `manthan init`)\n\n',
     );
     return;
   }
@@ -85,9 +85,7 @@ async function printTrustedFactsPreview(cwd: string): Promise<void> {
     }>;
     process.stdout.write(`Trusted facts entering this prompt (${rows.length}):\n`);
     if (rows.length === 0) {
-      process.stdout.write(
-        '  (none — promote facts after the run to see them next time)\n',
-      );
+      process.stdout.write('  (none — promote facts after the run to see them next time)\n');
     } else {
       for (const r of rows) {
         process.stdout.write(
@@ -239,15 +237,11 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
       process.stdout.write(
         `${bold}${factsCount} fact${factsCount === 1 ? '' : 's'} captured in quarantine.${reset}\n`,
       );
-      process.stdout.write(
-        'Run `manthan brain review` to promote facts you trust.\n',
-      );
+      process.stdout.write('Run `manthan brain review` to promote facts you trust.\n');
       process.stdout.write(
         '  (Type `p 1 2 3` to promote facts 1-3, `s 4` to skip, `q` to commit.)\n',
       );
-      process.stdout.write(
-        "Promoted facts will appear in this project's next plan.\n",
-      );
+      process.stdout.write("Promoted facts will appear in this project's next plan.\n");
       process.stdout.write(`${bold}${rule}${reset}\n`);
     }
     return 0;

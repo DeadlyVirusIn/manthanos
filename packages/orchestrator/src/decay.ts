@@ -23,9 +23,9 @@
 //   - autonomous cleanup
 
 import {
-  auditedWrite,
   type AuditedWriteContext,
   type ManthanSqliteHandle,
+  auditedWrite,
 } from '@manthanos/memory';
 import type { FactTier } from './brain-trust.js';
 

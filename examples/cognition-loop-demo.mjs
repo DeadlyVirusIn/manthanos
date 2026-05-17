@@ -22,7 +22,7 @@
 // and "with promotion" — a byte-level, reproducible artifact.
 
 import { execSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -46,10 +46,7 @@ async function main() {
   execSync('git init -q', { cwd: ws });
   writeFileSync(path.join(ws, 'package.json'), '{"name":"demo","type":"module"}\n');
   mkdirSync(path.join(ws, 'src'), { recursive: true });
-  writeFileSync(
-    path.join(ws, 'src', 'auth.ts'),
-    'export function login() { return "ok"; }\n',
-  );
+  writeFileSync(path.join(ws, 'src', 'auth.ts'), 'export function login() { return "ok"; }\n');
   execSync('git add . && git -c user.email=t@t -c user.name=t commit -m initial -q', {
     cwd: ws,
   });
@@ -70,9 +67,7 @@ async function main() {
   const { compoundFromPlan } = await import(compoundUrl);
 
   const m = await openDb({ dbPath: path.join(ws, '.manthan/memory/manthan.db') });
-  const wsRow = m.handle
-    .prepare('SELECT id FROM workspaces WHERE root_path = ? LIMIT 1')
-    .get(ws);
+  const wsRow = m.handle.prepare('SELECT id FROM workspaces WHERE root_path = ? LIMIT 1').get(ws);
   const blobs = createBlobStore(path.join(ws, '.manthan/audit/blobs'));
   const ctx = {
     db: m.handle,
@@ -133,7 +128,7 @@ async function main() {
   const contextUrl = path.join(REPO, 'packages/context/dist/index.js');
   const { pack } = await import(contextUrl);
 
-  function queryFacts(includeQuarantine) {
+  function queryFacts(_includeQuarantine) {
     const trusted = m.handle
       .prepare(
         `SELECT id, area, statement, tier, confidence, provenance_workflow_id
@@ -192,9 +187,7 @@ async function main() {
   process.stdout.write(
     `  baseline trusted_facts:      ${baselineBundle.metrics.trustedFactsInBundle}\n`,
   );
-  process.stdout.write(
-    `  baseline systemPrompt bytes: ${baselineBundle.systemPrompt.length}\n`,
-  );
+  process.stdout.write(`  baseline systemPrompt bytes: ${baselineBundle.systemPrompt.length}\n`);
 
   // 4. Promote two of the quarantined facts via the real CLI command.
   process.stdout.write('\nSTEP 4 — promote two facts via `manthan brain promote --yes`\n');
@@ -222,10 +215,8 @@ async function main() {
   // 5. Pack the context AFTER promotion — observe the changed prompt.
   process.stdout.write('\nSTEP 5 — pack context AFTER promotion (with trusted facts)\n');
   const m2 = await openDb({ dbPath: path.join(ws, '.manthan/memory/manthan.db') });
-  const wsRow2 = m2.handle
-    .prepare('SELECT id FROM workspaces WHERE root_path = ? LIMIT 1')
-    .get(ws);
-  function queryFacts2(includeQuarantine) {
+  const wsRow2 = m2.handle.prepare('SELECT id FROM workspaces WHERE root_path = ? LIMIT 1').get(ws);
+  function queryFacts2(_includeQuarantine) {
     const trusted = m2.handle
       .prepare(
         `SELECT id, area, statement, tier, confidence, provenance_workflow_id
@@ -282,13 +273,13 @@ async function main() {
   process.stdout.write(
     `  after trusted_facts:         ${afterBundle.metrics.trustedFactsInBundle}\n`,
   );
-  process.stdout.write(
-    `  after systemPrompt bytes:    ${afterBundle.systemPrompt.length}\n`,
-  );
+  process.stdout.write(`  after systemPrompt bytes:    ${afterBundle.systemPrompt.length}\n`);
 
   // 6. Diff.
   process.stdout.write('\nSTEP 6 — prompt diff (the empirical evidence)\n');
-  process.stdout.write(`  bundle_hash changed:         ${baselineBundle.bundleHash !== afterBundle.bundleHash}\n`);
+  process.stdout.write(
+    `  bundle_hash changed:         ${baselineBundle.bundleHash !== afterBundle.bundleHash}\n`,
+  );
   const beforeSet = new Set(baselineBundle.systemPrompt.split('\n'));
   const newLines = afterBundle.systemPrompt.split('\n').filter((l) => !beforeSet.has(l));
   process.stdout.write(`  new lines added: ${newLines.length}\n`);
@@ -308,7 +299,7 @@ async function main() {
     'Empirical claim: promoting facts changes the system prompt byte-identifiable. ✓\n',
   );
   process.stdout.write(
-    'Unproven claim: that Claude\'s output materially changes — requires live ANTHROPIC_API_KEY.\n',
+    "Unproven claim: that Claude's output materially changes — requires live ANTHROPIC_API_KEY.\n",
   );
 }
 

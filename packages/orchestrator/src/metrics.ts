@@ -96,10 +96,7 @@ function meaningfulTokens(text: string): Set<string> {
   return set;
 }
 
-export function computeBrainMetrics(
-  db: ManthanSqliteHandle,
-  workspaceId: string,
-): BrainMetrics {
+export function computeBrainMetrics(db: ManthanSqliteHandle, workspaceId: string): BrainMetrics {
   // Trusted facts (T+1 and above).
   const trustedRows = db
     .prepare(
@@ -173,9 +170,7 @@ export function computeBrainMetrics(
 
   // Workflow & bundle metrics.
   const workflowsRow = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM workflows WHERE workspace_id = ? AND type = 'plan'`,
-    )
+    .prepare(`SELECT COUNT(*) AS n FROM workflows WHERE workspace_id = ? AND type = 'plan'`)
     .get(workspaceId) as { n: number };
   const workflowsRecorded = workflowsRow.n;
 
@@ -184,9 +179,7 @@ export function computeBrainMetrics(
   // For simplicity in this minimal pass, we approximate by scanning the
   // workflows.audit_seq range and reading context_snapshots layers_json.
   const snapshots = db
-    .prepare(
-      `SELECT layers_json FROM context_snapshots WHERE workspace_id = ?`,
-    )
+    .prepare('SELECT layers_json FROM context_snapshots WHERE workspace_id = ?')
     .all(workspaceId) as Array<{ layers_json: string }>;
   let bundleSamples = 0;
   let bundleTrustedFactsSum = 0;
@@ -203,8 +196,7 @@ export function computeBrainMetrics(
       // skip malformed snapshot
     }
   }
-  const avgTrustedFactsPerBundle =
-    bundleSamples === 0 ? 0 : bundleTrustedFactsSum / bundleSamples;
+  const avgTrustedFactsPerBundle = bundleSamples === 0 ? 0 : bundleTrustedFactsSum / bundleSamples;
 
   // Growth-by-week: count brain.correction events that landed a fact at
   // T+1 (or directly at T+2 via corroboration), bucketed by week.
@@ -237,14 +229,10 @@ export function computeBrainMetrics(
 
   // Window.
   const firstRow = db
-    .prepare(
-      `SELECT ts FROM audit_events WHERE workspace_id = ? ORDER BY seq ASC LIMIT 1`,
-    )
+    .prepare('SELECT ts FROM audit_events WHERE workspace_id = ? ORDER BY seq ASC LIMIT 1')
     .get(workspaceId) as { ts: string } | undefined;
   const lastRow = db
-    .prepare(
-      `SELECT ts FROM audit_events WHERE workspace_id = ? ORDER BY seq DESC LIMIT 1`,
-    )
+    .prepare('SELECT ts FROM audit_events WHERE workspace_id = ? ORDER BY seq DESC LIMIT 1')
     .get(workspaceId) as { ts: string } | undefined;
 
   return {

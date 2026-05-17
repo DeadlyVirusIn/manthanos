@@ -63,7 +63,8 @@ export function createClaudeCliAdapter(cfg: ClaudeCliAdapterConfig): AgentAdapte
       if (!binPath) {
         throw new AdapterError({
           code: 'internal',
-          message: '`claude` CLI not found on PATH. Install Claude Code (https://claude.com/claude-code) first.',
+          message:
+            '`claude` CLI not found on PATH. Install Claude Code (https://claude.com/claude-code) first.',
           retriable: false,
         });
       }

@@ -401,7 +401,7 @@ describe('undoCorrection intervening-correction check (stabilization §3.2)', ()
 });
 
 // Stabilization §3.3 — audit metadata decision field
-describe("audit metadata decision field (stabilization §3.3)", () => {
+describe('audit metadata decision field (stabilization §3.3)', () => {
   let dir = '';
   let m: Awaited<ReturnType<typeof setup>>['m'] | null = null;
   let ctx: Awaited<ReturnType<typeof setup>>['ctx'] | null = null;

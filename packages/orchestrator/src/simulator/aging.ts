@@ -15,9 +15,9 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import {
-  auditedWrite,
   type AuditedWriteContext,
   type ManthanSqliteHandle,
+  auditedWrite,
 } from '@manthanos/memory';
 import { ALPHA_SERVICE_CORPUS, type CorpusFact, summarizeCorpus } from './corpus.js';
 

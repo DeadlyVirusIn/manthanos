@@ -297,9 +297,7 @@ export async function undoCorrection(opts: UndoOptions): Promise<CorrectionResul
   if (fact.tier !== original.to_tier) {
     throw new BrainTrustError(
       'INTERVENING_CORRECTION',
-      `cannot undo seq=${opts.auditSeq}: fact is now at ${fact.tier}, ` +
-        `but the correction left it at ${original.to_tier}. ` +
-        'Resolve newer corrections first.',
+      `cannot undo seq=${opts.auditSeq}: fact is now at ${fact.tier}, but the correction left it at ${original.to_tier}. Resolve newer corrections first.`,
     );
   }
 
@@ -405,14 +403,7 @@ async function applyTransition(args: ApplyTransitionInput): Promise<CorrectionRe
                  last_corroborated = ?, last_administratively_touched = ?
              WHERE workspace_id = ? AND id = ?`,
           )
-          .run(
-            args.toTier,
-            toConfidence,
-            effectiveTs,
-            effectiveTs,
-            args.workspaceId,
-            args.fact.id,
-          );
+          .run(args.toTier, toConfidence, effectiveTs, effectiveTs, args.workspaceId, args.fact.id);
       } else {
         args.db
           .prepare(
