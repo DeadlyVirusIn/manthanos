@@ -1,0 +1,1 @@
+Add a write-once audit_log table to the database layer. Each row should record an actor, an action, a timestamp, and an optional payload reference. Writes must be append-only at the schema level. Specify the exact migration filename convention, which database engine the migration targets, and how the new table is exposed to the existing repository code.

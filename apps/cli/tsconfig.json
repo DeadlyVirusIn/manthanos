@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true
+  },
+  "references": [
+    { "path": "../../packages/adapter-claude" },
+    { "path": "../../packages/adapter-claude-cli" },
+    { "path": "../../packages/adapter-codex-cli" },
+    { "path": "../../packages/adapter-gemini-cli" },
+    { "path": "../../packages/adapter-openai" },
+    { "path": "../../packages/adapters-sdk" },
+    { "path": "../../packages/context" },
+    { "path": "../../packages/memory" },
+    { "path": "../../packages/orchestrator" },
+    { "path": "../../packages/platform" },
+    { "path": "../../packages/safety" }
+  ],
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

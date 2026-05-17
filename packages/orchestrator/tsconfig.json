@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true
+  },
+  "references": [
+    { "path": "../adapters-sdk" },
+    { "path": "../context" },
+    { "path": "../memory" },
+    { "path": "../platform" },
+    { "path": "../safety" }
+  ],
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"]
+}

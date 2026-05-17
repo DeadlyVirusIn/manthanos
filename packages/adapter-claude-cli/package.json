@@ -1,0 +1,30 @@
+{
+  "name": "@manthanos/adapter-claude-cli",
+  "version": "0.0.0",
+  "description": "ManthanOS Claude adapter that shells out to the Claude Code CLI (claude --print). Uses the user's Claude subscription quota; no API key required.",
+  "license": "BSL-1.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@manthanos/adapters-sdk": "workspace:*",
+    "@manthanos/platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "manthanos",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ManthanOS — persistent AI engineering runtime (workspace root).",
+  "license": "BSL-1.1",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "pnpm -r --parallel run test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "ci": "pnpm typecheck && pnpm lint && pnpm test",
+    "cli": "node apps/cli/dist/index.js",
+    "cli:dev": "node --import tsx apps/cli/src/index.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

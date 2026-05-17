@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true
+  },
+  "references": [{ "path": "../adapters-sdk" }, { "path": "../platform" }],
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "tests", "**/*.test.ts", "tests/fixtures/**"]
+}

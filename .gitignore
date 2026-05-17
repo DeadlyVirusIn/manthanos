@@ -1,0 +1,39 @@
+# Node
+node_modules/
+*.tsbuildinfo
+dist/
+build/
+.turbo/
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# ManthanOS workspace state (NEVER commit)
+.manthan/
+
+# Secrets (defense in depth — keys should live outside the repo)
+*.env
+*.env.local
+.env*
+secrets.enc
+**/api-keys.env
+
+# Review artifacts kept as hidden files in docs/
+# (they ARE checked in deliberately as audit; remove the leading ! to ignore them)
+!docs/.review-*.md
+!docs/.hardening-*.md
+
+# npm pack tarballs
+*.tgz

@@ -1,0 +1,43 @@
+{
+  "name": "@manthanos/cli",
+  "version": "0.0.0",
+  "description": "manthan — the ManthanOS CLI.",
+  "license": "BSL-1.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "manthan": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@manthanos/adapter-claude": "workspace:*",
+    "@manthanos/adapter-claude-cli": "workspace:*",
+    "@manthanos/adapter-codex-cli": "workspace:*",
+    "@manthanos/adapter-gemini-cli": "workspace:*",
+    "@manthanos/adapter-openai": "workspace:*",
+    "@manthanos/adapters-sdk": "workspace:*",
+    "@manthanos/context": "workspace:*",
+    "@manthanos/memory": "workspace:*",
+    "@manthanos/orchestrator": "workspace:*",
+    "@manthanos/platform": "workspace:*",
+    "@manthanos/safety": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

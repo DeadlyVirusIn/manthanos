@@ -1,0 +1,21 @@
+Project: ManthanOS
+Author: DeadlyVirusIn
+Copyright (c) 2026 DeadlyVirusIn
+License: Business Source License 1.1
+
+Trademark note:
+  "ManthanOS" is a project name/trademark of DeadlyVirusIn.
+  The license granted in LICENSE does not include any right to use
+  this name except as needed for accurate reference to the project.
+
+License summary:
+  This product is licensed under the Business Source License 1.1
+  (see LICENSE). The Business Source License is not an Open Source
+  license; per its parameters, this software automatically converts
+  to the Apache License 2.0 four years after each release.
+
+Third-party software:
+  This product uses or will use third-party software whose licenses
+  are noted in their respective package.json or repository. A full
+  third-party attribution list will be maintained in NOTICE-THIRD-PARTY
+  as those dependencies are introduced.

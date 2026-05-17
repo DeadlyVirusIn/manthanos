@@ -1,0 +1,30 @@
+{
+  "name": "@manthanos/adapter-openai",
+  "version": "0.0.0",
+  "description": "OpenAI adapter for ManthanOS — minimal implementation built for E6.1 (cross-model continuity validation). Uses response_format json_schema; no fallback parser.",
+  "license": "BSL-1.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "openai": "^4.67.0",
+    "@manthanos/adapters-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

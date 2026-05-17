@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "resolveJsonModule": true
+  },
+  "references": [{ "path": "../adapters-sdk" }, { "path": "../platform" }, { "path": "../safety" }],
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"]
+}

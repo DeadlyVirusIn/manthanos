@@ -1,0 +1,1 @@
+Wire up integration tests for the new POST /api/v1/users endpoint. The endpoint creates a user record and returns the created user. Cover the success path, the validation-failure path, and idempotency on duplicate email. Specify which test framework the test file should use, where the test file lives, how the database is set up for the test, and how state is reset between tests.

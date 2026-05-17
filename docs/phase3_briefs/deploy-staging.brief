@@ -1,0 +1,1 @@
+Set up a staging deploy for the auth service. The staging environment should mirror production's runtime topology, accept traffic at a staging-only hostname, and require human approval before any deploy reaches it. Specify the exact platform/host the staging environment runs on, how the deploy is triggered, where approval gating lives, and how the staging hostname is configured.
