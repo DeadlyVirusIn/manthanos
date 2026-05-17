@@ -1,12 +1,8 @@
 <div align="center">
 
-<img src="./docs/assets/brand/icons/primary-logo.png"
-     alt="ManthanOS logo — circular badge with stylized M and circuit motif"
-     width="120" />
-
-# ManthanOS
-
-### Continuity infrastructure for multi-model engineering workflows.
+<img src="./docs/assets/brand/lockup/manthanos-lockup.png"
+     alt="ManthanOS — continuity infrastructure for multi-model AI engineering"
+     width="560" />
 
 A local CLI that holds your project's decisions and facts in a workspace,
 records what each AI session produces, lets you promote what's worth keeping,

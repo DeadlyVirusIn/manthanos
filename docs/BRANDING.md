@@ -137,31 +137,38 @@ monochrome variant.
 
 ## 6. README usage
 
-The README uses **a small, centered primary mark above the title**.
-The text title is preserved. The image must:
+The README uses **the lockup variant as a single header image**,
+replacing the previous small-badge + text-title pattern.
 
-- Use the colored primary mark on dark backgrounds (GitHub default).
-- Be set to roughly 96–128 px height — not larger.
-- Stay inside the existing `<div align="center">` block.
-- Include alt-text describing the badge ("ManthanOS logo — circular
-  badge with stylized M, circuit motif") so screen readers and image-off
-  contexts degrade gracefully.
+- File: [`lockup/manthanos-lockup.png`](./assets/brand/lockup/manthanos-lockup.png)
+- Width: 560 px in the README.
+- Composition: badge + "ManthanOS" wordmark + tagline
+  ("CONTINUITY INFRASTRUCTURE for MULTI-MODEL AI ENGINEERING") in one
+  cohesive lockup, on dark navy background.
+- Alt text is **load-bearing** because the H1 and H3 are no longer
+  rendered as text — screen readers, image-off contexts, and search
+  crawlers see only the alt string. Use:
+  `"ManthanOS — continuity infrastructure for multi-model AI engineering"`.
 
-Markdown convention used:
+Markdown convention:
 
 ```markdown
 <div align="center">
 
-<img src="./docs/assets/brand/icons/primary-logo.png"
-     alt="ManthanOS logo"
-     width="120" />
+<img src="./docs/assets/brand/lockup/manthanos-lockup.png"
+     alt="ManthanOS — continuity infrastructure for multi-model AI engineering"
+     width="560" />
 
-# ManthanOS
+A short descriptive paragraph below the lockup, in plain markdown.
+
+</div>
 ```
 
 **Do not:**
 
-- Add multiple logos to the README header.
+- Add a separate small badge above or beside the lockup.
+- Add an H1 `# ManthanOS` heading below the lockup (the lockup
+  contains the wordmark; an H1 is redundant).
 - Replace the text title with an image.
 - Embed the brand sheet ("hero variant") in the README.
 - Add a banner image stretched across the README width.
@@ -330,6 +337,12 @@ from any earlier brand-sheet iteration.
 | `wordmark-color.png` | The "ManthanOS" wordmark from the PRIMARY LOGO panel — small inline use |
 | `wordmark-large.png` | The large "ManthanOS" master file from section 5 — for headers, social cards |
 
+### `docs/assets/brand/lockup/`
+
+| File | Use |
+|---|---|
+| `manthanos-lockup.png` | Badge + wordmark + tagline composed together. **The README header.** Also use as-is on GitHub social preview cards and slide titles. |
+
 ### `docs/assets/brand/mockups/`
 
 All cropped from the brand sheet's labeled sections.
@@ -349,16 +362,20 @@ All cropped from the brand sheet's labeled sections.
 
 ---
 
-## 14. Tagline note
+## 14. Tagline
 
-The canonical brand sheet carries the tagline:
-**"CONTINUITY INFRASTRUCTURE / for MULTI-MODEL AI ENGINEERING"**.
+The operational tagline (as rendered on the README via the lockup) is:
 
-This is close to but not identical to the README's H3:
-**"Continuity infrastructure for multi-model engineering workflows."**
+> **CONTINUITY INFRASTRUCTURE for MULTI-MODEL AI ENGINEERING**
 
-The README's wording is the operational source of truth. For composed
-assets (social cards, slide decks), either tagline is acceptable.
+This is the version baked into the lockup image. Use this exact
+wording on any composed asset (social cards, slide titles, etc.).
+
+A slightly different earlier wording — "Continuity infrastructure
+for multi-model engineering workflows" — appears in some internal
+docs (`POSITIONING.md`, `POSITIONING_CORRECTION.md`). That phrasing
+is fine in prose; the lockup-tagline is the canonical public one.
+
 Avoid any variant that mentions "multi-tenant" — multi-tenant is on
 the deferred-list per `POSITIONING_CORRECTION.md` §3 and `README.md` §4.
 
