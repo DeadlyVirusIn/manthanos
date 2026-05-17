@@ -13,6 +13,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Opt every JavaScript action (actions/checkout, actions/setup-node,
+  # pnpm/action-setup) into Node 24 internally, silencing the Node-20
+  # deprecation warning. GitHub will make this the default on 2026-06-02;
+  # we set it explicitly so the warning doesn't appear on every CI run
+  # until then.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   ci:
     name: ${{ matrix.os }} / Node ${{ matrix.node }}
