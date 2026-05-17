@@ -550,6 +550,19 @@ no-brain baseline does not?
 
 ### 6.4 Measurement
 
+> **Footnote (added 2026-05-17 by `docs/POSITIONING_CORRECTION.md`).**
+> The scope rule below is a **measurement scope**, not a **product scope**.
+> *Measurement scope:* we do not publicly claim cross-model effect on
+> output quality until E6.1 produces a number.
+> *Product scope:* the substrate already addresses the multi-tool case
+> by construction — the brain is provider-agnostic and adapters exist
+> for Claude (API+CLI), Codex CLI, Gemini CLI, and OpenAI. The product
+> records and presents continuity across whichever tool runs the next
+> workflow; it just does not yet assert that doing so improves the
+> next tool's output. The README and `docs/POSITIONING.md` were
+> over-narrowed during stabilization because this distinction was not
+> documented. This footnote is the correction.
+
 Two objective signals plus one binary judgment.
 
 - **Trusted-fact reference count** (already implemented in

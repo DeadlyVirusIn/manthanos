@@ -1,21 +1,41 @@
 # ManthanOS — Positioning
 
-> Trust-gated project continuity for AI-assisted software engineering.
-> Status: empirically narrowed after Phase 1.6 live experiment.
-> Last revised: 2026-05-15.
+> Continuity infrastructure for multi-model engineering workflows.
+> Local-first, audit-first, human-gated.
+> Status: narrative corrected after stabilization over-narrowed the framing.
+> Last revised: 2026-05-17. See `docs/POSITIONING_CORRECTION.md` for the
+> correction that triggered this revision.
 
 ---
 
 ## 1. What ManthanOS is
 
-**ManthanOS is a trust-gated project continuity engine for AI-assisted
-software engineering.**
+**ManthanOS is a local workspace that holds your project's decisions
+and facts so the next AI tool you open already knows what the last
+one decided.**
 
-It captures the architectural decisions, assumptions, and risks that
-emerge as you work with AI on a codebase, holds them at human-gated
-trust tiers, and re-injects the trusted subset into the prompts of
-future AI workflows — so the next plan continues the project's
-commitments instead of drifting away from them.
+The pain it addresses is structural: engineers using AI seriously on a
+real codebase don't stay in one tool. ChatGPT for framing, Claude for
+implementation, Codex or Gemini for review. Each tool starts every
+session as if the project never happened, and the human is the only
+one keeping the books across them. ManthanOS records what each session
+produces, lets the human promote what's worth keeping, and presents
+that record to whichever tool runs next — through provider adapters
+that all share one audit chain and one trust ladder.
+
+What the substrate makes durable (and what each `manthan plan`
+captures) is the architectural decisions, assumptions, and risks that
+emerge as you work with AI on a codebase. They land at T0 (quarantine).
+Human review elevates the ones worth keeping. Future workflows' prompts
+include the trusted subset, tagged with tier and provenance, regardless
+of which adapter sends them.
+
+**Important measurement boundary.** The substrate's capture / promote /
+present mechanic is implemented and tested. Whether populating the
+trusted layer in one tool measurably improves a *different* tool's
+output is being measured (see `docs/PHASE3_CPT.md` and
+`docs/TRUTH_CHECKPOINT.md` §6.4). Until that measurement produces a
+number, the claim stops at "presented" — not "improves."
 
 That single sentence is the whole product. The supporting capabilities
 exist to make that loop reliable, replayable, and safe:
