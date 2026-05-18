@@ -49,6 +49,14 @@ public repo.
 - [OBSERVABILITY.md](./OBSERVABILITY.md) — Runtime metrics and
   diagnostics surfaces.
 
+## Operator guides
+
+- [REPLAY_WALKTHROUGH.md](./REPLAY_WALKTHROUGH.md) — How to read
+  `manthan replay` output. The four statuses, how to interpret
+  failures, how to use `.manthan/audit-corruption.log`, and how to
+  attach replay output to issue reports. Canonical operator
+  reference for the replay surface.
+
 ## Validation (epistemic discipline)
 
 - [TRUTH_CHECKPOINT.md](./TRUTH_CHECKPOINT.md) — Validated vs

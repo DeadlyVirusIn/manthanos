@@ -14,6 +14,9 @@ body:
         We need enough detail to replay the run and compare against
         what you saw. Run IDs and `manthan replay` output are the
         most useful evidence.
+
+        If you're unsure how to read replay output, see
+        [`docs/REPLAY_WALKTHROUGH.md`](../blob/main/docs/REPLAY_WALKTHROUGH.md).
   - type: input
     id: manthan-version
     attributes:

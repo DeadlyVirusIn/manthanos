@@ -9,6 +9,10 @@ body:
         Thanks for reporting. The fields below help us reproduce the
         issue against the same workspace state you saw. Skip anything
         that doesn't apply.
+
+        If your issue involves `manthan replay`, see
+        [`docs/REPLAY_WALKTHROUGH.md`](../blob/main/docs/REPLAY_WALKTHROUGH.md)
+        for how to read the output and what to attach.
   - type: input
     id: manthan-version
     attributes:
