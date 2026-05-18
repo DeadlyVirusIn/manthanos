@@ -15,6 +15,12 @@ export type {
 } from './audited-write.js';
 
 export { runRecovery } from './recovery.js';
-export type { RecoveryInput, RecoveryReport } from './recovery.js';
+export type {
+  RecoveryFinding,
+  RecoveryFindingCategory,
+  RecoveryInput,
+  RecoveryReport,
+  RecoveryStatus,
+} from './recovery.js';
 
 export { MIGRATIONS } from './schema.js';

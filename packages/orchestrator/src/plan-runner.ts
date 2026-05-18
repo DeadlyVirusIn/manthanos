@@ -138,11 +138,20 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       jsonlPath,
       workspaceId,
     });
-    if (!recovery.chainOk) {
+    // Mutating workflows refuse to run unless recovery is clean or
+    // only had recoverable reconciliations (orphan blobs, tail-of-JSONL
+    // append). `corrupted` and `unrecoverable` require operator
+    // inspection of .manthan/audit-corruption.log before the system
+    // can be trusted to write new audit events.
+    if (recovery.status !== 'clean' && recovery.status !== 'partial') {
       throw new RunPlanError(
         'CHAIN_CORRUPTED',
-        `audit chain failed verification at seq=${recovery.chainFailedAtSeq}`,
-        { failedAtSeq: recovery.chainFailedAtSeq },
+        `recovery status=${recovery.status}; ${recovery.findings.length} corruption finding(s). Inspect .manthan/audit-corruption.log; refusing to mutate.`,
+        {
+          status: recovery.status,
+          findings: recovery.findings,
+          failedAtSeq: recovery.chainFailedAtSeq,
+        },
       );
     }
 

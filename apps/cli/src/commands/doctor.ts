@@ -12,7 +12,13 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { createBlobStore, openDb, runRecovery } from '@manthanos/memory';
+import {
+  type RecoveryFinding,
+  type RecoveryStatus,
+  createBlobStore,
+  openDb,
+  runRecovery,
+} from '@manthanos/memory';
 import { getPlatform } from '@manthanos/platform';
 import { scanGitHooks } from '@manthanos/safety';
 
@@ -57,6 +63,8 @@ export interface DoctorReport {
   readonly chainOk?: boolean;
   readonly auditEvents?: number;
   readonly gitHooksDetected?: number;
+  readonly recoveryStatus?: RecoveryStatus;
+  readonly recoveryFindings?: ReadonlyArray<RecoveryFinding>;
 }
 
 async function checkAdapters(
@@ -200,6 +208,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
     const hooks = await scanGitHooks(workspaceRoot);
 
     process.stdout.write('  workspace: initialized\n');
+    process.stdout.write(`  recovery status: ${statusBanner(report.status)}\n`);
     process.stdout.write(`  audit chain: ${report.chainOk ? 'ok' : 'FAILED'}`);
     if (!report.chainOk) {
       process.stdout.write(` (at seq=${report.chainFailedAtSeq})`);
@@ -207,6 +216,19 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
     process.stdout.write('\n');
     process.stdout.write(`  events:      ${report.chainCheckedEvents}\n`);
     process.stdout.write(`  orphan blobs: ${report.orphanBlobsFound}\n`);
+    if (report.findings.length > 0) {
+      process.stdout.write('  corruption findings:\n');
+      for (const f of report.findings) {
+        process.stdout.write(`    - [${f.category}] ${f.detail}`);
+        if (f.seq !== undefined) process.stdout.write(`  (seq=${f.seq})`);
+        process.stdout.write('\n');
+        if (f.expected !== undefined && f.actual !== undefined) {
+          process.stdout.write(`        expected: ${f.expected}\n`);
+          process.stdout.write(`        actual:   ${f.actual}\n`);
+        }
+      }
+      process.stdout.write('  manual inspection required — see .manthan/audit-corruption.log.\n');
+    }
     if (hooks.length > 0) {
       process.stdout.write(`  git hooks detected: ${hooks.length}\n`);
       for (const h of hooks) {
@@ -231,8 +253,25 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
       chainOk: report.chainOk,
       auditEvents: report.chainCheckedEvents,
       gitHooksDetected: hooks.length,
+      recoveryStatus: report.status,
+      recoveryFindings: report.findings,
     };
   } finally {
     m.close();
+  }
+}
+
+function statusBanner(status: RecoveryStatus): string {
+  // CLI wording discipline: no "recovered perfectly", "repaired
+  // automatically", or "guaranteed integrity". Status terms only.
+  switch (status) {
+    case 'clean':
+      return 'clean';
+    case 'partial':
+      return 'partial (recoverable reconciliations applied)';
+    case 'corrupted':
+      return 'CORRUPTED — corruption detected; mutating operations refused';
+    case 'unrecoverable':
+      return 'UNRECOVERABLE — manual inspection required';
   }
 }
