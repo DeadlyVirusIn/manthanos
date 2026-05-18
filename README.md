@@ -132,13 +132,18 @@ Capability surface:
   migration that fixed the prior semantic bug.
 - **Queue health.** `manthan brain queue-health` reports backlog,
   aging buckets, drain rate, and a degraded/stressed/healthy verdict.
-- **Replay (recorded-run inspection).** `manthan replay <runId>`
-  reads back the audit records for a past run — recorded bundle
-  hash, payload hash, usage, recorded adapter response (with
-  `--show-text`). It is **not** byte-identity bundle reconstruction
-  with re-hash verification; the rendered prompt is not stored, so
-  exact reconstruction is a Phase 2.5 design target. See
-  [`docs/TRUTH_CHECKPOINT.md` §2.4](./docs/TRUTH_CHECKPOINT.md#24-the-replay-claim-does-not-match-implementation).
+- **Replay (integrity verification of recorded artifacts).**
+  `manthan replay <runId>` reports one of four statuses:
+  `verified` / `legacy` / `unverifiable` / `corrupted`. It
+  recomputes the audit-chain hashes, each audit event's payload
+  blob hash, the canonical-response hash inside the `agent.invoke`
+  blob, and the bundle hash from stored per-layer metadata in
+  `context_snapshots`. Corruption always wins (any explicit hash
+  mismatch resolves the overall status to `corrupted`, even if
+  other checks pass). What replay does **not** do: re-invoke the
+  model, claim the model would produce the same response today,
+  or check whether the underlying source / git state is unchanged
+  since the run. No network calls.
 - **CpT measurement harness.** `manthan experiments cpt-probe` runs the
   same brief across multiple workspaces and records objective
   shared-vocabulary metrics. Phase 3 only; produces signal, not scores.
@@ -161,8 +166,9 @@ checkpoint:
 ### Validated
 
 - **The substrate runs and persists state.** Workspaces survive crashes,
-  the audit chain reconstructs across restarts, replay reproduces
-  recorded runs.
+  the audit chain reconstructs across restarts, and `manthan replay`
+  mechanically verifies the integrity of recorded artifacts (chain,
+  blob hashes, canonical-response hash, bundle hash).
 - **Trust transitions are deterministic and human-gated.** Promote,
   demote, undo, and dedup-merge are all chain entries with full
   provenance. The undo-correction path has an `INTERVENING_CORRECTION`

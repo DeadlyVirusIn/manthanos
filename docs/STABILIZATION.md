@@ -335,32 +335,44 @@ and re-hardcode `'auto-approve'`. Trivial.
 
 ### 3.4 Replay verification truth reconciliation
 
-**Root cause:** `replayRun` (`packages/orchestrator/src/replay.ts:97-138`)
-inspects recorded values rather than recomputing the bundle hash and
-comparing. POSITIONING.md and README claim "deterministic replay
-verifies past runs." The claim is unsupported.
+**Status (2026-05-18, P0.3): CLOSED via code, not documentation.**
 
-**Exact fix (documentation, not code):**
+The original stabilization plan proposed a documentation-only downgrade
+("inspect", not "verify"). P0.3 instead closed the gap by implementing
+the mechanical verifier the documentation was implying:
 
-This is a documentation-only fix during stabilization. The code change
-to actually recompute is deferred (§2.2).
+- P0.1 persisted `canonical_hash` inside each `agent.invoke` audit
+  payload so the canonical projection has a stored hash to compare
+  against on replay.
+- P0.3 Commit A added per-layer `content_sha256` to
+  `context_snapshots.layers_json` and a `recomputeBundleHash` helper
+  in `@manthanos/context`, enabling bundle-hash recompute from
+  stored data alone.
+- P0.3 Commit B replaced the inspection-style `replayRun` with a
+  verifier that emits one of four statuses (`verified` / `legacy` /
+  `unverifiable` / `corrupted`) with per-check outcomes and explicit
+  failure / legacy / unverifiable reasons. Corruption always wins.
+- Tests in `packages/orchestrator/tests/replay-verifier.test.ts` pin
+  each status against a deliberate fault injection.
 
-1. Rename the user-facing CLI hint: keep `manthan replay <runId>` (no
-   command rename), but update its `--help` text to *"Inspect a
-   recorded workflow run from audit + blobs (no hash verification)."*
-2. Strike the word "verify" / "verification" from `replay.ts` doc
-   comments where they currently appear.
-3. In TRUTH_CHECKPOINT.md §2.4, this is already noted as INVALIDATED.
-4. README + POSITIONING changes per §4.
+**Out of scope (still disclaimed in README + `replay.ts`):**
+re-invocation of the model, checking upstream source / git state,
+and semantic equivalence are explicitly not what replay verifies.
 
-**Migration implications:** none.
+**Historical text (the original stabilization plan):**
 
-**Risk level:** LOW.
+The fix below was the documentation-only plan written during
+stabilization. It was superseded by the P0.3 code work above.
 
-**Required tests:** none new; existing replay tests continue to test
-what the code actually does (inspect).
-
-**Rollback strategy:** revert documentation. Trivial.
+> 1. Rename the user-facing CLI hint: keep `manthan replay <runId>`
+>    (no command rename), but update its `--help` text to *"Inspect
+>    a recorded workflow run from audit + blobs (no hash
+>    verification)."*
+> 2. Strike the word "verify" / "verification" from `replay.ts` doc
+>    comments where they currently appear.
+> 3. In TRUTH_CHECKPOINT.md §2.4, this is already noted as
+>    INVALIDATED.
+> 4. README + POSITIONING changes per §4.
 
 ### 3.5 PAL enforcement truth reconciliation
 
@@ -407,13 +419,27 @@ with this new text." Do not invent additional changes.
 
 ### 4.2 README — replay verification claim
 
-**Find** (substantively):
-> *"deterministic replay verifies past runs"*
+**Status (2026-05-18, P0.3): SUPERSEDED.** The stabilization-era
+wording downgraded the claim from "verifies" to "inspects" because
+the code did not match. P0.3 made the code match the original claim
+direction (mechanical verification of recorded artifacts), so the
+README now describes the four-status verifier rather than inspection.
 
-**Replace with:**
-> *"deterministic inspection of past runs from the audit chain and
-> content-addressed blob store. Bundle-hash recomputation is not yet
-> implemented (see docs/STABILIZATION.md §3.4)."*
+**Historical wording proposed during stabilization (kept for record,
+not active):**
+
+> **Find** (substantively): *"deterministic replay verifies past
+> runs"*
+>
+> **Replace with**: *"deterministic inspection of past runs from
+> the audit chain and content-addressed blob store. Bundle-hash
+> recomputation is not yet implemented (see docs/STABILIZATION.md
+> §3.4)."*
+
+**Current wording in `README.md`** (post-P0.3): describes the four
+statuses (`verified` / `legacy` / `unverifiable` / `corrupted`),
+the recomputed hashes, and the disclaimed limits (no model
+re-invocation, no source-state check, no semantic equivalence).
 
 ### 4.3 README — tamper-evident claim
 

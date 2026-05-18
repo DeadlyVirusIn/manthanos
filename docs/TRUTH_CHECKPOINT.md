@@ -185,7 +185,23 @@ review. These are not future risks; they are current defects.
 
 ### 2.4 The replay claim does not match implementation
 
-- **Status**: DOCUMENTATION OVERCLAIM. Codex finding, code-verified.
+- **Status**: CLOSED in P0.3 (2026-05-18). The historical text is
+  preserved below as the record of the gap that was closed.
+- **What was implemented**: `replayRun` now mechanically verifies
+  (a) the audit chain, (b) each audit event's payload blob hash,
+  (c) the `agent.invoke` canonical-response hash (via P0.1's
+  `canonical_hash` field), and (d) the bundle hash via
+  `recomputeBundleHash` (via P0.3 Commit A's per-layer
+  `content_sha256` in `context_snapshots.layers_json`). The CLI
+  emits one of four statuses: `verified` / `legacy` /
+  `unverifiable` / `corrupted`. Corruption always wins. What replay
+  still does not do: re-invoke the model, check upstream source
+  state, or verify semantic equivalence. Those are out of scope
+  and remain disclaimed in `README.md` and
+  `packages/orchestrator/src/replay.ts`.
+
+**Historical record (gap as it stood before the fix):**
+
 - **Mechanism**: `replayRun` reads recorded values from the audit log
   + blob store and returns them (`packages/orchestrator/src/replay.ts:97-138`).
   It does NOT reconstruct the bundle, recompute the bundle hash, or
