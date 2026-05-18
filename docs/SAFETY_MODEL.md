@@ -1,7 +1,50 @@
 # ManthanOS — Safety Model
 
 > The rules and mechanisms that make ManthanOS safe-by-default.
-> Status: design lock — pre-implementation.
+
+---
+
+## Implementation status
+
+This document mixes implemented safety primitives with specced
+behavior that is not yet wired. Use this table before relying on
+any specific command or guarantee.
+
+| Section | Status | Notes |
+|---|---|---|
+| §1 Premise · §2 Threat model · §3 Action taxonomy · §4 Default policies | **[informational]** | Design rationale; no runtime surface. |
+| §5 Non-bypassable rules — shell denylist | **[implemented]** | `packages/safety/src/denylist.ts`; covers `rm -rf` against root/home/system dirs, pipe-to-shell, base64-decode-execute, PowerShell encoded commands. |
+| §5 Non-bypassable rules — secret redactor | **[implemented]** | `packages/safety/src/redactor.ts`; applied to adapter outputs in `plan-runner.ts`. |
+| §6 The approval gate (interactive diff/approve/reject UX) | **[specced, not built]** | The interactive `(a)pprove · (r)eject · (e)dit` flow and the `manthan implement` command shown here do not exist in the CLI yet. They are the design target for Phase 4. |
+| §7 Audit log — hash chain | **[implemented]** | `packages/memory/src/audited-write.ts` + `packages/memory/src/recovery.ts`. Detects accidental corruption; not tamper-proof against an attacker with workspace write access. |
+| §7 Audit log — `manthan audit tail / verify / grep` commands | **[specced, not built]** | The chain exists; the user-facing commands do not. Inspect via `manthan replay <runId>` or by reading `.manthan/audit.log` directly. |
+| §8 Secret handling — `~/.config/manthan/api-keys.env` | **[implemented]** | `apps/cli/src/auth-store.ts`. File mode 0o600; directory mode 0o700. |
+| §8 Secret handling — `manthan secrets rotate / show / clear` | **[specced, not built]** | Only `manthan auth --set global` exists today. |
+| §9 Shell execution — PAL spawn | **[implemented]** | All subprocess invocations go through `packages/platform/src/process.ts`. |
+| §10 Git safety | **[informational]** | Reasoning behind the audit chain's relationship to git. |
+| §11 Plugin trust | **[informational]** | Architecture intent; first-party adapters are trusted. |
+| §11b Prompt injection from repo content | **[partially implemented]** | XML-tagged wrapper + trust-tag classification is in `packages/context/src/packer.ts`. Per-tool-output classification ladder (§11b.1) is in `packages/orchestrator/src/plan-runner.ts`. |
+| §11d Git hook scanning | **[partially implemented]** | `packages/safety/src/git-hooks.ts` detects executable hooks; `manthan doctor` surfaces them informationally. The `manthan git-hooks review` approval flow and `core.hooksPath` resolution are not yet wired. |
+| §11e Path / symlink attacks | **[informational]** | PAL path canonicalization is in `packages/platform/src/path.ts`. Workspace-boundary containment for `--file` args is **not yet enforced** (OCTO_REVIEW §C4). |
+| §11c Shell escalation through package.json | **[informational]** | Design intent; no enforcement code yet. |
+| §12 Adversarial scenarios | **[informational]** | Worked examples. |
+| §13 Observability — `manthan policy show`, audit commands | **[specced, not built]** | None of the §13 commands exist in the CLI today. |
+| §14 Cross-platform notes | **[informational]** | Cross-platform behavior is in the PAL (`packages/platform/`). |
+| §15 Future hardening roadmap | **[roadmap]** | Aspirational. |
+| §16 Open questions | **[informational]** | Open design questions, not commitments. |
+
+**TL;DR for testers:**
+
+- **What works today:** shell denylist, secret redactor, audit hash
+  chain, `manthan doctor`'s informational hook scan, secure
+  `auth-store` file/dir permissions, PAL-routed subprocess calls.
+- **What is specced but not built:** the interactive approval-gate
+  UX (`manthan implement`), `manthan audit *` commands, `manthan
+  policy show`, `manthan secrets *`, `manthan git-hooks review`.
+- **If a tester runs a command listed in §6/§7/§13 and gets
+  "Unknown command," that is expected** — those are design targets,
+  not current behavior. The substrate primitives below the commands
+  are real; the CLI surface is partial.
 
 ---
 
