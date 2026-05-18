@@ -38,6 +38,10 @@ secrets.enc
 # npm pack tarballs
 *.tgz
 
+# Bundled-pack staging output (produced by apps/cli/scripts/build-bundled-pack.mjs)
+apps/cli/bundle/
+apps/cli/bundle-stage/
+
 # Windows NTFS alternate data streams
 *:Zone.Identifier
 

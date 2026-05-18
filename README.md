@@ -355,10 +355,31 @@ claude --version  # Claude Code CLI: https://claude.com/code
 git --version
 ```
 
-### Install from source
+### Install
 
-npm publish isn't ready yet (workspace deps unpublished); the verified
-install path is:
+The CLI is not yet published to the npm registry. Two install paths
+are supported today.
+
+**A. From a local bundled tarball** (no source build on the user's
+machine — fastest path for testers).
+
+```bash
+git clone https://github.com/DeadlyVirusIn/manthanos
+cd manthanos
+pnpm install
+pnpm --filter @manthanos/cli pack:bundled    # produces apps/cli/manthanos-cli-X.Y.Z.tgz
+npm install -g apps/cli/manthanos-cli-0.0.0.tgz
+which manthan   # should resolve to your global npm bin dir
+```
+
+The bundled tarball inlines every workspace package; only
+`better-sqlite3`, `@anthropic-ai/sdk`, `openai`, `commander`, and
+`env-paths` are fetched from npm at install time.
+`better-sqlite3` builds its native binding on first install; a C++
+toolchain is required (xcode-tools on macOS, build-essential on
+Debian/Ubuntu, MSVC build tools on Windows).
+
+**B. From source** (contributor path).
 
 ```bash
 git clone https://github.com/DeadlyVirusIn/manthanos
@@ -366,8 +387,8 @@ cd manthanos
 pnpm install
 pnpm build
 cd apps/cli
-npm link          # use `npm link`, not `pnpm link` — pnpm v11 packaging quirk
-which manthan     # should resolve to your node bin dir
+npm link
+which manthan
 ```
 
 ### Sanity check the install
