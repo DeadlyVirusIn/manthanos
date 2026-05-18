@@ -449,8 +449,7 @@ function parseBatchSpec(spec: string, count: number): Selection[] | string {
   const seen = new Map<number, SelectionAction>();
   for (const t of tokens) {
     const m = /^(\d+(?:-\d+)?)([pPds])$/.exec(t);
-    if (!m || !m[1] || !m[2])
-      return `invalid batch token: "${t}" (expected like 1p, 2-4P, 5d, 6s)`;
+    if (!m || !m[1] || !m[2]) return `invalid batch token: "${t}" (expected like 1p, 2-4P, 5d, 6s)`;
     const ranges = parseRanges(m[1], count);
     if (typeof ranges === 'string') return ranges;
     const action: SelectionAction =
