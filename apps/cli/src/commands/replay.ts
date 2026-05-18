@@ -35,6 +35,16 @@
 //   3 corrupted
 
 import { ReplayError, type VerificationReport, replayRun } from '@manthanos/orchestrator';
+import {
+  checkOutcome,
+  commandTitle,
+  cyan,
+  dim,
+  kv,
+  setColorMode,
+  statusBanner,
+  yellow,
+} from '../render.js';
 
 export interface ReplayOptions {
   readonly cwd: string;
@@ -50,33 +60,38 @@ export interface ReplayOptions {
    * Exit codes are unchanged. ANSI is never emitted in JSON mode.
    */
   readonly json?: boolean;
+  /** Disable ANSI color output. Honors NO_COLOR env automatically. */
+  readonly noColor?: boolean;
+  /** Force color on even when stdout is not a TTY. */
+  readonly forceColor?: boolean;
 }
 
-function statusLabel(status: VerificationReport['status']): string {
+// Short qualifier text appended to the top-level status banner.
+// Reserved wording; not paraphrased per the CLI design system.
+function statusQualifier(status: VerificationReport['status']): string | undefined {
   switch (status) {
     case 'verified':
-      return 'verified';
+      return undefined;
     case 'legacy':
-      return 'legacy (some integrity fields predate the verifier)';
+      return 'some integrity fields predate the verifier';
     case 'unverifiable':
-      return 'unverifiable (a required artifact is missing)';
+      return 'a required artifact is missing';
     case 'corrupted':
-      return 'CORRUPTED (an explicit hash mismatch was detected)';
+      return 'an explicit hash mismatch was detected';
   }
 }
 
-function checkLabel(outcome: 'ok' | 'mismatch' | 'legacy' | 'unverifiable' | 'failed'): string {
+// Short detail appended to per-check legacy / unverifiable outcomes.
+function checkQualifier(
+  outcome: 'ok' | 'mismatch' | 'legacy' | 'unverifiable' | 'failed',
+): string | undefined {
   switch (outcome) {
-    case 'ok':
-      return 'ok';
-    case 'mismatch':
-      return 'MISMATCH';
     case 'legacy':
-      return 'legacy (recompute not possible from stored data)';
+      return 'recompute not possible from stored data';
     case 'unverifiable':
-      return 'unverifiable (artifact missing)';
-    case 'failed':
-      return 'FAILED';
+      return 'artifact missing';
+    default:
+      return undefined;
   }
 }
 
@@ -94,6 +109,18 @@ function exitCodeFor(status: VerificationReport['status']): number {
 }
 
 export async function runReplay(opts: ReplayOptions): Promise<number> {
+  // Resolve color mode once per invocation. JSON mode forces no
+  // color; explicit --no-color wins over implicit TTY detection;
+  // --color=always forces color on (useful when piping into a pager
+  // that handles ANSI).
+  if (opts.json || opts.noColor) {
+    setColorMode('never');
+  } else if (opts.forceColor) {
+    setColorMode('always');
+  } else {
+    setColorMode('auto');
+  }
+
   try {
     const result = await replayRun({ workspaceRoot: opts.cwd, runId: opts.runId });
     const v = result.verification;
@@ -107,65 +134,111 @@ export async function runReplay(opts: ReplayOptions): Promise<number> {
       return exitCodeFor(v.status);
     }
 
-    process.stdout.write(`manthan replay — ${result.runId}\n`);
-    process.stdout.write('  (integrity check of recorded artifacts; no model re-invocation)\n');
-    process.stdout.write(`  status:           ${statusLabel(v.status)}\n`);
-    process.stdout.write(`  chain:            ${checkLabel(v.checks.chain)}\n`);
-    process.stdout.write(
-      `  blobs:            ${v.checks.blobs.checked} checked, ${v.checks.blobs.failed} mismatched, ${v.checks.blobs.missing} missing\n`,
+    const out = process.stdout;
+
+    // Title + scope disclaimer. Calm and explicit; the disclaimer
+    // is never re-styled because it carries the substrate's honesty
+    // claim about what replay does and does not verify.
+    out.write(`${commandTitle('replay', result.runId)}\n`);
+    out.write(`  ${dim('(integrity check of recorded artifacts; no model re-invocation)')}\n`);
+    out.write('\n');
+
+    // Status block. The reserved 4-state vocabulary appears once,
+    // colored by severity per the design system.
+    out.write(`${kv('status', statusBanner(v.status, statusQualifier(v.status)))}\n`);
+    out.write(`${kv('chain', checkOutcome(v.checks.chain))}\n`);
+    out.write(
+      `${kv(
+        'blobs',
+        `${v.checks.blobs.checked} checked, ${v.checks.blobs.failed} mismatched, ${v.checks.blobs.missing} missing`,
+      )}\n`,
     );
-    process.stdout.write(`  canonical_hash:   ${checkLabel(v.checks.canonicalHash)}\n`);
-    process.stdout.write(`  bundle_hash:      ${checkLabel(v.checks.bundleHash)}\n`);
-    process.stdout.write(`  audit events:     ${result.auditEvents} for this run\n`);
-    process.stdout.write(`  started:          ${result.originalStartedAt ?? '(unknown)'}\n`);
-    process.stdout.write(`  workflow status:  ${result.originalStatus ?? '(unknown)'}\n`);
-    process.stdout.write(`  bundle_hash:      ${result.bundleHashRecorded ?? '(missing)'}\n`);
-    process.stdout.write(`  canonical_hash:   ${result.canonicalHashRecorded ?? '(missing)'}\n`);
+    out.write(
+      `${kv('canonical_hash', checkOutcome(v.checks.canonicalHash, checkQualifier(v.checks.canonicalHash)))}\n`,
+    );
+    out.write(
+      `${kv('bundle_hash', checkOutcome(v.checks.bundleHash, checkQualifier(v.checks.bundleHash)))}\n`,
+    );
+
+    // Run metadata. All metadata stays default-color; long hashes
+    // are dimmed to keep the eye on the status block above.
+    out.write('\n');
+    out.write(`${kv('audit events', `${result.auditEvents} for this run`)}\n`);
+    out.write(`${kv('started', result.originalStartedAt ?? '(unknown)')}\n`);
+    out.write(`${kv('workflow status', result.originalStatus ?? '(unknown)')}\n`);
+    out.write(
+      `${kv('bundle_hash', result.bundleHashRecorded ? dim(result.bundleHashRecorded) : '(missing)')}\n`,
+    );
+    out.write(
+      `${kv('canonical_hash', result.canonicalHashRecorded ? dim(result.canonicalHashRecorded) : '(missing)')}\n`,
+    );
     if (result.usage) {
-      process.stdout.write(
-        `  tokens:           in=${result.usage.inputTokens} out=${result.usage.outputTokens}\n`,
+      out.write(
+        `${kv('tokens', `in=${result.usage.inputTokens} out=${result.usage.outputTokens}`)}\n`,
       );
-      process.stdout.write(
-        `  cost:             $${(result.usage.usdMicro / 1_000_000).toFixed(6)} (${result.usage.usdMicro} micro)\n`,
+      out.write(
+        `${kv(
+          'cost',
+          `$${(result.usage.usdMicro / 1_000_000).toFixed(6)} (${result.usage.usdMicro} micro)`,
+        )}\n`,
       );
     }
     if (result.finishReason) {
-      process.stdout.write(`  finish reason:    ${result.finishReason}\n`);
+      out.write(`${kv('finish reason', result.finishReason)}\n`);
     }
 
+    // Findings / legacy / unverifiable blocks. Each block is a
+    // bulleted list, the [check] tag carries the colored marker so
+    // the bullet line itself stays default. Hash values inside
+    // expected/actual pairs are dimmed; the rest is plain.
     if (v.failures.length > 0) {
-      process.stdout.write('\n  failures:\n');
+      out.write('\n');
+      out.write('  failures:\n');
       for (const f of v.failures) {
-        process.stdout.write(`    - [${f.check}] ${f.detail}`);
-        if (f.failedAtSeq !== undefined) process.stdout.write(`  (seq=${f.failedAtSeq})`);
-        process.stdout.write('\n');
+        const tag = `[${f.check}]`;
+        const seqSuffix = f.failedAtSeq !== undefined ? ` ${dim(`(seq=${f.failedAtSeq})`)}` : '';
+        out.write(`    - ${tag} ${f.detail}${seqSuffix}\n`);
         if (f.expected !== undefined && f.actual !== undefined) {
-          process.stdout.write(`        expected: ${f.expected}\n`);
-          process.stdout.write(`        actual:   ${f.actual}\n`);
+          out.write(`        expected: ${dim(f.expected)}\n`);
+          out.write(`        actual:   ${dim(f.actual)}\n`);
         }
       }
     }
     if (v.legacy.length > 0) {
-      process.stdout.write('\n  legacy notes (not corruption, but not verified either):\n');
+      out.write('\n');
+      out.write(
+        `  ${yellow('legacy notes')} ${dim('(not corruption, but not verified either)')}:\n`,
+      );
       for (const l of v.legacy) {
-        process.stdout.write(`    - [${l.check}] ${l.detail}`);
-        if (l.seq !== undefined) process.stdout.write(`  (seq=${l.seq})`);
-        process.stdout.write('\n');
+        const tag = `[${l.check}]`;
+        const seqSuffix = l.seq !== undefined ? ` ${dim(`(seq=${l.seq})`)}` : '';
+        out.write(`    - ${tag} ${l.detail}${seqSuffix}\n`);
       }
     }
     if (v.unverifiable.length > 0) {
-      process.stdout.write('\n  unverifiable notes:\n');
+      out.write('\n');
+      out.write(`  ${yellow('unverifiable notes')}:\n`);
       for (const u of v.unverifiable) {
-        process.stdout.write(`    - [${u.check}] ${u.detail}`);
-        if (u.seq !== undefined) process.stdout.write(`  (seq=${u.seq})`);
-        process.stdout.write('\n');
+        const tag = `[${u.check}]`;
+        const seqSuffix = u.seq !== undefined ? ` ${dim(`(seq=${u.seq})`)}` : '';
+        out.write(`    - ${tag} ${u.detail}${seqSuffix}\n`);
       }
     }
 
+    // Recorded response body. Bordered with plain fences; the body
+    // itself is never re-styled — it is the model's output, not
+    // ours to format.
     if (opts.showText && result.recordedText.length > 0) {
-      process.stdout.write('\n--- recorded response (redacted as written) ---\n');
-      process.stdout.write(result.recordedText);
-      process.stdout.write('\n--- end ---\n');
+      out.write('\n--- recorded response (redacted as written) ---\n');
+      out.write(result.recordedText);
+      out.write('\n--- end ---\n');
+    }
+
+    // Next-action hint. Only emitted on corruption: the operator
+    // has a clear forensic step to take.
+    if (v.status === 'corrupted') {
+      out.write('\n');
+      out.write(`${cyan('->')} inspect .manthan/audit-corruption.log for the recorded findings.\n`);
     }
 
     return exitCodeFor(v.status);

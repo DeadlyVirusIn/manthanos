@@ -144,15 +144,26 @@ program
   .argument('<runId>', 'workflow run id (e.g. wf_...)')
   .option('--show-text', 'print the recorded response text')
   .option('--json', 'emit the full ReplayResult as JSON; suppress human-readable output')
-  .action(async (runId: string, opts: { showText?: boolean; json?: boolean }) => {
-    const code = await runReplay({
-      cwd: process.cwd(),
-      runId,
-      showText: opts.showText,
-      json: opts.json,
-    });
-    process.exitCode = code;
-  });
+  .option('--no-color', 'disable ANSI color (NO_COLOR env is also honored)')
+  .option('--force-color', 'force ANSI color even when stdout is not a TTY')
+  .action(
+    async (
+      runId: string,
+      opts: { showText?: boolean; json?: boolean; color?: boolean; forceColor?: boolean },
+    ) => {
+      // commander maps `--no-color` to `opts.color === false`.
+      const noColor = opts.color === false;
+      const code = await runReplay({
+        cwd: process.cwd(),
+        runId,
+        showText: opts.showText,
+        json: opts.json,
+        noColor,
+        forceColor: opts.forceColor,
+      });
+      process.exitCode = code;
+    },
+  );
 
 const brain = program.command('brain').description('Inspect the Project Brain');
 
