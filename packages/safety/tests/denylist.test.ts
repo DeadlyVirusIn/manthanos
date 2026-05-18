@@ -21,6 +21,39 @@ describe('checkDenylist', () => {
     expect(checkDenylist('rm', ['-rf', 'build'])).toBeNull();
   });
 
+  it('blocks rm -rf on POSIX system roots (OCTO_REVIEW §B14)', () => {
+    for (const root of [
+      '/etc',
+      '/var',
+      '/usr',
+      '/bin',
+      '/sbin',
+      '/lib',
+      '/lib64',
+      '/boot',
+      '/sys',
+      '/proc',
+      '/dev',
+      '/opt',
+      '/root',
+    ]) {
+      expect(checkDenylist('rm', ['-rf', root])?.rule).toBe('rm-rf-root');
+    }
+  });
+
+  it('blocks rm -rf on descendants of system roots', () => {
+    expect(checkDenylist('rm', ['-rf', '/etc/passwd'])?.rule).toBe('rm-rf-root');
+    expect(checkDenylist('rm', ['-rf', '/var/log/'])?.rule).toBe('rm-rf-root');
+    expect(checkDenylist('rm', ['-rf', '/usr/local/bin'])?.rule).toBe('rm-rf-root');
+  });
+
+  it('blocks rm -rf on path-traversal targets', () => {
+    expect(checkDenylist('rm', ['-rf', '..'])?.rule).toBe('rm-rf-root');
+    expect(checkDenylist('rm', ['-rf', '../../..'])?.rule).toBe('rm-rf-root');
+    expect(checkDenylist('rm', ['-rf', './../sibling'])?.rule).toBe('rm-rf-root');
+    expect(checkDenylist('rm', ['-rf', 'subdir/../../escape'])?.rule).toBe('rm-rf-root');
+  });
+
   it('blocks PowerShell -EncodedCommand', () => {
     expect(checkDenylist('pwsh', ['-EncodedCommand', 'SQB...'])?.rule).toBe('powershell-encoded');
     expect(checkDenylist('powershell.exe', ['-Enc', 'SQ=='])?.rule).toBe('powershell-encoded');

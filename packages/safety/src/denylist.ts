@@ -23,10 +23,61 @@ interface DenylistRule {
 
 const HOME_OR_ROOT = /(?:^|\s)~(?:\s|\/|$)|(?:^|\s)\/$|^\/(?:\s|$)/;
 
+// System directories whose recursive deletion is never legitimate from
+// inside an AI-engineering workflow. The match is on either the bare
+// path (`/etc`) or any descendant (`/etc/...`). Trailing slash and
+// glob suffix are normalized.
+//
+// Includes both POSIX system roots and the common path-traversal
+// pattern. Note: this is a textual heuristic — it does not resolve
+// the user's cwd. Containment checks against an actual workspace root
+// are a separate concern (see SAFETY_MODEL §11e / OCTO_REVIEW §C4).
+const POSIX_SYSTEM_ROOTS: readonly string[] = Object.freeze([
+  '/etc',
+  '/var',
+  '/usr',
+  '/bin',
+  '/sbin',
+  '/lib',
+  '/lib64',
+  '/boot',
+  '/sys',
+  '/proc',
+  '/dev',
+  '/opt',
+  '/root',
+]);
+
+function normalizeTarget(t: string): string {
+  // Strip trailing /, /*, /./, but keep the structure intact for prefix matching.
+  return t.replace(/\/+\*?$/g, '').replace(/\/+/g, '/');
+}
+
+function targetIsTraversal(t: string): boolean {
+  // Reject `..`, `../...`, `./../...`, and absolute paths containing `/..`.
+  if (t === '..') return true;
+  if (t.startsWith('../')) return true;
+  if (t.startsWith('./..')) return true;
+  if (/(^|\/)\.\.(\/|$)/.test(t)) return true;
+  return false;
+}
+
+function targetIsDangerousPosix(t: string): boolean {
+  if (t === '/' || t === '~' || t.startsWith('~/') || t === '/*') return true;
+  if (targetIsTraversal(t)) return true;
+  const n = normalizeTarget(t);
+  for (const root of POSIX_SYSTEM_ROOTS) {
+    if (n === root) return true;
+    if (n.startsWith(`${root}/`)) return true;
+  }
+  return false;
+}
+
 const RULES: readonly DenylistRule[] = Object.freeze([
   {
     id: 'rm-rf-root',
-    description: 'Recursive force-delete of root, home, or workspace root',
+    description:
+      'Recursive force-delete of root, home, system dir (/etc, /var, /usr, /bin, /sbin, /lib, /boot, /sys, /proc, /dev, /opt, /root), or path-traversal target',
     test: (cmd, args, joined) => {
       if (cmd !== 'rm') return false;
       const hasRf =
@@ -35,10 +86,7 @@ const RULES: readonly DenylistRule[] = Object.freeze([
       if (!hasRf) return false;
       // Reject if any positional target resolves to a dangerous path.
       const targets = args.filter((a) => !a.startsWith('-'));
-      return (
-        targets.some((t) => t === '/' || t === '~' || t.startsWith('~/') || t === '/*') ||
-        HOME_OR_ROOT.test(joined)
-      );
+      return targets.some((t) => targetIsDangerousPosix(t)) || HOME_OR_ROOT.test(joined);
     },
   },
   {
