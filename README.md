@@ -346,6 +346,9 @@ missing adapters or PATH issues, fix those before the loop below.
 
 ### 60-second loop
 
+> `manthan init` must run inside a git repository. If `~/my-project`
+> isn't one yet, run `git init` there first.
+
 ```bash
 cd ~/my-project
 manthan init
