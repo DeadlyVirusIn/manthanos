@@ -579,6 +579,7 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
             factId: s.factId,
             targetTier: 'T-1',
             approver: approver(),
+            reason: 'brain-review: demoted via interactive review',
           });
           demoted += 1;
           applied.push({ factId: s.factId, tier: result.toTier, seq: result.auditSeq });
