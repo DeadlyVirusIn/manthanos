@@ -405,6 +405,9 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       }),
     };
 
+    // Canonical-response hash, committed into the audit payload so that
+    // `manthan replay` can recompute and compare without re-deriving
+    // canonical projection.
     const responseHash = hashCanonicalPayload(redactedCanonical).payloadHash;
 
     // 7. Audit the invocation. Persist redacted canonical + raw side-by-side.
@@ -417,6 +420,7 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       payload: {
         adapter: opts.adapter.metadata.id,
         canonical: redactedCanonical,
+        canonical_hash: responseHash,
         redactions: [...redactions],
         latency_ms: response.latencyMs,
         // The `raw` is intentionally excluded from the audit payload hash
@@ -424,7 +428,6 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
         // its sha256 separately.
       },
     });
-    void responseHash;
 
     // 8. Extract plan — tool-use primary, fenced-JSON fallback.
     //    We pass the redacted-canonical response so toolCalls + text align

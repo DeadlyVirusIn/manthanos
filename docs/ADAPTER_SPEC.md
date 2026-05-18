@@ -287,11 +287,19 @@ export interface CanonicalAgentPayload {
 
 1. Each adapter implements a `toCanonical(raw): CanonicalAgentPayload`
    mapper, kept versioned alongside the adapter.
-2. The audit `payload_hash` is `sha256(JsonCanon(canonical))`, never
-   `sha256(JsonCanon(raw))`.
-3. The audit blob stores **both** the canonical projection and the
-   raw payload (as `{ canonical, raw }`). The hash references the
-   blob content; both halves are recoverable.
+2. The `agent.invoke` audit payload commits to the **canonical
+   projection**, never to `raw`. Specifically, every `agent.invoke`
+   event includes a `canonical_hash = sha256(JsonCanon(canonical))`
+   field. The audit-event `payload_hash` is computed over the full
+   audit payload (which contains `canonical`, `canonical_hash`,
+   adapter id, redactions, and latency), so the chain transitively
+   commits to the canonical hash. Replay verifies a run by
+   recomputing `sha256(JsonCanon(canonical))` from the stored blob
+   and comparing it against the persisted `canonical_hash`.
+3. The audit blob stores the canonical projection together with the
+   metadata listed above; the raw provider payload is preserved by
+   the adapter for diagnostics but is never used by the hash chain
+   and is not required for replay verification.
 4. The adapter's `toCanonical` function is **purely functional** of
    its inputs (no clocks, no random IDs). Lint-enforced via a
    per-package rule.
@@ -300,8 +308,10 @@ export interface CanonicalAgentPayload {
 
 - An SDK minor-version bump that adds a new field to `raw` does
   **not** change `payload_hash`. Audit chain integrity is preserved.
-- Replay (`--re-invoke` ... `--strict`) can compare canonical
-  projections directly and report exactly which fields drifted.
+- Replay can recompute `sha256(JsonCanon(canonical))` from the
+  stored blob and compare it against the persisted
+  `canonical_hash`, surfacing canonical-projection drift as an
+  explicit verification failure.
 - Cross-adapter analytics (e.g., "average tokens per workflow type")
   can use canonical fields uniformly.
 
