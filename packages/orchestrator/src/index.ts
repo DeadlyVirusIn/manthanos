@@ -5,7 +5,17 @@ export { RunPlanError, runPlanWorkflow } from './plan-runner.js';
 export type { RunPlanOptions, RunPlanResult } from './plan-runner.js';
 
 export { ReplayError, replayRun } from './replay.js';
-export type { ReplayInput, ReplayResult } from './replay.js';
+export type {
+  CheckOutcome,
+  ReplayInput,
+  ReplayResult,
+  VerificationChecks,
+  VerificationFailure,
+  VerificationLegacyReason,
+  VerificationReport,
+  VerificationStatus,
+  VerificationUnverifiableReason,
+} from './replay.js';
 
 export { PLAN_INSTRUCTIONS, parsePlan } from './plan-schema.js';
 export type { ParseResult, PlanArtifact, PlanRisk, PlanStep } from './plan-schema.js';
