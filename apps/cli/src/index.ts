@@ -143,8 +143,14 @@ program
   .description('Replay a recorded workflow run from audit + blobs (no network)')
   .argument('<runId>', 'workflow run id (e.g. wf_...)')
   .option('--show-text', 'print the recorded response text')
-  .action(async (runId: string, opts: { showText?: boolean }) => {
-    const code = await runReplay({ cwd: process.cwd(), runId, showText: opts.showText });
+  .option('--json', 'emit the full ReplayResult as JSON; suppress human-readable output')
+  .action(async (runId: string, opts: { showText?: boolean; json?: boolean }) => {
+    const code = await runReplay({
+      cwd: process.cwd(),
+      runId,
+      showText: opts.showText,
+      json: opts.json,
+    });
     process.exitCode = code;
   });
 

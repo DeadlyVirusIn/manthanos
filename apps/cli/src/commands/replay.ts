@@ -40,6 +40,16 @@ export interface ReplayOptions {
   readonly cwd: string;
   readonly runId: string;
   readonly showText?: boolean;
+  /**
+   * When true, emit the full `ReplayResult` as JSON on stdout and
+   * suppress all human-readable rendering. The emitted JSON is
+   * byte-identical to `JSON.stringify(result, null, 2)` — no
+   * rendering transforms, no inferred fields, no flattening.
+   * Designed for `manthan replay <runId> --json | jq`.
+   *
+   * Exit codes are unchanged. ANSI is never emitted in JSON mode.
+   */
+  readonly json?: boolean;
 }
 
 function statusLabel(status: VerificationReport['status']): string {
@@ -87,6 +97,15 @@ export async function runReplay(opts: ReplayOptions): Promise<number> {
   try {
     const result = await replayRun({ workspaceRoot: opts.cwd, runId: opts.runId });
     const v = result.verification;
+
+    if (opts.json) {
+      // Byte-identical to the underlying struct. Two-space indent
+      // matches the standard `JSON.stringify(_, null, 2)` shape so
+      // `--json | jq .` round-trips without surprises. Exit code
+      // semantics unchanged.
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return exitCodeFor(v.status);
+    }
 
     process.stdout.write(`manthan replay — ${result.runId}\n`);
     process.stdout.write('  (integrity check of recorded artifacts; no model re-invocation)\n');
