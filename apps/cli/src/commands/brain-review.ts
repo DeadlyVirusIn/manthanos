@@ -30,6 +30,7 @@ import {
   BrainTrustError,
   DECAY_THRESHOLDS,
   type DecayProfile,
+  demoteFact,
   promoteFact,
 } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
@@ -284,14 +285,15 @@ async function renderCandidates(
 // --------------------------------------------------------------------------
 // Selection grammar
 //
-// Tokens: `p`, `P`, `s`, `u`, `q`, `a`, `?`.
-// `p`/`P`/`s` are followed by a range spec: `1`, `1-5`, `1 3 5`, `1-3 7-9`.
+// Tokens: `p`, `P`, `d`, `s`, `u`, `q`, `a`, `?`.
+// `p`/`P`/`d`/`s` are followed by a range spec: `1`, `1-5`, `1 3 5`, `1-3 7-9`.
 // --------------------------------------------------------------------------
 
-type SelectionAction = 'promote-t1' | 'promote-t2' | 'skip';
+type SelectionAction = 'promote-t1' | 'promote-t2' | 'demote-t-minus-1' | 'skip';
 const ACTION_LABEL: Record<SelectionAction, string> = {
   'promote-t1': 'promote → T+1',
   'promote-t2': 'promote → T+2',
+  'demote-t-minus-1': 'demote → T-1 (contradicted)',
   skip: 'skip',
 };
 
@@ -323,6 +325,7 @@ const HELP_TEXT = [
   'Commands:',
   '  p <range>    promote to T+1            (e.g. "p 1 3-5")',
   '  P <range>    promote to T+2 (corroborated)',
+  '  d <range>    demote to T-1 (contradicted)',
   '  s <range>    explicit skip',
   '  u            undo last selection (in-session only)',
   '  c            clear all selections',
@@ -330,6 +333,9 @@ const HELP_TEXT = [
   '  q            apply all selections + quit',
   '  a            abort (discard selections)',
   '  ?            this help',
+  '',
+  'Example:  `p 1 3-5` to promote facts 1, 3, 4, 5 then `q` to commit.',
+  'Tiers:    T0=quarantine  T+1=trusted  T+2=corroborated  T-1=contradicted',
 ].join('\n');
 
 interface Selection {
@@ -396,13 +402,19 @@ async function runInteractive(
       process.stdout.write(`undid ${shortId(last.factId)}.\n`);
       continue;
     }
-    const m = /^([pPs])\s+(.+)$/.exec(line);
+    const m = /^([pPds])\s+(.+)$/.exec(line);
     if (!m || !m[1] || !m[2]) {
       process.stdout.write('Unrecognized input. Type `?` for help.\n');
       continue;
     }
     const action: SelectionAction =
-      m[1] === 'p' ? 'promote-t1' : m[1] === 'P' ? 'promote-t2' : 'skip';
+      m[1] === 'p'
+        ? 'promote-t1'
+        : m[1] === 'P'
+          ? 'promote-t2'
+          : m[1] === 'd'
+            ? 'demote-t-minus-1'
+            : 'skip';
     const parsed = parseRanges(m[2], candidates.length);
     if (typeof parsed === 'string') {
       process.stdout.write(`error: ${parsed}\n`);
@@ -436,12 +448,19 @@ function parseBatchSpec(spec: string, count: number): Selection[] | string {
     .filter((t) => t.length > 0);
   const seen = new Map<number, SelectionAction>();
   for (const t of tokens) {
-    const m = /^(\d+(?:-\d+)?)([pPs])$/.exec(t);
-    if (!m || !m[1] || !m[2]) return `invalid batch token: "${t}" (expected like 1p, 2-4P, 5s)`;
+    const m = /^(\d+(?:-\d+)?)([pPds])$/.exec(t);
+    if (!m || !m[1] || !m[2])
+      return `invalid batch token: "${t}" (expected like 1p, 2-4P, 5d, 6s)`;
     const ranges = parseRanges(m[1], count);
     if (typeof ranges === 'string') return ranges;
     const action: SelectionAction =
-      m[2] === 'p' ? 'promote-t1' : m[2] === 'P' ? 'promote-t2' : 'skip';
+      m[2] === 'p'
+        ? 'promote-t1'
+        : m[2] === 'P'
+          ? 'promote-t2'
+          : m[2] === 'd'
+            ? 'demote-t-minus-1'
+            : 'skip';
     for (const i of ranges) seen.set(i, action);
   }
   const selections: Selection[] = [];
@@ -545,23 +564,37 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
       jsonlPath: ws.jsonlPath,
       mutex: new AsyncMutex(),
     };
-    let written = 0;
+    let promoted = 0;
+    let demoted = 0;
     let errors = 0;
     const applied: Array<{ factId: string; tier: string; seq: number }> = [];
     for (const s of selections) {
       if (s.action === 'skip') continue;
-      const target: 'T+1' | 'T+2' = s.action === 'promote-t2' ? 'T+2' : 'T+1';
       try {
-        const result = await promoteFact({
-          ctx,
-          db: ws.m.handle,
-          workspaceId: ws.workspaceId,
-          factId: s.factId,
-          targetTier: target,
-          approver: approver(),
-        });
-        written += 1;
-        applied.push({ factId: s.factId, tier: result.toTier, seq: result.auditSeq });
+        if (s.action === 'demote-t-minus-1') {
+          const result = await demoteFact({
+            ctx,
+            db: ws.m.handle,
+            workspaceId: ws.workspaceId,
+            factId: s.factId,
+            targetTier: 'T-1',
+            approver: approver(),
+          });
+          demoted += 1;
+          applied.push({ factId: s.factId, tier: result.toTier, seq: result.auditSeq });
+        } else {
+          const target: 'T+1' | 'T+2' = s.action === 'promote-t2' ? 'T+2' : 'T+1';
+          const result = await promoteFact({
+            ctx,
+            db: ws.m.handle,
+            workspaceId: ws.workspaceId,
+            factId: s.factId,
+            targetTier: target,
+            approver: approver(),
+          });
+          promoted += 1;
+          applied.push({ factId: s.factId, tier: result.toTier, seq: result.auditSeq });
+        }
       } catch (err) {
         errors += 1;
         if (err instanceof BrainTrustError) {
@@ -572,8 +605,9 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
       }
     }
 
+    const skippedCount = selections.filter((s) => s.action === 'skip').length;
     process.stdout.write(
-      `\n✓ ${written} promoted, ${errors} failed, ${selections.filter((s) => s.action === 'skip').length} skipped.\n`,
+      `\n✓ ${promoted} promoted, ${demoted} demoted, ${errors} failed, ${skippedCount} skipped.\n`,
     );
     if (applied.length > 0) {
       process.stdout.write('\nUndo any of these within 7 days:\n');
