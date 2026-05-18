@@ -1,0 +1,60 @@
+name: I had trouble installing or getting started
+description: Install, first-run, or initial-workflow friction. The kind of thing that almost made you give up.
+title: "[onboarding] "
+labels: ["onboarding", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for friction encountered before you'd done
+        a successful `manthan plan` for the first time. Anything
+        that confused, blocked, or annoyed you in the first session
+        is in scope.
+
+        Be blunt. If the README is wrong, say so. If the install
+        was the kind of thing that would make a real user close the
+        tab, say so. We need this signal to be honest.
+  - type: dropdown
+    id: stage
+    attributes:
+      label: "Where did you hit friction?"
+      options:
+        - "Installing prerequisites (Node, pnpm, git, claude-cli)"
+        - "Building from source (clone + pnpm install + pnpm build)"
+        - "Installing the bundled tarball (`npm install -g …tgz`)"
+        - "Running `manthan init` for the first time"
+        - "Running `manthan doctor`"
+        - "Running my first `manthan plan`"
+        - "Running `manthan brain review` for the first time"
+        - "Reading the README / docs"
+        - "Something else"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "What did you try, what did you expect, and what went wrong? Paste error messages verbatim."
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: "How did you get past it (if you did)?"
+  - type: input
+    id: platform
+    attributes:
+      label: "Platform"
+      placeholder: "macOS 14, Apple Silicon — node v22.13.0 via nvm"
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`manthan doctor` output (if you got that far)"
+      render: text
+  - type: textarea
+    id: missing-from-readme
+    attributes:
+      label: "What would have helped?"
+      description: "What should the README or docs have said but didn't?"

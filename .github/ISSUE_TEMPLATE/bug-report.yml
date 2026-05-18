@@ -1,0 +1,81 @@
+name: Bug or unexpected behavior
+description: A command did something it shouldn't, crashed, or produced wrong output.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The fields below help us reproduce the
+        issue against the same workspace state you saw. Skip anything
+        that doesn't apply.
+  - type: input
+    id: manthan-version
+    attributes:
+      label: "`manthan --version` output"
+      placeholder: "0.0.0-phase0"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: "Platform (from `manthan doctor`)"
+      placeholder: "linux/x64 (WSL) — node v22.13.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: "Adapter in use"
+      options:
+        - "claude-cli (default)"
+        - "anthropic-api"
+        - "codex-cli"
+        - "gemini-cli"
+        - "other / unknown"
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: "Exact command(s) you ran"
+      render: shell
+      placeholder: "manthan plan \"add OAuth login\""
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What you expected"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: "What actually happened"
+      description: "Include any error message or stack trace verbatim."
+    validations:
+      required: true
+  - type: input
+    id: run-id
+    attributes:
+      label: "Run ID (if applicable)"
+      description: "From the `[manthan] run logged:` line, or any earlier `wf_…` reference."
+      placeholder: "wf_946c2ad3-f0f6-458c-b4f1-ff1c06a09ec8"
+  - type: textarea
+    id: replay-output
+    attributes:
+      label: "`manthan replay <runId>` output (if relevant)"
+      render: text
+      description: "Run this and paste the output if the bug involves a recorded run. We're particularly interested in the `status:` line."
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`manthan doctor` output"
+      render: text
+      description: "Helpful for almost any issue."
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Anything else"
+      description: "Workspace age, recently-promoted facts, recent decay sweeps, anything unusual."

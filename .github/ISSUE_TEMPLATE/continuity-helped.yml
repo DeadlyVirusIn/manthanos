@@ -1,0 +1,43 @@
+name: A run where continuity actually helped
+description: ManthanOS injected a trusted fact and the plan was meaningfully better than without it.
+title: "[positive] "
+labels: ["positive-signal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We need this signal as much as the negative ones. Reports
+        here help us tell whether the substrate is doing useful
+        work, and what shapes of work it does best.
+
+        Keep it short — a paragraph and a run ID is enough.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "What did the plan recommend, and how did it differ from what you'd expect without trusted continuity?"
+      placeholder: |
+        I'd promoted "use Drizzle ORM, not Prisma" to T+1 three weeks
+        ago. Today I asked for "add a users table migration" and the
+        plan correctly used Drizzle syntax and matched our existing
+        migration style. Without that trusted fact, plans from a
+        fresh Claude session default to Prisma here.
+    validations:
+      required: true
+  - type: input
+    id: run-id
+    attributes:
+      label: "Run ID"
+      placeholder: "wf_…"
+    validations:
+      required: true
+  - type: textarea
+    id: facts
+    attributes:
+      label: "Which trusted fact(s) were load-bearing?"
+      description: "If you can identify them. The post-plan summary's `N trusted facts injected` is the count; if you remember which ones, list them."
+  - type: input
+    id: workspace-age
+    attributes:
+      label: "How long has this workspace been initialized?"
+      placeholder: "e.g., 3 weeks"

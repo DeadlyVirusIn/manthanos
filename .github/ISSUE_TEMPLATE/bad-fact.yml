@@ -1,0 +1,80 @@
+name: A bad fact leaked into a plan
+description: A wrong, stale, or contradictory fact ended up in a plan's context and influenced the output.
+title: "[bad-fact] "
+labels: ["bad-fact", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for cases where the bundle injected a fact
+        that was wrong, stale, or contradicted another fact — and
+        that fact ended up steering the plan in the wrong direction.
+
+        This is the inverse of a "continuity didn't carry" report:
+        here, continuity carried something it shouldn't have.
+
+        Examples:
+
+        - A T+1 fact that was true two months ago but is now stale
+          (architecture changed) and it shaped a plan based on the
+          old architecture.
+        - Two simultaneously-trusted facts in the same area that
+          contradict each other, and the model averaged them into
+          something neither of you would endorse.
+        - A T0 fact in the quarantine queue was promoted by mistake
+          and you didn't catch it in review.
+  - type: input
+    id: manthan-version
+    attributes:
+      label: "`manthan --version`"
+      placeholder: "0.0.0-phase0"
+    validations:
+      required: true
+  - type: dropdown
+    id: shape
+    attributes:
+      label: "Closest shape of the problem"
+      options:
+        - "Stale: a fact that was true before but is now outdated"
+        - "Contradiction: two trusted facts disagree and both got injected"
+        - "Wrong promotion: I accidentally promoted a T0 fact that wasn't right"
+        - "Wrong area: a fact got attached to the wrong topic and surfaced in unrelated plans"
+        - "Something else — describe in the notes below"
+    validations:
+      required: true
+  - type: textarea
+    id: fact-text
+    attributes:
+      label: "The fact (or facts) involved"
+      description: "Paste the statement(s) verbatim, including area and tier if you have them."
+      placeholder: |
+        [T+1 · auth · conf=0.70] Sessions use httpOnly cookies
+    validations:
+      required: true
+  - type: textarea
+    id: when-promoted
+    attributes:
+      label: "When and why did you promote it?"
+      description: "If you remember. If you don't, that itself is useful information."
+  - type: textarea
+    id: plan-output
+    attributes:
+      label: "How did the bad fact shape the plan?"
+      description: "What did the plan recommend that you'd attribute to the bad fact?"
+    validations:
+      required: true
+  - type: input
+    id: run-id
+    attributes:
+      label: "Run ID of the affected plan"
+      placeholder: "wf_…"
+  - type: textarea
+    id: replay-output
+    attributes:
+      label: "`manthan replay <runId>` output (if available)"
+      render: text
+  - type: textarea
+    id: how-resolved
+    attributes:
+      label: "What did you do about it?"
+      description: "`manthan brain demote`? `manthan brain undo-correction`? Manual SQL? Did the existing tools cover this, or did you wish for something else?"

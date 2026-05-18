@@ -1,0 +1,12 @@
+# Issue template picker for ManthanOS.
+#
+# Blank issues are disabled because the structured templates capture
+# the audit-trail information we need to diagnose continuity issues.
+# If none of the templates fit, use the "Bug or unexpected behavior"
+# one and we'll re-route from there.
+
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/DeadlyVirusIn/manthanos/security/advisories/new
+    about: Please report security issues privately via GitHub Security Advisories, not as public issues.

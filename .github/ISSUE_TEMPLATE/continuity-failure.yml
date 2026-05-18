@@ -1,0 +1,78 @@
+name: Continuity didn't carry across runs
+description: A previously-promoted fact didn't influence a later plan, or the system "forgot" something it should have known.
+title: "[continuity] "
+labels: ["continuity", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for cases where the continuity loop didn't
+        do what you expected: a promoted fact didn't show up, a
+        trusted fact got dropped silently, or the next plan looked
+        like the system started fresh.
+
+        We need enough detail to replay the run and compare against
+        what you saw. Run IDs and `manthan replay` output are the
+        most useful evidence.
+  - type: input
+    id: manthan-version
+    attributes:
+      label: "`manthan --version`"
+      placeholder: "0.0.0-phase0"
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: "What you expected to carry across"
+      description: "Describe the fact(s) you had promoted and what you thought would happen in the next plan."
+      placeholder: |
+        I had promoted "Sessions use httpOnly cookies" to T+1 last week.
+        Today I ran `manthan plan "implement refresh tokens"` and the
+        plan recommended localStorage, ignoring the cookie convention.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: "What you actually saw"
+    validations:
+      required: true
+  - type: input
+    id: run-id
+    attributes:
+      label: "Run ID of the plan that surprised you"
+      placeholder: "wf_…"
+    validations:
+      required: true
+  - type: textarea
+    id: replay-output
+    attributes:
+      label: "`manthan replay <runId>` output"
+      render: text
+      description: "We need this. The verifier's `status:` and `bundle_hash` lines are load-bearing for diagnosis."
+    validations:
+      required: true
+  - type: textarea
+    id: summary-line
+    attributes:
+      label: "`[manthan] context: …` summary line from that plan run"
+      render: text
+      description: "If you have it scrolled up. Tells us how many trusted facts the bundle actually carried."
+  - type: dropdown
+    id: shape
+    attributes:
+      label: "Closest shape of the problem"
+      options:
+        - "I promoted a fact, but the post-plan summary said `0 trusted facts injected`"
+        - "I promoted a fact, the summary said it was injected, but the model ignored it"
+        - "The summary said `K omitted` (K > 0) and I'd promoted that fact"
+        - "The fact was demoted by decay before I noticed"
+        - "Something else — describe in the notes below"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Any other context"
+      description: "How old is the workspace? When did you last run `manthan brain age-facts`? Any recent decay/dedup events you remember?"
