@@ -39,10 +39,6 @@ history, or evidence trail, this is the index.
 
 - [PHASE_SELECTION_MEMO.md](./PHASE_SELECTION_MEMO.md)
 - [PHASE_A_CONSTITUTION.md](./PHASE_A_CONSTITUTION.md)
-- [PHASE_A_PREMORTEM.md](./PHASE_A_PREMORTEM.md)
-- [PHASE_A_AUTHORIZATION_DECISION.md](./PHASE_A_AUTHORIZATION_DECISION.md)
-  — current status: delay authorization; auto-reject 2026-06-13 unless
-  six preconditions are met.
 - [PRECONDITION_ASSEMBLY_PLAN.md](./PRECONDITION_ASSEMBLY_PLAN.md)
 - [PHASE2_THEORY.md](./PHASE2_THEORY.md)
 
@@ -53,12 +49,13 @@ history, or evidence trail, this is the index.
 - [DEBATE_PROTOCOL.md](./DEBATE_PROTOCOL.md) — internal protocol
   for multi-model debate; not wired into the current product.
 
-## Founder operations
+## Founder operations (kept private)
 
-- [FIRST_5_TRACKER.md](./FIRST_5_TRACKER.md) — recruit DM + tracking
-  sheet for the first 5 user attempts.
-- [FOUNDER_RULES_FIRST_14_DAYS.md](./FOUNDER_RULES_FIRST_14_DAYS.md)
-  — operational guardrails for the founder-exploration window.
+The maintainer's recruit messaging, candidate tracking sheet, founder
+operational guardrails, and Phase A go/no-go documentation
+(pre-mortem + authorization decision) are intentionally kept outside
+the public repo. They are operational playbooks, not architecture
+artifacts. Available privately on request for collaborators.
 
 ## Multi-model review + hardening artifacts
 
