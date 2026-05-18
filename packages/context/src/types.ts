@@ -77,6 +77,14 @@ export interface ShapingConfig {
 export interface ContextBundle {
   readonly bundleHash: string;
   readonly layers: readonly ContextLayer[];
+  /**
+   * Per-layer SHA-256 of `layers[i].content`. Parallel to `layers`.
+   * Persisted into `context_snapshots.layers_json` so that
+   * `recomputeBundleHash` can reconstruct the canonical bundle hash
+   * from stored data alone — without re-rendering layer content.
+   * The bundleHash itself commits to these values.
+   */
+  readonly layerContentHashes: readonly string[];
   readonly totalEstimatedTokens: number;
   readonly systemPrompt: string;
   readonly userPrompt: string;

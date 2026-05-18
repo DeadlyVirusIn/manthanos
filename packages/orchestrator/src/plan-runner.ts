@@ -326,14 +326,18 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
         workspaceId,
         runId,
         bundle.bundleHash,
+        // Persist per-layer content_sha256 alongside the metadata so
+        // `manthan replay` can recompute bundle_hash from the snapshot
+        // alone — without re-rendering layer content. P0.3.
         JSON.stringify(
-          bundle.layers.map((l) => ({
+          bundle.layers.map((l, i) => ({
             kind: l.kind,
             wrap_as: l.wrapAs,
             attributes: l.attributes,
             trust: l.trust,
             estimated_tokens: l.estimatedTokens,
             provenance: l.provenance,
+            content_sha256: bundle.layerContentHashes[i],
           })),
         ),
         startTs,

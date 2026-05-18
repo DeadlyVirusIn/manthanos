@@ -249,16 +249,23 @@ export async function pack(input: PackerInput): Promise<ContextBundle> {
   const userPrompt = otherLayers.map((l) => renderLayer(l)).join('\n\n');
 
   // --- Hash ---
-  // Content-address the bundle for replay verification.
+  // Content-address the bundle for replay verification. Per-layer
+  // content_sha256 is computed once here and exposed on the bundle so
+  // plan-runner can persist it into layers_json; `recomputeBundleHash`
+  // uses those persisted hashes to reverify without re-rendering
+  // layer content.
+  const layerContentHashes = layers.map((l) =>
+    createHash('sha256').update(l.content, 'utf8').digest('hex'),
+  );
   const canonical = JsonCanon.stringify({
     schema: 1,
-    layers: layers.map((l) => ({
+    layers: layers.map((l, i) => ({
       kind: l.kind,
       wrap_as: l.wrapAs,
       trust: l.trust,
       attributes: l.attributes ?? null,
       provenance: l.provenance,
-      content_sha256: createHash('sha256').update(l.content, 'utf8').digest('hex'),
+      content_sha256: layerContentHashes[i],
       estimated_tokens: l.estimatedTokens,
     })),
   });
@@ -288,6 +295,7 @@ export async function pack(input: PackerInput): Promise<ContextBundle> {
   return {
     bundleHash,
     layers,
+    layerContentHashes,
     totalEstimatedTokens: totalTokens(),
     systemPrompt,
     userPrompt,
