@@ -48,6 +48,16 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(opts.cwd);
   const isRepo = existsSync(path.join(workspaceRoot, '.git'));
   if (!isRepo) {
+    // OCTO_REVIEW §B7 / §14: distinguish "not in a git repo" from
+    // "inside a git repo but not at root". The former needs `git init`;
+    // the latter needs `cd` to the repo root. Walk up to disambiguate.
+    const ancestor = findGitAncestor(workspaceRoot);
+    if (ancestor !== null) {
+      throw new InitError(
+        'NOT_A_GIT_REPO',
+        `${workspaceRoot} is not the git repo root. Run \`manthan init\` from the repo root instead:\n  cd ${ancestor}\n  manthan init`,
+      );
+    }
     throw new InitError(
       'NOT_A_GIT_REPO',
       `${workspaceRoot} is not a git repository. Initialize one with \`git init\` first.`,
@@ -168,6 +178,30 @@ export class InitError extends Error {
     super(message);
     this.name = 'InitError';
   }
+}
+
+/**
+ * Walk upward from `start` looking for the nearest directory that
+ * contains a `.git` entry. Returns the directory path (forward-slash
+ * normalized to match canonicalizeWorkspaceRoot) or null if none is
+ * found before reaching the filesystem root.
+ *
+ * Used only to produce a better error message when `manthan init` is
+ * run from a subdirectory of a git repo — see OCTO_REVIEW §B7.
+ */
+function findGitAncestor(start: string): string | null {
+  let cur = start;
+  // Cap the walk at 50 levels for safety; real-world repos are nowhere near that depth.
+  for (let i = 0; i < 50; i += 1) {
+    const parent = path.dirname(cur);
+    if (parent === cur) return null; // reached filesystem root
+    if (existsSync(path.join(parent, '.git'))) {
+      // Normalize to forward-slash to match canonicalizeWorkspaceRoot output.
+      return parent.replace(/\\/g, '/');
+    }
+    cur = parent;
+  }
+  return null;
 }
 
 async function deriveWorkspaceId(workspaceRoot: string): Promise<string> {
