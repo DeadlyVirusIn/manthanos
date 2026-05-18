@@ -80,7 +80,11 @@ program
     "Model alias ('sonnet'/'opus' for cli; preset id like 'claude-sonnet-4-5' for api)",
     'sonnet',
   )
-  .option('--adapter <mode>', "'cli' (subscription) or 'api' (key)", 'cli')
+  .option(
+    '--adapter <mode>',
+    "one of: 'cli' (Claude Code subscription, default) | 'api' (needs ANTHROPIC_API_KEY) | 'codex-cli' | 'gemini-cli'",
+    'cli',
+  )
   .option('--budget <usd>', 'budget in USD (e.g. 0.10)', '0.50')
   .option('--max-output <n>', 'max output tokens', '4096')
   .option('--context-budget <n>', 'max input tokens for context bundle', '60000')
