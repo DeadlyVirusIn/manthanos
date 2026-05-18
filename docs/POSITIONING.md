@@ -11,8 +11,9 @@
 ## 1. What ManthanOS is
 
 **ManthanOS is a local workspace that holds your project's decisions
-and facts so the next AI tool you open already knows what the last
-one decided.**
+and facts and presents them to the next AI tool you open, so the
+next session starts from the recorded record rather than from
+scratch.**
 
 The pain it addresses is structural: engineers using AI seriously on a
 real codebase don't stay in one tool. ChatGPT for framing, Claude for
@@ -154,13 +155,13 @@ was aspirational and the narrowed framing must be honest.
 
 ---
 
-## 5. The unit of intelligence is the project
+## 5. The project owns its continuity record
 
 A specific design rule that follows from §1:
 
-**The project owns its own cognition.** Agents are temporary tenants.
-Models churn. CLIs update. Adapters get rewritten. The brain stays
-with the repository.
+**The project owns its own continuity record.** Agents are temporary
+tenants. Models churn. CLIs update. Adapters get rewritten. The
+recorded facts, decisions, and audit chain stay with the repository.
 
 Practical consequences:
 

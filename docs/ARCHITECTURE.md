@@ -86,7 +86,7 @@ Concretely, the limitations are structural:
 | Class | Example category | What it solves | What it does not solve |
 |---|---|---|---|
 | Memory persistence tools | session memory plugins | Recall across chats | Don't model agents, debate, or implementation |
-| Orchestration wrappers | multi-AI routers | Route a prompt to many models | Don't preserve cumulative project cognition; each call is stateless |
+| Orchestration wrappers | multi-AI routers | Route a prompt to many models | Don't preserve cumulative project context; each call is stateless |
 | Token-compression layers | context-pack helpers | Fit more into a window | Compression is a tactic, not an architecture |
 | Workflow routers | task → tool mappers | Pick the right tool per task | Workflows do not learn from past workflows |
 | Coding agents | repo-aware editors | Edit files in a single tool's worldview | Cannot debate, cannot replay, cannot share state with peer agents |
@@ -264,9 +264,10 @@ CLI is one host; an editor extension or future daemon are others.
 This is the unique value of the platform. Without it, ManthanOS is
 just another orchestrator.
 
-The brain is a structured, queryable cognitive store. It is **not** a
+The brain is a structured, queryable record store. It is **not** a
 chat log. It is **not** a vector blob. It is **not** a "memory file."
-It is a layered system designed so that cognition compounds.
+It is a layered system designed so that trusted facts accumulate
+deterministically.
 
 ### 7.1 Memory layers
 
@@ -363,8 +364,8 @@ workflow. None of these are speculative; they directly address the
 "low-quality cumulative memory" failure mode.
 
 **Without these primitives, the moat claim is unjustifiable.**
-Cumulative cognition that cannot correct itself is just expensive
-noise accumulation.
+Accumulated records that cannot be corrected, decayed, or deduped
+are just expensive noise accumulation.
 
 ### 7.5 Trust tiers (mechanical model)
 
@@ -1086,8 +1087,8 @@ local convenience.
 5. **Workflows are deterministic given (brain, definition, approvals).**
 6. **No agent operates on a blank slate within a workspace.**
 7. **Every effectful action is recorded with payload hash and signature.**
-8. **Cumulative cognition over clever cleverness.** When in doubt,
-   make the brain richer rather than the prompts.
+8. **Cumulative trusted facts over clever prompts.** When in doubt,
+   curate the brain rather than over-engineer the prompts.
 9. **OS-touching code lives in the PAL.** Anything that branches on
    `process.platform`, spawns processes, watches files, or computes
    paths goes through the Platform Abstraction Layer. Callers do not
@@ -1105,8 +1106,8 @@ local convenience.
     UI never imply otherwise. Process isolation arrives in Phase 4.
 13. **Brain correction is first-class.** Decisions can be
     superseded, facts decay, contradictions are tracked, rejected
-    plans become corrective signals. Cumulative cognition without
-    correction is noise accumulation, not a moat.
+    plans become corrective signals. Accumulated records without
+    correction are noise accumulation, not a moat.
 14. **Replay determinism is bounded honestly.** The runtime
     guarantees step order, request payload identity, and brain
     query consistency. It does not guarantee provider output
