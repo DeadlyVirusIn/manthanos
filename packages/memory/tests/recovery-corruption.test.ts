@@ -118,6 +118,69 @@ describe('recovery corruption detection', () => {
     expect(r.findings.some((f) => f.category === 'genesis_anchor')).toBe(true);
   });
 
+  it('unrecoverable status skips R6 workflow mutation (read-only forensic mode)', async () => {
+    // Seed a workflow row in 'running' state so R6 would otherwise
+    // mark it 'crashed_recoverable'. Then delete seq=1 to force
+    // unrecoverable status.
+    env.m.handle
+      .prepare(
+        `INSERT INTO workflows (id, workspace_id, type, version, started_at,
+                                finished_at, status, total_input_tokens,
+                                total_output_tokens, total_usd_micro)
+         VALUES (?, ?, 'plan', '1.0.0', ?, NULL, 'running', 0, 0, 0)`,
+      )
+      .run('wf_stranded', WS, new Date().toISOString());
+    env.m.handle.prepare('DELETE FROM audit_events WHERE workspace_id = ? AND seq = 1').run(WS);
+
+    const r = await runRecovery({
+      db: env.m.handle,
+      blobs: env.blobs,
+      jsonlPath: env.jsonlPath,
+      workspaceId: WS,
+    });
+
+    expect(r.status).toBe('unrecoverable');
+    expect(r.workflowsMarkSkipped).toBe(true);
+    expect(r.workflowsMarkSkipReason).toBeTruthy();
+    expect(r.crashedWorkflowsMarked).toBe(0);
+
+    // Forensic evidence preserved: workflow row remains exactly as
+    // it was — running — instead of being silently moved to
+    // crashed_recoverable.
+    const wf = env.m.handle
+      .prepare('SELECT status FROM workflows WHERE id = ?')
+      .get('wf_stranded') as { status: string };
+    expect(wf.status).toBe('running');
+  });
+
+  it('corrupted status (chain anchored) still runs R6 workflow mutation', async () => {
+    // Seed a stranded workflow + an interior row deletion so the
+    // chain is corrupted but still anchored at seq=1.
+    env.m.handle
+      .prepare(
+        `INSERT INTO workflows (id, workspace_id, type, version, started_at,
+                                finished_at, status, total_input_tokens,
+                                total_output_tokens, total_usd_micro)
+         VALUES (?, ?, 'plan', '1.0.0', ?, NULL, 'running', 0, 0, 0)`,
+      )
+      .run('wf_stranded2', WS, new Date().toISOString());
+    env.m.handle.prepare('DELETE FROM audit_events WHERE workspace_id = ? AND seq = 2').run(WS);
+
+    const r = await runRecovery({
+      db: env.m.handle,
+      blobs: env.blobs,
+      jsonlPath: env.jsonlPath,
+      workspaceId: WS,
+    });
+    expect(r.status).toBe('corrupted');
+    expect(r.workflowsMarkSkipped).toBe(false);
+
+    const wf = env.m.handle
+      .prepare('SELECT status FROM workflows WHERE id = ?')
+      .get('wf_stranded2') as { status: string };
+    expect(wf.status).toBe('crashed_recoverable');
+  });
+
   it('blob missing for an audit row → status=corrupted, blob_missing finding', async () => {
     // Find a blob and delete it.
     const row = env.m.handle

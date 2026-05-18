@@ -45,6 +45,31 @@ function nodeMeetsMinimum(parsed: { major: number; minor: number; patch: number 
 
 export interface DoctorOptions {
   readonly cwd: string;
+  /**
+   * Strict mode: non-zero exit on `corrupted` or `unrecoverable`
+   * recovery status. Default doctor behavior is read-only and
+   * never fails — strict mode is opt-in for CI / pre-commit hooks
+   * that want a hard signal.
+   */
+  readonly strict?: boolean;
+}
+
+/**
+ * Compute the CLI exit code for a doctor run. Default behavior:
+ * always 0 (doctor is diagnostic). Strict mode: 3 on `corrupted`
+ * or `unrecoverable` recovery status — mirrors `manthan replay`'s
+ * corruption exit code so external CI tooling can use a single
+ * non-zero check across both.
+ */
+export function computeDoctorExitCode(
+  report: { readonly recoveryStatus?: RecoveryStatus },
+  strict: boolean,
+): number {
+  if (!strict) return 0;
+  if (report.recoveryStatus === 'corrupted' || report.recoveryStatus === 'unrecoverable') {
+    return 3;
+  }
+  return 0;
 }
 
 export interface AdapterAvailability {
@@ -228,6 +253,12 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
         }
       }
       process.stdout.write('  manual inspection required — see .manthan/audit-corruption.log.\n');
+    }
+    if (opts.strict && (report.status === 'corrupted' || report.status === 'unrecoverable')) {
+      // The exit code itself is set by the CLI entry via
+      // computeDoctorExitCode; this banner is the operator-visible
+      // wording the spec requires.
+      process.stdout.write('  strict mode: non-zero exit due to corruption findings.\n');
     }
     if (hooks.length > 0) {
       process.stdout.write(`  git hooks detected: ${hooks.length}\n`);

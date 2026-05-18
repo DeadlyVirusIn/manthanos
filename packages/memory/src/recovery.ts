@@ -80,6 +80,15 @@ export interface RecoveryReport {
   readonly orphanBlobsFound: number;
   readonly jsonlAppendedFromSqlite: number;
   readonly crashedWorkflowsMarked: number;
+  /**
+   * True when R6 (mark stranded `running` workflows as
+   * `crashed_recoverable`) was skipped because the recovery status
+   * is `unrecoverable`. The chain doesn't anchor to a valid genesis,
+   * so the system enters read-only forensic mode and refuses to
+   * mutate workflow state. The skip reason is preserved verbatim.
+   */
+  readonly workflowsMarkSkipped: boolean;
+  readonly workflowsMarkSkipReason?: string;
   readonly findings: readonly RecoveryFinding[];
 }
 
@@ -185,15 +194,30 @@ export async function runRecovery(input: RecoveryInput): Promise<RecoveryReport>
   for (const f of jsonlReport.findings) findings.push(f);
 
   // ---- R6. Mark stranded running workflows ----
-  // Existing behavior. Recovery does not abandon partially-completed
-  // workflows silently — `crashed_recoverable` is operator-visible.
-  const crashed = input.db
-    .prepare(
-      `UPDATE workflows
-       SET status = 'crashed_recoverable'
-       WHERE workspace_id = ? AND status = 'running'`,
-    )
-    .run(input.workspaceId);
+  // Skip the mutation entirely when the workspace is `unrecoverable`.
+  // The chain doesn't anchor to a valid genesis, so any state we
+  // change here is itself unverifiable; entering read-only forensic
+  // mode preserves the corrupted evidence for inspection. For
+  // `corrupted` (but anchored) workspaces we still mark stranded
+  // workflows — the corruption is local and the workflow row's
+  // status field is operationally useful for the operator.
+  let crashedChanges = 0;
+  let workflowsMarkSkipped = false;
+  let workflowsMarkSkipReason: string | undefined;
+  if (unrecoverable) {
+    workflowsMarkSkipped = true;
+    workflowsMarkSkipReason =
+      'recovery status=unrecoverable; skipped workflow state mutation to preserve forensic evidence and avoid writing past an unverifiable chain.';
+  } else {
+    const crashed = input.db
+      .prepare(
+        `UPDATE workflows
+         SET status = 'crashed_recoverable'
+         WHERE workspace_id = ? AND status = 'running'`,
+      )
+      .run(input.workspaceId);
+    crashedChanges = crashed.changes;
+  }
 
   // ---- Resolve overall status ----
   let status: RecoveryStatus;
@@ -221,7 +245,9 @@ export async function runRecovery(input: RecoveryInput): Promise<RecoveryReport>
     ...(chainResult.failedAtSeq !== undefined ? { chainFailedAtSeq: chainResult.failedAtSeq } : {}),
     orphanBlobsFound,
     jsonlAppendedFromSqlite: jsonlReport.appended,
-    crashedWorkflowsMarked: crashed.changes,
+    crashedWorkflowsMarked: crashedChanges,
+    workflowsMarkSkipped,
+    ...(workflowsMarkSkipReason !== undefined ? { workflowsMarkSkipReason } : {}),
     findings,
   };
 }

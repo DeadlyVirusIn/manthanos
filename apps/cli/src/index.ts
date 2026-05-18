@@ -5,7 +5,7 @@
 import type { ClaudePresetId } from '@manthanos/adapter-claude';
 import { Command } from 'commander';
 import { runAuth } from './commands/auth.js';
-import { runDoctor } from './commands/doctor.js';
+import { computeDoctorExitCode, runDoctor } from './commands/doctor.js';
 import { InitError, runInit } from './commands/init.js';
 import { runPlan } from './commands/plan.js';
 import { runReplay } from './commands/replay.js';
@@ -52,8 +52,11 @@ program
 program
   .command('doctor')
   .description('Diagnose the current workspace and runtime health')
-  .action(async () => {
-    await runDoctor({ cwd: process.cwd() });
+  .option('--strict', 'Exit non-zero if recovery status is corrupted or unrecoverable')
+  .action(async (opts: { strict?: boolean }) => {
+    const strict = opts.strict ?? false;
+    const report = await runDoctor({ cwd: process.cwd(), strict });
+    process.exitCode = computeDoctorExitCode(report, strict);
   });
 
 program
