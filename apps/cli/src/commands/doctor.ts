@@ -2,11 +2,13 @@
 // Copyright (c) 2026 DeadlyVirusIn
 
 // `manthan doctor` — read-only health check.
-// Phase 0 scope:
+// Scope:
 //   - print platform info
+//   - check Node version against minimum required (22.13.0)
 //   - check git on PATH
+//   - check adapter availability (claude / codex / gemini CLIs, ANTHROPIC_API_KEY)
 //   - if a .manthan/ exists in cwd: open DB, verify chain, count rows
-//   - scan git hooks per SAFETY §11d (informational)
+//   - scan git hooks per SAFETY §11d (informational only — enforcement is not yet active)
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -14,18 +16,84 @@ import { createBlobStore, openDb, runRecovery } from '@manthanos/memory';
 import { getPlatform } from '@manthanos/platform';
 import { scanGitHooks } from '@manthanos/safety';
 
+const MIN_NODE_VERSION = { major: 22, minor: 13, patch: 0 } as const;
+
+function parseNodeVersion(v: string): { major: number; minor: number; patch: number } | null {
+  // process.version is "vX.Y.Z" (possibly with -nightly suffix).
+  const m = /^v(\d+)\.(\d+)\.(\d+)/.exec(v);
+  if (!m || !m[1] || !m[2] || !m[3]) return null;
+  return {
+    major: Number.parseInt(m[1], 10),
+    minor: Number.parseInt(m[2], 10),
+    patch: Number.parseInt(m[3], 10),
+  };
+}
+
+function nodeMeetsMinimum(parsed: { major: number; minor: number; patch: number }): boolean {
+  if (parsed.major > MIN_NODE_VERSION.major) return true;
+  if (parsed.major < MIN_NODE_VERSION.major) return false;
+  if (parsed.minor > MIN_NODE_VERSION.minor) return true;
+  if (parsed.minor < MIN_NODE_VERSION.minor) return false;
+  return parsed.patch >= MIN_NODE_VERSION.patch;
+}
+
 export interface DoctorOptions {
   readonly cwd: string;
+}
+
+export interface AdapterAvailability {
+  readonly id: 'claude-cli' | 'codex-cli' | 'gemini-cli' | 'anthropic-api';
+  readonly available: boolean;
+  readonly detail: string;
 }
 
 export interface DoctorReport {
   readonly platform: { os: string; arch: string; isWSL: boolean };
   readonly node: string;
+  readonly nodeOk: boolean;
   readonly gitVersion: string | null;
+  readonly adapters: ReadonlyArray<AdapterAvailability>;
   readonly workspaceInitialized: boolean;
   readonly chainOk?: boolean;
   readonly auditEvents?: number;
   readonly gitHooksDetected?: number;
+}
+
+async function checkAdapters(
+  platform: ReturnType<typeof getPlatform>,
+): Promise<AdapterAvailability[]> {
+  const [claude, codex, gemini] = await Promise.all([
+    platform.process.which('claude'),
+    platform.process.which('codex'),
+    platform.process.which('gemini'),
+  ]);
+  const hasAnthropicKey =
+    typeof process.env.ANTHROPIC_API_KEY === 'string' &&
+    process.env.ANTHROPIC_API_KEY.length > 0;
+  return [
+    {
+      id: 'claude-cli',
+      available: claude !== null,
+      detail: claude ? claude : 'install Claude Code CLI: https://claude.com/code',
+    },
+    {
+      id: 'anthropic-api',
+      available: hasAnthropicKey,
+      detail: hasAnthropicKey
+        ? 'ANTHROPIC_API_KEY set'
+        : 'set ANTHROPIC_API_KEY (or run `manthan auth --set global`) for --adapter=api',
+    },
+    {
+      id: 'codex-cli',
+      available: codex !== null,
+      detail: codex ? codex : 'install Codex CLI (npm install -g @openai/codex)',
+    },
+    {
+      id: 'gemini-cli',
+      available: gemini !== null,
+      detail: gemini ? gemini : 'install Gemini CLI (https://github.com/google-gemini/gemini-cli)',
+    },
+  ];
 }
 
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
@@ -47,6 +115,13 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
     }
   }
 
+  // Node version check
+  const parsedNode = parseNodeVersion(process.version);
+  const nodeOk = parsedNode !== null && nodeMeetsMinimum(parsedNode);
+
+  // Adapter availability
+  const adapters = await checkAdapters(platform);
+
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(opts.cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
   const initialized = existsSync(manthanDir);
@@ -56,9 +131,18 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   process.stdout.write(`  platform: ${platform.info.os}/${platform.info.arch}`);
   if (platform.info.isWSL) process.stdout.write(' (WSL)');
   process.stdout.write('\n');
-  process.stdout.write(`  node:     ${process.version}\n`);
+  const nodeMark = nodeOk ? '' : `  ✗ requires v${MIN_NODE_VERSION.major}.${MIN_NODE_VERSION.minor}+`;
+  process.stdout.write(`  node:     ${process.version}${nodeMark}\n`);
   process.stdout.write(`  git:      ${gitVersion ?? '(not found on PATH)'}\n`);
   process.stdout.write(`  cwd:      ${workspaceRoot}\n`);
+  process.stdout.write('\n');
+
+  // Adapter availability section
+  process.stdout.write('  adapters:\n');
+  for (const a of adapters) {
+    const mark = a.available ? '✓' : '✗';
+    process.stdout.write(`    ${mark} ${a.id.padEnd(14)} ${a.detail}\n`);
+  }
   process.stdout.write('\n');
 
   if (!initialized) {
@@ -70,7 +154,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
         isWSL: platform.info.isWSL,
       },
       node: process.version,
+      nodeOk,
       gitVersion,
+      adapters,
       workspaceInitialized: false,
     };
   }
@@ -95,7 +181,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
           isWSL: platform.info.isWSL,
         },
         node: process.version,
+        nodeOk,
         gitVersion,
+        adapters,
         workspaceInitialized: true,
       };
     }
@@ -123,7 +211,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
       for (const h of hooks) {
         process.stdout.write(`    - ${h.path}  ${h.sha256.slice(0, 12)}…\n`);
       }
-      process.stdout.write('    (Phase 0 informational only; refusal flow lands in Phase 1.)\n');
+      process.stdout.write('    (git hook audit is informational; enforcement is not yet active)\n');
     }
 
     return {
@@ -133,7 +221,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
         isWSL: platform.info.isWSL,
       },
       node: process.version,
+      nodeOk,
       gitVersion,
+      adapters,
       workspaceInitialized: true,
       chainOk: report.chainOk,
       auditEvents: report.chainCheckedEvents,
