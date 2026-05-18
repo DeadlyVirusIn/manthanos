@@ -4,9 +4,10 @@
      alt="ManthanOS — continuity infrastructure for multi-model AI engineering"
      width="560" />
 
-A local CLI that holds your project's decisions and facts in a workspace,
-records what each AI session produces, lets you promote what's worth keeping,
-and presents that record to whichever AI tool you open next.
+A local CLI for solo engineers maintaining project continuity across
+multiple AI tools — Claude, ChatGPT, Codex, Gemini. It records what each
+AI session produces, lets you promote what's worth keeping, and presents
+that record to whichever AI tool you open next.
 
 </div>
 
@@ -20,6 +21,16 @@ Local-first, audit-first, single-user. Currently honest about what it has and ha
 - **Code:** Phase 1 substrate + Phase 2 promotion UX are in tree and tested.
 - **Phase 3 measurement:** the CpT harness ships; live cross-model results have not been run yet.
 - **License:** BSL 1.1, converts to Apache 2.0 after four years.
+
+**Operating principles** (what ManthanOS is, said in three lines):
+
+- The **human is the operator.** No autonomous execution, no
+  background mutation, no agent identity.
+- The **AI tools are interchangeable collaborators.** Claude, ChatGPT,
+  Codex, Gemini — none of them owns the project's state.
+- The **repository is the unit of continuity.** Project facts and
+  decisions persist with the repo; they do not follow any specific
+  tool, model, or assistant.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for how the
 substrate is built and [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md)
