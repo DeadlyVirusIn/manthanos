@@ -19,7 +19,7 @@ import { createCodexCliAdapter } from '@manthanos/adapter-codex-cli';
 import { createGeminiCliAdapter } from '@manthanos/adapter-gemini-cli';
 import type { AgentAdapter } from '@manthanos/adapters-sdk';
 import { openDb } from '@manthanos/memory';
-import { RunPlanError, runPlanWorkflow } from '@manthanos/orchestrator';
+import { RunPlanError, type RunPlanResult, runPlanWorkflow } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 import { resolveAuth } from '../auth-store.js';
 
@@ -224,7 +224,14 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
         `  redactions:   ${result.redacted.map((r) => `${r.pattern}×${r.count}`).join(', ')}\n`,
       );
     }
-    process.stdout.write(`\nReplay this run with: manthan replay ${result.runId}\n`);
+
+    // P1.6: post-plan continuity summary. Two calm, technical lines
+    // so the operator can see at a glance that ManthanOS actually
+    // injected and recorded continuity for this run.
+    process.stdout.write('\n');
+    for (const line of formatPlanSummary(result)) {
+      process.stdout.write(`${line}\n`);
+    }
 
     // Post-plan review hint — the load-bearing UX nudge.
     const factsCount = result.compound?.factsQuarantined ?? 0;
@@ -259,4 +266,21 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
   } finally {
     process.off('SIGINT', handleSigint);
   }
+}
+
+/**
+ * Format the post-plan continuity summary as two lines.
+ *
+ * Returns plain text. No styling, no anthropomorphism. The lines
+ * answer one question: did ManthanOS actually inject continuity
+ * into this run, and where can the operator look to verify it?
+ *
+ * Exported for direct unit testing.
+ */
+export function formatPlanSummary(result: RunPlanResult): readonly string[] {
+  const m = result.bundleMetrics;
+  return [
+    `[manthan] context: ${m.trustedFactsInBundle} trusted facts injected | ${m.quarantineFactsExcluded} quarantine facts excluded | ${m.omittedFactsCount} omitted`,
+    `[manthan] run logged: ${result.runId} — replay with: manthan replay ${result.runId}`,
+  ];
 }

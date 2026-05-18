@@ -83,6 +83,20 @@ export interface RunPlanResult {
   readonly bundleMetrics: {
     readonly trustedFactsInBundle: number;
     readonly quarantineFactsInBundle: number;
+    /**
+     * Count of T0 facts present in the workspace that were NOT
+     * included in the bundle. Equals `total T0 non-charter facts -
+     * quarantineFactsInBundle`. Non-zero by default because
+     * `--include-quarantine` is opt-in.
+     */
+    readonly quarantineFactsExcluded: number;
+    /**
+     * Count of trusted facts (T+1/T+2/T+3) that adaptive shaping
+     * trimmed from the bundle (minConfidence / tokenBudget /
+     * priorityArea). Each entry's reason is preserved on the bundle
+     * itself; this field is the count for the post-plan summary.
+     */
+    readonly omittedFactsCount: number;
     readonly trustedTokens: number;
     readonly untrustedTokens: number;
   };
@@ -573,6 +587,8 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       bundleMetrics: {
         trustedFactsInBundle: bundle.metrics.trustedFactsInBundle,
         quarantineFactsInBundle: bundle.metrics.quarantineFactsInBundle,
+        quarantineFactsExcluded: quarantineFactsRaw.length - bundle.metrics.quarantineFactsInBundle,
+        omittedFactsCount: bundle.metrics.omittedFacts.length,
         trustedTokens: bundle.metrics.trustedTokens,
         untrustedTokens: bundle.metrics.untrustedTokens,
       },
