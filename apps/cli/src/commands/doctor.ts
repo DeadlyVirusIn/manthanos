@@ -68,8 +68,7 @@ async function checkAdapters(
     platform.process.which('gemini'),
   ]);
   const hasAnthropicKey =
-    typeof process.env.ANTHROPIC_API_KEY === 'string' &&
-    process.env.ANTHROPIC_API_KEY.length > 0;
+    typeof process.env.ANTHROPIC_API_KEY === 'string' && process.env.ANTHROPIC_API_KEY.length > 0;
   return [
     {
       id: 'claude-cli',
@@ -131,7 +130,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   process.stdout.write(`  platform: ${platform.info.os}/${platform.info.arch}`);
   if (platform.info.isWSL) process.stdout.write(' (WSL)');
   process.stdout.write('\n');
-  const nodeMark = nodeOk ? '' : `  ✗ requires v${MIN_NODE_VERSION.major}.${MIN_NODE_VERSION.minor}+`;
+  const nodeMark = nodeOk
+    ? ''
+    : `  ✗ requires v${MIN_NODE_VERSION.major}.${MIN_NODE_VERSION.minor}+`;
   process.stdout.write(`  node:     ${process.version}${nodeMark}\n`);
   process.stdout.write(`  git:      ${gitVersion ?? '(not found on PATH)'}\n`);
   process.stdout.write(`  cwd:      ${workspaceRoot}\n`);
@@ -211,7 +212,9 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
       for (const h of hooks) {
         process.stdout.write(`    - ${h.path}  ${h.sha256.slice(0, 12)}…\n`);
       }
-      process.stdout.write('    (git hook audit is informational; enforcement is not yet active)\n');
+      process.stdout.write(
+        '    (git hook audit is informational; enforcement is not yet active)\n',
+      );
     }
 
     return {
