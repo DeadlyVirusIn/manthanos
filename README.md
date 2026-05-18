@@ -282,8 +282,11 @@ to its provider when you run a plan. Consequences:
 
 - You can read your own state with `sqlite3` or `cat`.
 - You can `rm -rf .manthan` and start over with no obligation.
-- You can `git commit .manthan/` if you want the workspace versioned;
-  you can `.gitignore` it if you don't.
+- `.manthan/` is local-only by default — `manthan init` writes a
+  `.manthan/.gitignore` that excludes the workspace state from your
+  repo. If you want to version it (rare; useful for shared brains),
+  remove or edit that file and add `.manthan/` to your project
+  tracking explicitly.
 - Your project's decisions don't depend on this project being maintained.
 - There is no account, no login, no "cloud sync paused" failure mode.
 
