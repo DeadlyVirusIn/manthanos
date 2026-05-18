@@ -69,7 +69,11 @@ export async function storeAuth(opts: AuthStoreOptions): Promise<string> {
     opts.target === 'global'
       ? path.join(platform.info.userDataDir, 'api-keys.env')
       : path.join(opts.workspaceRoot, '.manthan', 'secrets.env');
-  await mkdir(path.dirname(filePath), { recursive: true });
+  // mode: 0o700 ensures the credential directory is readable only by
+  // the owning user on POSIX. The umask would otherwise leave it
+  // group/world-readable. (No-op on Windows; the file itself still
+  // gets mode 0o600 below for defense in depth.)
+  await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
 
   // Read existing content and replace any prior ANTHROPIC_API_KEY line.
   let existing = '';
