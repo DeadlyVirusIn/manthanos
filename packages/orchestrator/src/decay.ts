@@ -27,6 +27,7 @@ import {
   type ManthanSqliteHandle,
   auditedWrite,
 } from '@manthanos/memory';
+import { AUDIT_DECISION_AUTO_APPROVE } from '@manthanos/safety';
 import type { FactTier } from './brain-trust.js';
 
 const CONFIDENCE_FLOOR = 0.5;
@@ -281,7 +282,12 @@ export async function runDecay(opts: RunDecayOptions): Promise<RunDecayResult> {
     area: opts.area,
   });
 
-  const actor = `user:${opts.approver ?? 'cli'}`;
+  // Decay corrections are decided by the algorithm, not by a per-event
+  // human review. The human who invoked the sweep is recorded
+  // separately (workflow-level audit + payload note); the per-event
+  // actor here must answer "who decided THIS transition?", which is
+  // `system:decay`.
+  const actor = 'system:decay';
   let written = 0;
 
   for (const c of plan.candidates) {
@@ -300,7 +306,7 @@ export async function runDecay(opts: RunDecayOptions): Promise<RunDecayResult> {
       actor,
       action: 'brain.correction',
       kind: 'system',
-      decision: 'human-approved',
+      decision: AUDIT_DECISION_AUTO_APPROVE,
       tsOverride: opts.tsOverride,
       payload: {
         correction_id: decayCorrectionId(),
@@ -316,6 +322,10 @@ export async function runDecay(opts: RunDecayOptions): Promise<RunDecayResult> {
           band: c.band,
           profile: plan.profile,
           as_of: plan.asOf,
+          // Who invoked the sweep. Not the decider of this transition
+          // (the algorithm is) but the human-traceability handle for
+          // operators reading the log.
+          invoked_by: opts.approver ?? 'cli',
         }),
         is_undo_of_seq: null,
       },

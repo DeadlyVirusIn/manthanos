@@ -14,6 +14,11 @@ import {
   type ManthanSqliteHandle,
   auditedWrite,
 } from '@manthanos/memory';
+import {
+  AUDIT_DECISION_AUTO_APPROVE,
+  AUDIT_DECISION_HUMAN_APPROVED,
+  type AuditDecision,
+} from '@manthanos/safety';
 
 export type FactTier = 'T+3' | 'T+2' | 'T+1' | 'T0' | 'T-1' | 'T-2';
 
@@ -188,7 +193,7 @@ export async function promoteFact(opts: PromoteOptions): Promise<CorrectionResul
     reason: 'human_promotion',
     note: opts.note,
     tsOverride: opts.tsOverride,
-    decision: 'human-approved',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
   });
 }
 
@@ -234,7 +239,7 @@ export async function demoteFact(opts: DemoteOptions): Promise<CorrectionResult>
     reason: 'human_demotion',
     note: opts.reason,
     tsOverride: opts.tsOverride,
-    decision: 'human-approved',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
   });
 }
 
@@ -312,7 +317,7 @@ export async function undoCorrection(opts: UndoOptions): Promise<CorrectionResul
     reason: 'human_undo',
     note: `undo of seq=${opts.auditSeq} (${original.from_tier} → ${original.to_tier})`,
     isUndoOf: opts.auditSeq,
-    decision: 'human-approved',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
   });
 }
 
@@ -352,12 +357,13 @@ interface ApplyTransitionInput {
   readonly note?: string;
   readonly isUndoOf?: number;
   /**
-   * Audit metadata: 'human-approved' for human-initiated transitions
-   * (promote, demote, undo); 'auto-approve' reserved for genuinely
-   * machine-decided transitions. Default 'auto-approve'.
+   * Audit decision label. `AUDIT_DECISION_HUMAN_APPROVED` for
+   * per-event human-gated transitions (promote, demote, undo);
+   * `AUDIT_DECISION_AUTO_APPROVE` reserved for genuinely
+   * machine-decided transitions. Default `AUDIT_DECISION_AUTO_APPROVE`.
    * Stabilization §3.3.
    */
-  readonly decision?: 'auto-approve' | 'human-approved';
+  readonly decision?: AuditDecision;
   /**
    * Simulator-only: back-date the audit event ts and the fact's
    * timestamp columns to a specific moment. Production calls leave
@@ -380,7 +386,7 @@ async function applyTransition(args: ApplyTransitionInput): Promise<CorrectionRe
     actor: args.actor,
     action: 'brain.correction',
     kind: 'system',
-    decision: args.decision ?? 'auto-approve',
+    decision: args.decision ?? AUDIT_DECISION_AUTO_APPROVE,
     tsOverride: args.tsOverride,
     payload: {
       correction_id: correctionId,

@@ -300,16 +300,23 @@ human.
 
 **Exact fix:**
 
-1. Add `decision: 'auto-approve' | 'human-approved'` to
+1. Add a typed `decision: AuditDecision` field to
    `ApplyTransitionInput` (~`brain-trust.ts:324-334`).
 2. Default behavior in `applyTransition`: use the passed-in value;
-   fallback `'auto-approve'`.
-3. `promoteFact` and `demoteFact` pass `'human-approved'`.
-4. `runDecay` and `mergeDuplicates` continue to set `'human-approved'`
-   (they already do, via `auditedWrite`'s `decision` field — these
-   don't go through `applyTransition`).
-5. `undoCorrection` passes `'human-approved'` (a human is initiating
-   the undo).
+   fallback `AUDIT_DECISION_AUTO_APPROVE`.
+3. `promoteFact` and `demoteFact` pass `AUDIT_DECISION_HUMAN_APPROVED`.
+4. `runDecay` sets `AUDIT_DECISION_AUTO_APPROVE` with
+   `actor: 'system:decay'`. The decay algorithm decides the specific
+   tier/confidence transition; the human who invoked the sweep is
+   preserved in the payload note as `invoked_by`. (P0.2 correction
+   2026-05-18: the original stabilization plan mistakenly proposed
+   `human-approved` here, conflating "human ran the sweep" with
+   "human decided this transition". The audit chain must answer the
+   latter.)
+5. `mergeDuplicates` sets `AUDIT_DECISION_HUMAN_APPROVED` — `manthan
+   brain merge` is interactive and prompts before each cluster.
+6. `undoCorrection` passes `AUDIT_DECISION_HUMAN_APPROVED` (a human is
+   initiating the undo).
 
 **Migration implications:** existing audit events have the wrong
 decision value. Do NOT rewrite history. Going forward, new events have

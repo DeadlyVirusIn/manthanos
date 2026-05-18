@@ -13,7 +13,7 @@
 import path from 'node:path';
 import { JsonCanon } from '@manthanos/adapters-sdk';
 import { getPlatform } from '@manthanos/platform';
-import { type AuditEventBody, computeSelfHash } from '@manthanos/safety';
+import { type AuditDecision, type AuditEventBody, computeSelfHash } from '@manthanos/safety';
 import type Database from 'better-sqlite3';
 import type { BlobStore } from './blob-store.js';
 
@@ -22,7 +22,13 @@ export interface AuditedWriteInput {
   readonly actor: string;
   readonly action: string;
   readonly kind: string;
-  readonly decision: string;
+  /**
+   * Who decided this exact event? See `AuditDecision` for the strict
+   * semantics. Algorithmic / system-driven events must use
+   * `AUDIT_DECISION_AUTO_APPROVE`; per-event human-gated mutations
+   * must use `AUDIT_DECISION_HUMAN_APPROVED`.
+   */
+  readonly decision: AuditDecision;
   /** Optional payload — if present, persisted to the blob store. */
   readonly payload?: unknown;
   /**

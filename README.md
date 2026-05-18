@@ -311,10 +311,13 @@ to its provider when you run a plan. Consequences:
 - Your project's decisions don't depend on this project being maintained.
 - There is no account, no login, no "cloud sync paused" failure mode.
 
-**Trust-gated.** No fact promotes itself. Every transition between
-tiers is a human action recorded with an explicit `decision` field
-(`human-approved` or, for automatic decay, `auto-approve` —
-which only touches an internal aging field, never tier). Consequences:
+**Trust-gated.** No fact promotes itself. Every per-event transition
+records an explicit `decision` field: `human-approved` for transitions
+a human reviewed (promote, demote, undo, interactive dedup-merge), and
+`auto-approve` for transitions an algorithm decided (decay sweeps,
+T0 quarantine from plan extraction, system-bootstrap charter facts).
+Decay can demote and archive facts, but it never *promotes*; new trust
+only enters the system through a human-approved event. Consequences:
 
 - A wrong fact in T0 cannot poison future prompts.
 - A wrong promotion is undoable for 7 days with `manthan brain undo-correction`.

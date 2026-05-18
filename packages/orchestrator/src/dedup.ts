@@ -17,6 +17,7 @@ import {
   type ManthanSqliteHandle,
   auditedWrite,
 } from '@manthanos/memory';
+import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
 import type { FactTier } from './brain-trust.js';
 
 const DEFAULT_THRESHOLD = 0.25;
@@ -347,7 +348,7 @@ export async function mergeDuplicates(opts: MergeDuplicatesOptions): Promise<Mer
     actor: `user:${opts.approver}`,
     action: 'brain.dedup_merge',
     kind: 'system',
-    decision: 'human-approved',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
     tsOverride: opts.tsOverride,
     payload: {
       merge_id: correctionId,

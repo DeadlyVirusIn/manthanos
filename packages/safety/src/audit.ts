@@ -9,6 +9,32 @@
 import { createHash } from 'node:crypto';
 import { JsonCanon } from '@manthanos/adapters-sdk';
 
+/**
+ * Decision label committed into every audit event. The chain commits
+ * to this string via computeSelfHash, so changing the set of legal
+ * values is a chain-affecting decision.
+ *
+ * The label answers exactly one question: **who decided THIS event?**
+ * Not "who invoked the command that scheduled the sweep" — the
+ * invoking human is recorded in `actor` and in workflow-level audit
+ * events. This field distinguishes:
+ *
+ *   - `human-approved`: a human reviewed the specific transition and
+ *     authorized it (e.g., `manthan brain promote`, interactive
+ *     `brain review`, interactive `brain merge`).
+ *
+ *   - `auto-approve`: the system or an algorithmic policy decided
+ *     the specific transition with no per-event human gating (e.g.,
+ *     decay sweeps, T0 quarantine from plan extraction, charter-fact
+ *     bootstrap, workflow scaffolding events).
+ *
+ * Future labels (e.g., `human-rejected`, `signed-decision`) require
+ * a chain-aware migration plan and an updated reader.
+ */
+export type AuditDecision = 'human-approved' | 'auto-approve';
+export const AUDIT_DECISION_HUMAN_APPROVED: AuditDecision = 'human-approved';
+export const AUDIT_DECISION_AUTO_APPROVE: AuditDecision = 'auto-approve';
+
 export interface AuditEventBody {
   readonly workspace_id: string;
   readonly seq: number;
@@ -17,7 +43,7 @@ export interface AuditEventBody {
   readonly action: string;
   readonly kind: string;
   readonly payload_hash: string | null;
-  readonly decision: string;
+  readonly decision: AuditDecision;
 }
 
 export interface ChainedAuditEvent extends AuditEventBody {

@@ -2,12 +2,19 @@
 // Copyright (c) 2026 DeadlyVirusIn
 
 export {
+  AUDIT_DECISION_AUTO_APPROVE,
+  AUDIT_DECISION_HUMAN_APPROVED,
   computeSelfHash,
   GENESIS_PAYLOAD_HASH,
   sha256Hex,
   verifyChain,
 } from './audit.js';
-export type { AuditEventBody, ChainedAuditEvent, ChainCheckResult } from './audit.js';
+export type {
+  AuditDecision,
+  AuditEventBody,
+  ChainedAuditEvent,
+  ChainCheckResult,
+} from './audit.js';
 
 export { defaultPolicy } from './classifier.js';
 export type { ActionKind, Decision, PolicyContext } from './classifier.js';
