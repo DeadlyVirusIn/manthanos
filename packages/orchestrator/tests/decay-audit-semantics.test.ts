@@ -19,10 +19,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { AsyncMutex, createBlobStore, openDb } from '@manthanos/memory';
-import {
-  AUDIT_DECISION_AUTO_APPROVE,
-  AUDIT_DECISION_HUMAN_APPROVED,
-} from '@manthanos/safety';
+import { AUDIT_DECISION_AUTO_APPROVE, AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { promoteFact } from '../src/brain-trust.js';
 import { runDecay } from '../src/decay.js';
