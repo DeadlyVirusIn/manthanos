@@ -228,48 +228,76 @@ Executed by `packages/memory` `recovery.run()` before any
 mutating operation. Idempotent — safe to run repeatedly.
 
 ```
-R1. Acquire workspace lock (§7). If lock present and PID alive: refuse.
-R2. SQLite open with WAL mode. SQLite handles its own WAL recovery.
-R3. Audit chain verification:
-    For each (workspace_id, seq) in audit_events ordered by seq:
-      recompute self_hash; compare with stored.
-      On mismatch: enter audit_corrupted mode (§5.2). HALT.
-    On success: record verification ts.
-R4. Orphan-blob reconciliation:
-    Scan .manthan/audit/blobs/. For each blob hash not referenced
-    by audit_events.payload_hash: insert into orphan_blobs with
-    discovered_ts = now (if not already present).
-R5. JSONL reconciliation:
-    Read max seq present in JSONL (parse last complete line).
-    For each audit_event in SQLite with seq > max_jsonl_seq, append
-    its JsonCanon serialization to JSONL. fsync.
-R6. Brain reconciliation:
-    For each workflow_runs row with status='running': mark
-    'crashed_recoverable'. Same for in-progress debates.
-R7. GC orphan blobs older than 30 days; record GC event.
-R8. Release lock acquisition flag — runtime is now mutable.
+R1.  Acquire workspace lock (§7). If lock present and PID alive: refuse.
+R2.  SQLite open with WAL mode. SQLite handles its own WAL recovery.
+R3a. Audit chain verification:
+     For each (workspace_id, seq) in audit_events ordered by seq:
+       recompute self_hash; compare with stored.
+       On mismatch: record `chain` finding.
+R3b. Genesis-anchor check (I2): the first row in a non-empty workspace
+     must be seq=1 with prev_hash=null. Anything else records a
+     `genesis_anchor` finding and forces `unrecoverable` status.
+R3c. Sequence contiguity (I3): expect 1, 2, ..., N. Any gap records
+     a `sequence_gap` finding.
+R3d. Blob existence (I1, payload side): for each audit row with a
+     non-null payload_hash, verify the blob file exists. Missing
+     blobs record a `blob_missing` finding.
+R4.  Orphan-blob reconciliation:
+     Scan .manthan/audit/blobs/. For each blob hash not referenced
+     by audit_events.payload_hash: insert into orphan_blobs with
+     discovered_ts = now (if not already present).
+R5.  JSONL parity scan (I5):
+     For each non-empty line in .manthan/audit.log for this workspace,
+     parse and require a matching row in SQLite with byte-equal
+     fields (ts, actor, action, kind, payload_hash, decision,
+     prev_hash, self_hash). Mismatches record
+     `jsonl_field_mismatch`; rows in JSONL with no SQLite counterpart
+     record `jsonl_row_not_in_sqlite`; mid-file malformed lines
+     record `jsonl_malformed_interior`. The trailing line may be
+     truncated (the P4 partial-write scenario) and is tolerated.
+     Then: for each audit_event in SQLite with seq > max_jsonl_seq,
+     append its JsonCanon serialization to JSONL. fsync.
+R6.  Brain reconciliation:
+     For each workflow_runs row with status='running': mark
+     'crashed_recoverable'. Same for in-progress debates.
+R7.  GC orphan blobs older than 30 days; record GC event.
+R8.  Release lock acquisition flag — runtime is now mutable.
 ```
 
-R3 is the only step that can transition the runtime to a refused-
-mutation state.
+Recovery resolves to one of four statuses (P0.4):
+  `clean` / `partial` / `corrupted` / `unrecoverable`.
 
-### 5.2 `audit_corrupted` mode
+`corrupted` or `unrecoverable` puts the runtime in refused-mutation
+mode (callers refuse to write new audit events). The finding list is
+appended to `.manthan/audit-corruption.log` outside the chain so a
+corrupted chain cannot mask its own findings.
 
-A failed chain verification (I2 or I3 violation) indicates either
-disk corruption, an external tamper, or — most likely — a bug in
-ManthanOS persistence. The runtime:
+### 5.2 Refused-mutation modes — `corrupted` / `unrecoverable`
+
+Any of the checks in §5.1 R3a–R3d or R5 that records a finding
+resolves the recovery status to `corrupted`. A genesis-anchor
+violation (I2) resolves to `unrecoverable`. In either case, the
+runtime:
 
 - Refuses all mutating operations (writes, workflow runs, brain
   updates).
 - Allows read commands (`manthan brain stats`, `manthan audit show
   <seq>`, `manthan doctor`).
 - Surfaces an explicit, structured error on every CLI invocation
-  with the offending seq and the expected vs. observed self_hash.
-- Logs the corruption to a side channel
-  (`.manthan/audit-corruption.log`) outside the corrupted chain.
+  with the offending seq, finding category, and the expected vs.
+  observed values when applicable.
+- Appends each finding to `.manthan/audit-corruption.log` outside
+  the corrupted chain.
 
-No automatic repair. The user invokes
-`manthan audit recover --force --i-understand` to:
+`unrecoverable` is strictly stronger than `corrupted`: a chain that
+does not anchor to a valid genesis cannot be safely continued at
+all. `corrupted` allows read-only inspection of recorded artifacts;
+`unrecoverable` allows the same but no recovery rewrite is
+considered safe to design.
+
+No automatic repair. The user must inspect
+`.manthan/audit-corruption.log` and decide how to proceed. A
+future `manthan audit recover` flow (specced, not built) would:
 
 - Mark all rows from corruption seq onward as `quarantined`.
 - Start a new chain segment with a new genesis row referencing the

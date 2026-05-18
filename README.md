@@ -151,9 +151,14 @@ Capability surface:
   and triages months of activity in seconds.
 - **Cross-platform.** Windows, macOS, Linux are equal targets;
   a single platform abstraction layer with genuine per-OS code.
-- **Audit chain.** Hash-chained JSONL, SHA-256, accidental-corruption
-  detection only (not tamper-proof against an attacker with workspace
-  write access).
+- **Audit chain + startup recovery.** Hash-chained JSONL, SHA-256.
+  On startup, recovery resolves to `clean` / `partial` /
+  `corrupted` / `unrecoverable` and refuses mutating operations on
+  the latter two. Detects chain hash mismatch, interior sequence
+  gaps, genesis-anchor violation, JSONL parity mismatch with
+  SQLite, and missing blob files; preserves findings to
+  `.manthan/audit-corruption.log` outside the chain. Not tamper-
+  proof against an attacker with workspace write access.
 
 ---
 
