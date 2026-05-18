@@ -73,6 +73,12 @@ directory with three things:
 - An append-only JSONL audit log.
 - A blob store keyed by SHA-256.
 
+Together these form the workspace's **continuity record**. The
+`manthan brain *` CLI surface operates on the curated portion of
+that record (the trusted-facts layer the human promotes and
+reviews); the audit chain captures every effectful change so the
+record is recoverable end-to-end.
+
 The day-to-day workflow:
 
 ```bash

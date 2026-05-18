@@ -81,8 +81,9 @@ that we decided Express 4.x, not Express 5."
 ManthanOS does one specific thing about this:
 
 1. When an AI workflow produces structured commitments (a plan's
-   assumptions, risks), they land in the brain at **T0 (quarantine) —
-   not trusted yet, not in future prompts**.
+   assumptions, risks), they land in the workspace's **brain** —
+   the curated, human-touched portion of its continuity record —
+   at **T0 (quarantine): not trusted yet, not in future prompts**.
 2. The human reviews them (`manthan brain facts`, `manthan brain
    promote`) and explicitly elevates the ones worth keeping.
 3. Future workflows' prompts include the trusted set, tagged with tier

@@ -261,6 +261,16 @@ CLI is one host; an editor extension or future daemon are others.
 
 ## 7. The Project Brain
 
+> **Terminology.** "Brain" is the CLI shorthand (`manthan brain *`)
+> for the operationally-curated portion of a workspace's
+> **continuity record** — primarily the trusted-facts layer
+> (T+1/T+2/T+3) that the human reviews and promotes. The continuity
+> record is the superset: facts at all tiers, decisions, audit
+> chain, and bundle metadata. When this document and the CLI say
+> "brain," they mean the slice of the continuity record a human
+> directly curates. See
+> [`docs/research/TERMINOLOGY_AUDIT.md`](./research/TERMINOLOGY_AUDIT.md) §3.5.
+
 This is the unique value of the platform. Without it, ManthanOS is
 just another orchestrator.
 
