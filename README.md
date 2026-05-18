@@ -23,9 +23,8 @@ Local-first, audit-first, single-user. Currently honest about what it has and ha
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for how the
 substrate is built and [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md)
-for the measurement design. Internal working notes (positioning
-history, stabilization process, phase governance, founder ops) are
-indexed in [`docs/NOTES.md`](./docs/NOTES.md).
+for the measurement design. Full public-docs index at
+[`docs/NOTES.md`](./docs/NOTES.md).
 
 ---
 
@@ -397,15 +396,14 @@ once the cross-tool benefit has been measured rather than asserted.
   honest disclaimers.
 - [`docs/CONTINUITY_THEORY.md`](./docs/CONTINUITY_THEORY.md) — why
   trust ladder + audit chain is the design.
+- [`docs/TRUTH_CHECKPOINT.md`](./docs/TRUTH_CHECKPOINT.md) — what is
+  validated, invalidated, and unproven.
 - [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) — the measurement
   design.
-- [`docs/MVP_ROADMAP.md`](./docs/MVP_ROADMAP.md) — what is next.
 - [`docs/LICENSING_STRATEGY.md`](./docs/LICENSING_STRATEGY.md) —
   why BSL.
 
-Internal working notes (positioning history, stabilization process,
-phase governance, founder ops) are indexed in
-[`docs/NOTES.md`](./docs/NOTES.md).
+Full public-docs index at [`docs/NOTES.md`](./docs/NOTES.md).
 
 ---
 

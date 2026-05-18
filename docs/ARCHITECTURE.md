@@ -190,11 +190,12 @@ definition, and (where applicable) human approval decisions. State
 machine, not DAG: simpler, replayable, debuggable.
 
 **Routing engine** — given a workflow step's required capabilities
-and a budget, selects the best adapter. Initially rule-based; later
-calibrated by an eval harness (see MVP_ROADMAP §6).
+and a budget, selects the best adapter. Initially rule-based; an
+eval-driven calibration path exists in the internal roadmap.
 
-**Debate engine** — implements the protocol described in
-DEBATE_PROTOCOL.md. Owns transcript persistence and arbiter contracts.
+**Debate engine** — owns transcript persistence and arbiter
+contracts for multi-agent debate workflows. Specced but not
+currently wired into the CLI; not on the active roadmap.
 
 **Safety gate** — every action passes through the gate before it is
 executed. Classifies action, looks up policy, requests approval if
@@ -268,8 +269,7 @@ CLI is one host; an editor extension or future daemon are others.
 > record is the superset: facts at all tiers, decisions, audit
 > chain, and bundle metadata. When this document and the CLI say
 > "brain," they mean the slice of the continuity record a human
-> directly curates. See
-> [`docs/research/TERMINOLOGY_AUDIT.md`](./research/TERMINOLOGY_AUDIT.md) §3.5.
+> directly curates.
 
 This is the unique value of the platform. Without it, ManthanOS is
 just another orchestrator.
@@ -781,9 +781,8 @@ explicit modes (full spec in WORKFLOWS_SPEC.md §10):
   decisions.
 - The **request payloads** sent to adapters are byte-identical for
   the same `(workflow, parameters, brain snapshot)` triple — *if*
-  the canonical-encoding rules in DEBATE_PROTOCOL.md §7 are
-  followed (sorted JSON keys, NFC unicode, no NaN/Inf, normalized
-  whitespace).
+  the canonical-encoding rules (sorted JSON keys, NFC unicode,
+  no NaN/Inf, normalized whitespace) are followed.
 - The **brain queries** return identical results given the same
   brain state.
 - The **audit log shape** is identical.
@@ -1079,7 +1078,7 @@ scope creep.
 - Auto-deployment, auto-pushing to remotes, auto-merging.
 - Slack / GitHub / Linear integrations as core features.
 
-If a feature is not in MVP_ROADMAP, it is a non-goal.
+If a feature is not part of the substrate or its current roadmap, it is a non-goal.
 
 ---
 

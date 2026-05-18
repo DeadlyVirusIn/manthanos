@@ -228,9 +228,10 @@ adapter ID and selection rationale.
 
 ### 5.4 `debate.run`
 
-Runs a debate protocol (separate, structured workflow type — see
-DEBATE_PROTOCOL.md). Inputs: protocol ID, participants (optional
-overrides), budget. Output: the arbiter result + transcript pointer.
+Runs a debate protocol (separate, structured workflow type;
+specced internally, not currently wired into the CLI). Inputs:
+protocol ID, participants (optional overrides), budget. Output:
+the arbiter result + transcript pointer.
 
 ### 5.5 `brain.write`
 
@@ -431,7 +432,8 @@ Three canonical workflow definitions ship with MVP. They live in
 - **`plan.workflow.yaml`** — context.pack → routing.select →
   agent.invoke → brain.write.
 - **`debate.workflow.yaml`** — context.pack → debate.run →
-  brain.write. (Debate internals defined in DEBATE_PROTOCOL.md.)
+  brain.write. (Debate internals are specced in internal notes;
+  not currently wired into the CLI.)
 - **`forensic-debug.workflow.yaml`** — evidence.pack → debate.run
   (forensic protocol) → brain.write → human.decide (mark resolved?).
 

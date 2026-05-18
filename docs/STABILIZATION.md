@@ -5,6 +5,15 @@
 > decision gate. No roadmap dreaming. No mechanism creep. No new
 > abstractions. No speculative futures.
 > Date: 2026-05-16.
+>
+> **Note on referenced documents:** This memo references several
+> internal positioning, phase-theory, and future-direction
+> documents (e.g., POSITIONING.md, PHASE2_THEORY.md,
+> FUTURE_COMMAND_CENTER.md) that have since been moved out of the
+> public repo into maintainer-private notes. The references
+> describe the project's historical narrative at the time of
+> writing; the documents themselves are no longer publicly
+> linkable, by design.
 
 This document is the operational rulebook. While stabilization is
 active, any action not explicitly authorized here is out of scope.

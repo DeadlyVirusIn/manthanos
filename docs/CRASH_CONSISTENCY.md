@@ -292,8 +292,8 @@ guarantees:
 - **G2.** The audit chain segment covering the run is verifiable
   (I2).
 - **G3.** The packed context bundle reconstructed from the recorded
-  brain snapshot is byte-identical via `JsonCanon` (per
-  DEBATE_PROTOCOL §7.1).
+  brain snapshot is byte-identical via `JsonCanon` (sorted JSON
+  keys, NFC unicode, normalized whitespace).
 - **G4.** The control-flow path (which steps ran, in what order) is
   deterministic given (workflow_def, parameters, brain_snapshot,
   recorded_human_decisions) — see DETERMINISTIC_ORDERING in

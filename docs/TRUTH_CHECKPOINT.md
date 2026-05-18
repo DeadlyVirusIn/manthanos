@@ -4,11 +4,19 @@
 > validated from what became narrative momentum. Written under explicit
 > instruction to not protect the thesis.
 > Date: 2026-05-16. Triggered by the /octo:review pass on the same day.
+>
+> **Note on referenced documents:** This memo references several
+> internal positioning, phase-governance, and roadmap documents
+> (e.g., POSITIONING.md, POSITIONING_CORRECTION.md, PHASE2_THEORY.md,
+> FUTURE_COMMAND_CENTER.md) that have since been moved out of the
+> public repo into maintainer-private notes. The references describe
+> the project's epistemic history at the time of writing; the
+> documents themselves are no longer publicly linkable, by design.
 
 Reading order: this document supersedes any prior framing in
-POSITIONING.md, CONTINUITY_THEORY.md, PHASE2_THEORY.md, or PHASE3_CPT.md
-where they conflict. Where those docs say "validated" and this one says
-"unproven," this one wins.
+CONTINUITY_THEORY.md or PHASE3_CPT.md where they conflict. Where
+those docs say "validated" and this one says "unproven," this one
+wins.
 
 ---
 

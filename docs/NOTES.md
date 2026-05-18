@@ -1,84 +1,108 @@
-# Internal working notes
+# Public docs index
 
-This file indexes the project's internal artifacts: process memos,
-narrative corrections, phase governance, founder operational
-documents, and review/hardening artifacts. They are kept in the public
-repo for transparency and honest evidence, not because a first-time
-user needs them.
+A table of contents for the public documentation that ships with
+ManthanOS. The [README](../README.md) covers product overview,
+installation, quickstart, and the canonical positioning. Everything
+below is reference material.
 
-If you are evaluating the tool, you don't need anything below this
-line. Start with the [README](../README.md) and the docs it links.
-
-If you are auditing the project's epistemic discipline, narrative
-history, or evidence trail, this is the index.
-
----
-
-## Narrative + positioning
-
-- [POSITIONING.md](./POSITIONING.md) — current positioning.
-- [POSITIONING_CORRECTION.md](./POSITIONING_CORRECTION.md) —
-  why the framing changed and how it is bounded.
-- [PUBLIC_INTERNAL_SPLIT.md](./PUBLIC_INTERNAL_SPLIT.md) — this
-  doc layout decision.
-
-## Evidence ledger
-
-- [TRUTH_CHECKPOINT.md](./TRUTH_CHECKPOINT.md) — what is validated,
-  invalidated, unproven. The single most load-bearing internal doc.
-
-## Stabilization (Phase 1 → Phase 2 transition)
-
-- [STABILIZATION.md](./STABILIZATION.md)
-- [STABILIZATION_LESSONS.md](./STABILIZATION_LESSONS.md)
-- [STABILIZATION_VERDICT.md](./STABILIZATION_VERDICT.md) — Option A
-  (narrow single-provider thesis) was selected; see also the §6.4
-  footnote in TRUTH_CHECKPOINT.md.
-
-## Phase governance
-
-- [PHASE_SELECTION_MEMO.md](./PHASE_SELECTION_MEMO.md)
-- [PHASE_A_CONSTITUTION.md](./PHASE_A_CONSTITUTION.md)
-- [PRECONDITION_ASSEMBLY_PLAN.md](./PRECONDITION_ASSEMBLY_PLAN.md)
-- [PHASE2_THEORY.md](./PHASE2_THEORY.md)
-
-## Speculative / future
-
-- [FUTURE_COMMAND_CENTER.md](./FUTURE_COMMAND_CENTER.md) —
-  speculative; not on the roadmap.
-- [DEBATE_PROTOCOL.md](./DEBATE_PROTOCOL.md) — internal protocol
-  for multi-model debate; not wired into the current product.
-
-## Founder operations (kept private)
-
-The maintainer's recruit messaging, candidate tracking sheet, founder
-operational guardrails, and Phase A go/no-go documentation
-(pre-mortem + authorization decision) are intentionally kept outside
-the public repo. They are operational playbooks, not architecture
-artifacts. Available privately on request for collaborators.
-
-## Multi-model review + hardening artifacts
-
-Dot-prefixed so they don't dominate the directory listing. Kept for
-audit transparency — these are inputs that drove substrate fixes.
-
-- `docs/.review-codex-2026-05-15.md`
-- `docs/.review-gemini-2026-05-15.md`
-- `docs/.hardening-codex-2026-05-15.md`
-- `docs/.hardening-gemini-2026-05-15.md`
+If a doc is not listed here, it is intentionally not part of the
+public surface — internal strategy, founder notes, competitor
+analysis, prioritization memos, and pre-field-study hypothesis
+work live in a separate private location and are not part of the
+public repo.
 
 ---
 
-## What lives here vs. what lives in the README
+## Architecture
 
-| Lives in the README | Lives here |
-|---|---|
-| Workflow pain, current capabilities, install path, demo, deferred-list, validation boundary. | Process narrative, stabilization debate, phase governance, narrative corrections, founder ops, review/hardening artifacts. |
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — How the substrate is
+  built. Read this first if you want to understand or extend the
+  internals.
+- [CONTINUITY_THEORY.md](./CONTINUITY_THEORY.md) — Why the
+  substrate is shaped the way it is. The trust-ladder + audit-chain
+  + decay design rationale.
+- [BOOTSTRAP_PROTOCOL.md](./BOOTSTRAP_PROTOCOL.md) — Workspace
+  initialization protocol; what `manthan init` actually does and
+  what facts the bootstrap pass extracts.
+- [PLATFORM_LAYER.md](./PLATFORM_LAYER.md) — Cross-platform PAL
+  seam. The conventions every OS-touching call must follow.
 
-The split is presentation-layer only. Nothing here is hidden from
-search, browsing, or git history. The path of discovery from the
-README is one step longer; the artifacts themselves are equally
-accessible.
+## Safety
 
-See [PUBLIC_INTERNAL_SPLIT.md](./PUBLIC_INTERNAL_SPLIT.md) for the
-design memo that produced this layout.
+- [SAFETY_MODEL.md](./SAFETY_MODEL.md) — Threat model, audit-chain
+  scope (and honest disclaimers), shell denylist, redaction rules,
+  approval-gate design intent, and an implementation-status table
+  per section. Read this if you want to understand what is
+  enforced today vs what is specced for later.
+- [CRASH_CONSISTENCY.md](./CRASH_CONSISTENCY.md) — Crash-recovery
+  invariants for the audit chain and SQLite layer.
+
+## Specs (for contributors and reproducibility)
+
+- [ADAPTER_SPEC.md](./ADAPTER_SPEC.md) — Provider-adapter interface.
+- [WORKFLOWS_SPEC.md](./WORKFLOWS_SPEC.md) — Workflow shape; the
+  current workflow is `plan`.
+- [FACT_HYGIENE.md](./FACT_HYGIENE.md) — Dedup, decay, and shaping
+  rules; the mechanics behind the brain's quality controls.
+- [TRUST_OPERATIONS.md](./TRUST_OPERATIONS.md) — Promote / demote
+  / undo semantics; the trust-ladder transition rules.
+- [OBSERVABILITY.md](./OBSERVABILITY.md) — Runtime metrics and
+  diagnostics surfaces.
+
+## Validation (epistemic discipline)
+
+- [TRUTH_CHECKPOINT.md](./TRUTH_CHECKPOINT.md) — Validated vs
+  invalidated vs unproven claims. The single most important doc
+  if you want to know which substrate properties are evidence-
+  backed and which are still being measured.
+- [STABILIZATION.md](./STABILIZATION.md) — The Phase 1 → Phase 2
+  narrowing decision: what was cut, what was kept, why.
+- [STABILIZATION_LESSONS.md](./STABILIZATION_LESSONS.md) — Lessons
+  drawn from the stabilization pass.
+- [STABILIZATION_VERDICT.md](./STABILIZATION_VERDICT.md) — The
+  verdict on the narrowing decision (Option A — narrow
+  single-provider thesis).
+- [PHASE3_CPT.md](./PHASE3_CPT.md) — Phase 3 continuity-per-token
+  measurement design. The next live measurement on deck.
+- [EVAL_SPEC.md](./EVAL_SPEC.md) — Internal evaluation framework
+  for substrate claims.
+
+## Project meta
+
+- [BRANDING.md](./BRANDING.md) — Visual identity guide; logo and
+  wordmark usage, color palette, lockup variant.
+- [LICENSING_STRATEGY.md](./LICENSING_STRATEGY.md) — Why BSL 1.1,
+  and what the four-year Apache 2.0 conversion means in practice.
+
+---
+
+## What is intentionally not here
+
+Internal research, strategy memos, competitor comparisons,
+prioritization analysis, contributor workflow notes, founder
+operational documents, and pre-field-study hypothesis work are
+kept private. The boundary the project applies:
+
+**Public docs are for**
+
+- Substrate operation (how to install, run, use the CLI).
+- Architecture (how the system is built).
+- Safety (what is and is not protected).
+- Specs (what contributors need to implement adapters / workflows / migrations).
+- Validation (which claims are evidence-backed; honest disclosure of limitations).
+
+**Private notes are for**
+
+- Strategic positioning rationale and competitor analysis.
+- Prioritization / enhancement-leverage analysis.
+- Pre-field-study hypotheses (so they can't be retroactively softened).
+- Tester recruitment, founder operational guardrails, GTM materials.
+- Internal phase-selection / governance memos.
+- Future-direction speculation that has not graduated to substrate.
+
+Strategic / philosophical / internal research material belongs in
+the private notes location *unless it directly supports substrate
+operation, reproducibility, validation, or safety*. The rule is
+intended to keep the public surface product-focused and
+operationally honest while keeping strategic thinking where it
+belongs.

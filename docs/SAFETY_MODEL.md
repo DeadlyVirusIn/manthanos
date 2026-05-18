@@ -25,7 +25,7 @@ any specific command or guarantee.
 | §11 Plugin trust | **[informational]** | Architecture intent; first-party adapters are trusted. |
 | §11b Prompt injection from repo content | **[partially implemented]** | XML-tagged wrapper + trust-tag classification is in `packages/context/src/packer.ts`. Per-tool-output classification ladder (§11b.1) is in `packages/orchestrator/src/plan-runner.ts`. |
 | §11d Git hook scanning | **[partially implemented]** | `packages/safety/src/git-hooks.ts` detects executable hooks; `manthan doctor` surfaces them informationally. The `manthan git-hooks review` approval flow and `core.hooksPath` resolution are not yet wired. |
-| §11e Path / symlink attacks | **[informational]** | PAL path canonicalization is in `packages/platform/src/path.ts`. Workspace-boundary containment for `--file` args is **not yet enforced** (OCTO_REVIEW §C4). |
+| §11e Path / symlink attacks | **[informational]** | PAL path canonicalization is in `packages/platform/src/path.ts`. Workspace-boundary containment for `--file` args is **not yet enforced**. |
 | §11c Shell escalation through package.json | **[informational]** | Design intent; no enforcement code yet. |
 | §12 Adversarial scenarios | **[informational]** | Worked examples. |
 | §13 Observability — `manthan policy show`, audit commands | **[specced, not built]** | None of the §13 commands exist in the CLI today. |

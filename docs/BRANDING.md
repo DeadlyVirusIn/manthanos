@@ -372,12 +372,12 @@ This is the version baked into the lockup image. Use this exact
 wording on any composed asset (social cards, slide titles, etc.).
 
 A slightly different earlier wording — "Continuity infrastructure
-for multi-model engineering workflows" — appears in some internal
-docs (`POSITIONING.md`, `POSITIONING_CORRECTION.md`). That phrasing
-is fine in prose; the lockup-tagline is the canonical public one.
+for multi-model engineering workflows" — has appeared in
+narrative prose. Either phrasing is acceptable in prose; the
+lockup-tagline is the canonical public one.
 
-Avoid any variant that mentions "multi-tenant" — multi-tenant is on
-the deferred-list per `POSITIONING_CORRECTION.md` §3 and `README.md` §4.
+Avoid any variant that mentions "multi-tenant" — multi-tenant is
+on the deferred-list per `README.md` §4.
 
 ---
 
