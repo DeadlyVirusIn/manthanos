@@ -116,8 +116,13 @@ Capability surface:
   migration that fixed the prior semantic bug.
 - **Queue health.** `manthan brain queue-health` reports backlog,
   aging buckets, drain rate, and a degraded/stressed/healthy verdict.
-- **Replay.** `manthan replay <runId>` retrieves the recorded bundle,
-  inputs, and outputs of any past run.
+- **Replay (recorded-run inspection).** `manthan replay <runId>`
+  reads back the audit records for a past run — recorded bundle
+  hash, payload hash, usage, recorded adapter response (with
+  `--show-text`). It is **not** byte-identity bundle reconstruction
+  with re-hash verification; the rendered prompt is not stored, so
+  exact reconstruction is a Phase 2.5 design target. See
+  [`docs/TRUTH_CHECKPOINT.md` §2.4](./docs/TRUTH_CHECKPOINT.md#24-the-replay-claim-does-not-match-implementation).
 - **CpT measurement harness.** `manthan experiments cpt-probe` runs the
   same brief across multiple workspaces and records objective
   shared-vocabulary metrics. Phase 3 only; produces signal, not scores.
