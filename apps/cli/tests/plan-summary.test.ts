@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-// P1.6: post-plan continuity summary. Two calm, technical lines
-// printed after `manthan plan` so the operator can immediately
-// see that ManthanOS injected and recorded continuity for the run.
+// P1.6 + UX-2B: post-plan continuity summary.
 //
-// Tests:
-//   - formatter shape (counts, run id, replay hint)
-//   - counts reflect bundle metrics, not hard-coded values
-//   - replay command references the actual run id
-//   - no summary appears when plan errors before runPlanWorkflow
-//     returns (verified by checking that an error path doesn't
-//     enter the formatter at all — see the runPlan integration
-//     scope below)
+// P1.6 introduced the calm two-line summary. UX-2B (2026-05-19)
+// expanded it to four lines so the replay command lives on its own
+// indented line — a real first-user mistook the previous one-line
+// "run logged: wf_… — replay with: manthan replay wf_…" form for a
+// single copy-pasteable command and pasted the whole thing
+// (commander silently dropped the extra args; would have been a
+// wrong-run-id replay if the ids differed).
+//
+// Tests pin the new four-line shape and verify the indented
+// command line stands alone.
 
 import type { RunPlanResult } from '@manthanos/orchestrator';
 import { describe, expect, it } from 'vitest';
@@ -48,9 +48,9 @@ function makeResult(overrides: Partial<RunPlanResult> = {}): RunPlanResult {
 }
 
 describe('formatPlanSummary', () => {
-  it('emits exactly two lines', () => {
+  it('emits exactly four lines', () => {
     const lines = formatPlanSummary(makeResult());
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(4);
   });
 
   it('first line carries the three counts in the exact pattern', () => {
@@ -89,27 +89,42 @@ describe('formatPlanSummary', () => {
     );
   });
 
-  it('second line carries the actual run id and a valid replay command', () => {
+  it('second line carries the run id alone, with no command on the same line', () => {
     const lines = formatPlanSummary(makeResult({ runId: 'wf_abc_123' }));
-    expect(lines[1]).toBe(
-      '[manthan] run logged: wf_abc_123 — replay with: manthan replay wf_abc_123',
-    );
+    expect(lines[1]).toBe('[manthan] run logged: wf_abc_123');
+    // The em-dash + "replay with: …" tail from the pre-UX-2B form
+    // must not reappear on this line.
+    expect(lines[1]).not.toContain('—');
+    expect(lines[1]).not.toContain('replay');
+    expect(lines[1]).not.toContain('manthan replay');
   });
 
-  it('uses the exact runId from the result (no truncation, no slicing)', () => {
-    // Realistic-shape run id with hyphens.
+  it('third line is the imperative label for the command on the fourth line', () => {
+    const lines = formatPlanSummary(makeResult({ runId: 'wf_abc_123' }));
+    expect(lines[2]).toBe('[manthan] to replay this run, run:');
+  });
+
+  it('fourth line is the bare indented replay command, copy-pasteable on its own', () => {
+    const lines = formatPlanSummary(makeResult({ runId: 'wf_abc_123' }));
+    expect(lines[3]).toBe('            manthan replay wf_abc_123');
+    // Critical UX-2B property: the command line, when copied alone,
+    // is a valid shell command. No `[manthan]` prefix, no em-dash,
+    // no surrounding prose.
+    const trimmed = lines[3]?.trim() ?? '';
+    expect(trimmed).toBe('manthan replay wf_abc_123');
+  });
+
+  it('uses the exact runId from the result on both the id line and the command line', () => {
     const lines = formatPlanSummary(
       makeResult({ runId: 'wf_946c2ad3-f0f6-458c-b4f1-ff1c06a09ec8' }),
     );
     expect(lines[1]).toContain('wf_946c2ad3-f0f6-458c-b4f1-ff1c06a09ec8');
-    expect(lines[1]).toContain('manthan replay wf_946c2ad3-f0f6-458c-b4f1-ff1c06a09ec8');
+    expect(lines[3]).toContain('manthan replay wf_946c2ad3-f0f6-458c-b4f1-ff1c06a09ec8');
   });
 
   it('avoids anthropomorphic / hype wording', () => {
     const lines = formatPlanSummary(makeResult());
     const joined = lines.join('\n').toLowerCase();
-    // Reserved-vocabulary discipline: the summary stays calm and
-    // technical. None of these should ever appear.
     for (const banned of [
       'ai remembered',
       'successfully understood',

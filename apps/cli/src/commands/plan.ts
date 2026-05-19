@@ -279,11 +279,20 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
 }
 
 /**
- * Format the post-plan continuity summary as two lines.
+ * Format the post-plan continuity summary as four lines.
  *
  * Returns plain text. No styling, no anthropomorphism. The lines
  * answer one question: did ManthanOS actually inject continuity
  * into this run, and where can the operator look to verify it?
+ *
+ * UX-2B: the replay command lives on its own indented line so that
+ * a casual copy-paste of "the command at the end of the summary"
+ * is unambiguous. The previous one-line form ("run logged: wf_… —
+ * replay with: manthan replay wf_…") used an em-dash separator that
+ * was easily mis-copied as a single command. The runId still
+ * appears on its own line for readability, and the executable
+ * command appears separately so an operator who picks up just the
+ * indented command line gets exactly what they need.
  *
  * Exported for direct unit testing.
  */
@@ -291,7 +300,9 @@ export function formatPlanSummary(result: RunPlanResult): readonly string[] {
   const m = result.bundleMetrics;
   return [
     `[manthan] context: ${m.trustedFactsInBundle} trusted facts injected | ${m.quarantineFactsExcluded} quarantine facts excluded | ${m.omittedFactsCount} omitted`,
-    `[manthan] run logged: ${result.runId} — replay with: manthan replay ${result.runId}`,
+    `[manthan] run logged: ${result.runId}`,
+    '[manthan] to replay this run, run:',
+    `            manthan replay ${result.runId}`,
   ];
 }
 

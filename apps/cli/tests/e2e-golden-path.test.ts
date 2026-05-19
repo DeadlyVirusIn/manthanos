@@ -207,13 +207,19 @@ describe('e2e golden path: init → review → promote → plan → replay', () 
     expect(planResult.bundleMetrics.omittedFactsCount).toBe(0);
 
     // The continuity summary renders correctly. Forensic clarity: this
-    // is the exact wording an operator will see.
+    // is the exact wording an operator will see. UX-2B (2026-05-19)
+    // expanded the summary from 2 to 4 lines so the replay command
+    // lives on its own indented line.
     const summary = formatPlanSummary(planResult);
-    expect(summary).toHaveLength(2);
+    expect(summary).toHaveLength(4);
     expect(summary[0]).toBe(
       '[manthan] context: 1 trusted facts injected | 0 quarantine facts excluded | 0 omitted',
     );
-    expect(summary[1]).toContain(`manthan replay ${planResult.runId}`);
+    expect(summary[1]).toBe(`[manthan] run logged: ${planResult.runId}`);
+    expect(summary[2]).toBe('[manthan] to replay this run, run:');
+    expect(summary[3]).toBe(`            manthan replay ${planResult.runId}`);
+    // The command line, copied verbatim, is a valid shell command.
+    expect(summary[3]?.trim()).toBe(`manthan replay ${planResult.runId}`);
 
     // Wording discipline. No anthropomorphic language anywhere in the
     // golden path output. (`exit` and `stop` come from non-banned
@@ -233,10 +239,10 @@ describe('e2e golden path: init → review → promote → plan → replay', () 
     }
 
     // ---- 5. replay (using the runId we just extracted) ----------------
-    // The summary's second line is the literal command an operator
+    // The summary's fourth line is the literal command an operator
     // would type. Parse the runId out and feed it to the verifier —
     // this proves the printed hint actually works.
-    const replayMatch = summary[1]?.match(/manthan replay (\S+)/);
+    const replayMatch = summary[3]?.match(/manthan replay (\S+)/);
     expect(replayMatch).not.toBeNull();
     const runId = replayMatch?.[1] as string;
     expect(runId).toBe(planResult.runId);
