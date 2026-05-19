@@ -6,8 +6,9 @@
 
 A local CLI for solo engineers maintaining project continuity across
 multiple AI tools — Claude, ChatGPT, Codex, Gemini. It records what each
-AI session produces, lets you promote what's worth keeping, and presents
-that record to whichever AI tool you open next.
+AI session produces, lets you promote the project facts and operational
+lessons worth keeping, and presents that record to whichever AI tool
+you open next.
 
 </div>
 
@@ -186,6 +187,10 @@ checkpoint:
   of synthetic introductions, corrections, and decay.
 - **Cross-platform PAL is genuine.** Per-OS code paths exist for
   filesystem, locking, paths, and signals — not a thin wrapper.
+- **Trusted facts shape subsequent plan output.** In single-operator
+  measurements, promoted facts cause measurable steering in the
+  model's plan — including when the trusted fact contradicts
+  existing workspace evidence. Cross-adapter validation pending.
 
 ### Not yet validated (do not claim)
 
@@ -201,6 +206,10 @@ checkpoint:
 - **Cost dynamics across multiple providers in a single workflow.**
   Single-provider cost is visible per run; multi-provider cost
   patterns have not been studied.
+- **Whether trusted continuity carries operational rules and
+  project-specific workflow disciplines as reliably as it carries
+  factual choices.** The substrate's mechanism is the same;
+  experimental evidence is in flight.
 
 ### Honest sentence
 
