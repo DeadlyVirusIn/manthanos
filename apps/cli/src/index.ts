@@ -7,6 +7,7 @@ import { Command } from 'commander';
 import { runAuth } from './commands/auth.js';
 import { computeDoctorExitCode, runDoctor } from './commands/doctor.js';
 import { InitError, runInit } from './commands/init.js';
+import { runNext } from './commands/next.js';
 import { runPlan } from './commands/plan.js';
 import { runReplay } from './commands/replay.js';
 import { runVersion } from './commands/version.js';
@@ -57,6 +58,21 @@ program
     const strict = opts.strict ?? false;
     const report = await runDoctor({ cwd: process.cwd(), strict });
     process.exitCode = computeDoctorExitCode(report, strict);
+  });
+
+program
+  .command('next')
+  .description('Show the current workflow state and the obvious next step')
+  .option('--no-color', 'disable ANSI color (NO_COLOR env is also honored)')
+  .option('--force-color', 'force ANSI color even when stdout is not a TTY')
+  .action(async (opts: { color?: boolean; forceColor?: boolean }) => {
+    const noColor = opts.color === false;
+    const code = await runNext({
+      cwd: process.cwd(),
+      noColor,
+      forceColor: opts.forceColor,
+    });
+    process.exitCode = code;
   });
 
 program
