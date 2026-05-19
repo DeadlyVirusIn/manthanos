@@ -19,7 +19,12 @@ import { createCodexCliAdapter } from '@manthanos/adapter-codex-cli';
 import { createGeminiCliAdapter } from '@manthanos/adapter-gemini-cli';
 import type { AgentAdapter } from '@manthanos/adapters-sdk';
 import { openDb } from '@manthanos/memory';
-import { RunPlanError, type RunPlanResult, runPlanWorkflow } from '@manthanos/orchestrator';
+import {
+  type PhaseEvent,
+  RunPlanError,
+  type RunPlanResult,
+  runPlanWorkflow,
+} from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 import { resolveAuth } from '../auth-store.js';
 
@@ -151,6 +156,11 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
       explicitFiles: opts.explicitFiles,
       includeQuarantine: opts.includeQuarantine,
       abortSignal: ac.signal,
+      onPhase: (event) => {
+        for (const line of formatPhaseEvent(event)) {
+          process.stdout.write(`${line}\n`);
+        }
+      },
     });
 
     if (result.gitHooksWarning) {
@@ -283,4 +293,40 @@ export function formatPlanSummary(result: RunPlanResult): readonly string[] {
     `[manthan] context: ${m.trustedFactsInBundle} trusted facts injected | ${m.quarantineFactsExcluded} quarantine facts excluded | ${m.omittedFactsCount} omitted`,
     `[manthan] run logged: ${result.runId} — replay with: manthan replay ${result.runId}`,
   ];
+}
+
+/**
+ * Format a phase event as one or more `[manthan]` lines for stdout.
+ *
+ * Each line is plain text. Every value emitted is a real substrate
+ * value — no fabricated progress, no synthetic ETAs, no
+ * anthropomorphic wording. The heartbeat exists purely to make
+ * elapsed time visible during the long adapter call so an operator
+ * does not assume the process is hung.
+ *
+ * Exported for direct unit testing.
+ */
+export function formatPhaseEvent(event: PhaseEvent): readonly string[] {
+  switch (event.kind) {
+    case 'bundle_ready': {
+      const costStr = `$${(event.estCostUsdMicro / 1_000_000).toFixed(4)}`;
+      return [
+        `[manthan] bundle ready: ${event.trustedFactsInBundle} trusted facts, ${event.quarantineFactsExcluded} quarantine excluded, ~${event.estimatedTokens} tokens, est input cost ${costStr}`,
+      ];
+    }
+    case 'adapter_invoke_start':
+      return [`[manthan] calling ${event.adapterId}...`];
+    case 'adapter_invoke_heartbeat': {
+      const sec = Math.round(event.elapsedMs / 1000);
+      return [`[manthan] still waiting (${sec}s elapsed)`];
+    }
+    case 'adapter_invoke_done': {
+      const sec = Math.round(event.elapsedMs / 1000);
+      return [`[manthan] response received: ${event.outputTokens} tokens in ${sec}s`];
+    }
+    case 'extracted':
+      return [
+        `[manthan] extracted plan; recorded ${event.factsRecorded} new fact${event.factsRecorded === 1 ? '' : 's'} for review`,
+      ];
+  }
 }

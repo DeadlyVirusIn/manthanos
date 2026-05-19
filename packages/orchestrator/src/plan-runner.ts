@@ -40,6 +40,48 @@ import { type ExtractMethod, extractPlan } from './plan-extract.js';
 import type { PlanArtifact } from './plan-schema.js';
 import { PLAN_TOOL, PLAN_TOOL_SYSTEM_INSTRUCTIONS } from './plan-tool.js';
 
+/**
+ * Real phase events emitted during a plan run. The substrate exposes
+ * them via the `onPhase` callback; rendering them is the caller's
+ * choice. Each event corresponds to a real state transition — no
+ * fabricated progress, no synthetic timings.
+ *
+ * Event order on a normal run:
+ *   bundle_ready → adapter_invoke_start →
+ *     (adapter_invoke_heartbeat × N, every ~60s while waiting) →
+ *   adapter_invoke_done → extracted
+ *
+ * Heartbeat events fire only if the adapter call exceeds the
+ * heartbeat interval. Short adapter calls produce no heartbeats.
+ */
+export type PhaseEvent =
+  | {
+      readonly kind: 'bundle_ready';
+      readonly trustedFactsInBundle: number;
+      readonly quarantineFactsExcluded: number;
+      readonly estimatedTokens: number;
+      readonly estCostUsdMicro: number;
+    }
+  | {
+      readonly kind: 'adapter_invoke_start';
+      readonly adapterId: string;
+    }
+  | {
+      readonly kind: 'adapter_invoke_heartbeat';
+      readonly elapsedMs: number;
+    }
+  | {
+      readonly kind: 'adapter_invoke_done';
+      readonly outputTokens: number;
+      readonly elapsedMs: number;
+    }
+  | {
+      readonly kind: 'extracted';
+      readonly factsRecorded: number;
+    };
+
+export type PhaseCallback = (event: PhaseEvent) => void;
+
 export interface RunPlanOptions {
   readonly workspaceRoot: string;
   readonly taskBrief: string;
@@ -55,6 +97,24 @@ export interface RunPlanOptions {
   readonly explicitFiles?: readonly string[];
   /** When true, T0 (quarantine) facts also enter the context bundle. */
   readonly includeQuarantine?: boolean;
+  /**
+   * Phase callback invoked when real plan-runner phase boundaries are
+   * crossed. Used by the CLI to surface workflow progress during the
+   * long adapter call. The substrate itself does not render anything;
+   * the caller decides what (if anything) to show.
+   *
+   * No fabricated progress: each event corresponds to a real
+   * substrate state transition. Heartbeats only fire if the adapter
+   * call exceeds the heartbeat interval (default 60s; configurable
+   * via `heartbeatIntervalMs`).
+   */
+  readonly onPhase?: PhaseCallback;
+  /**
+   * Interval for `adapter_invoke_heartbeat` events while waiting on
+   * the adapter call. Default 60_000ms. Tests set this lower to
+   * exercise the heartbeat code path without long waits.
+   */
+  readonly heartbeatIntervalMs?: number;
 }
 
 export interface RunPlanResult {
@@ -289,6 +349,19 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       );
     }
 
+    // Phase event: bundle ready. Emitted only after the budget gate
+    // passes so that a budget-exceeded path doesn't emit a "ready"
+    // event for a plan that never proceeded.
+    const quarantineFactsExcludedCount =
+      quarantineFactsRaw.length - bundle.metrics.quarantineFactsInBundle;
+    opts.onPhase?.({
+      kind: 'bundle_ready',
+      trustedFactsInBundle: bundle.metrics.trustedFactsInBundle,
+      quarantineFactsExcluded: quarantineFactsExcludedCount,
+      estimatedTokens: bundle.totalEstimatedTokens,
+      estCostUsdMicro: estInputCost,
+    });
+
     // 4b. Open the workflow row.
     const runId = `wf_${randomUUID()}`;
     const startTs = new Date().toISOString();
@@ -385,10 +458,39 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
       abortSignal: opts.abortSignal,
     };
 
+    // Phase event: adapter invoke is about to start. The brief content
+    // is already audited above (workflow.start); this is purely a UX
+    // signal so the caller can render a "calling <adapter>..." line
+    // before the long wait begins.
+    opts.onPhase?.({
+      kind: 'adapter_invoke_start',
+      adapterId: opts.adapter.metadata.id,
+    });
+
+    // Heartbeat: every `heartbeatIntervalMs` (default 60_000) emit an
+    // elapsed-time marker so a watching operator knows the process is
+    // alive. Cleared in the finally so a thrown adapter call stops
+    // the timer too.
+    const adapterStart = Date.now();
+    const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? 60_000;
+    const heartbeatTimer = opts.onPhase
+      ? setInterval(() => {
+          opts.onPhase?.({
+            kind: 'adapter_invoke_heartbeat',
+            elapsedMs: Date.now() - adapterStart,
+          });
+        }, heartbeatIntervalMs)
+      : null;
+    if (heartbeatTimer && typeof heartbeatTimer.unref === 'function') {
+      // Don't keep the process alive solely on the heartbeat timer.
+      heartbeatTimer.unref();
+    }
+
     let response: Awaited<ReturnType<typeof opts.adapter.invoke>>;
     try {
       response = await opts.adapter.invoke(req);
     } catch (err) {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       // Audit the failure before re-throwing.
       const code = err instanceof AdapterError ? err.code : 'internal';
       await auditedWrite(ctx, {
@@ -412,6 +514,13 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
         { error: err instanceof Error ? err.message : String(err), code },
       );
     }
+    // Adapter returned. Stop the heartbeat and emit done.
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    opts.onPhase?.({
+      kind: 'adapter_invoke_done',
+      outputTokens: response.usage.outputTokens,
+      elapsedMs: Date.now() - adapterStart,
+    });
 
     // 6. Redact secrets from the response text + tool result content before
     //    persisting the response blob.
@@ -507,6 +616,13 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
         plan: parseResult.plan,
       });
     }
+
+    // Phase event: extraction + compounding complete. `factsRecorded`
+    // is the count of new T0 facts written for the operator to review.
+    opts.onPhase?.({
+      kind: 'extracted',
+      factsRecorded: compoundResult.factsQuarantined,
+    });
 
     // 9. Update workflow row + write workflow_step.
     const finishTs = new Date().toISOString();

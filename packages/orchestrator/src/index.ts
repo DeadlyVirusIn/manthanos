@@ -2,7 +2,12 @@
 // Copyright (c) 2026 DeadlyVirusIn
 
 export { RunPlanError, runPlanWorkflow } from './plan-runner.js';
-export type { RunPlanOptions, RunPlanResult } from './plan-runner.js';
+export type {
+  PhaseCallback,
+  PhaseEvent,
+  RunPlanOptions,
+  RunPlanResult,
+} from './plan-runner.js';
 
 export { ReplayError, replayRun } from './replay.js';
 export type {
