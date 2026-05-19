@@ -39,7 +39,20 @@ program
       process.stdout.write(`  genesis_seq:    ${result.genesisSeq}\n`);
       process.stdout.write(`  charter_facts:  ${result.charterFacts} (tier T0, quarantined)\n`);
       process.stdout.write(`  elapsed:        ${result.elapsedMs}ms\n`);
-      process.stdout.write('\nNext: `manthan doctor` to verify health.\n');
+      // UX-2D first-session guided flow: name the three-step sequence
+      // an operator will most likely follow. Each step prints the
+      // literal command. Anything deeper (doctor, replay, audit log)
+      // remains discoverable via `manthan --help`; introducing it
+      // here would frontload concepts the operator doesn't need yet.
+      process.stdout.write('\nNext steps:\n');
+      process.stdout.write('  1. `manthan plan "<a task brief>"`  — run your first plan\n');
+      process.stdout.write('  2. `manthan brain review`           — choose what to keep\n');
+      process.stdout.write(
+        '  3. `manthan plan "<another>"`       — see kept facts shape the next plan\n',
+      );
+      process.stdout.write(
+        '\nRun `manthan next` at any time to see what is recommended right now.\n',
+      );
     } catch (err) {
       if (err instanceof InitError) {
         process.stderr.write(`manthan init: ${err.message}\n`);

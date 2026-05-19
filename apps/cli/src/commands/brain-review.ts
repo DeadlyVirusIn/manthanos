@@ -499,6 +499,18 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
       return 0;
     }
 
+    // UX-2D first-session guided flow: if no brain.correction events
+    // have been written in this workspace yet, this is the operator's
+    // first review. Prepend a calm, task-oriented orientation block
+    // that names what promote / skip / demote actually mean before
+    // they see the candidate list. Detection is one COUNT(*).
+    const isFirstReview = checkIsFirstReview(ws.m.handle, ws.workspaceId);
+    if (isFirstReview) {
+      for (const line of formatFirstReviewIntro()) {
+        process.stdout.write(`${line}\n`);
+      }
+    }
+
     await renderCandidates(candidates, ws.m.handle, ws.blobs);
 
     let selections: Selection[] = [];
@@ -619,4 +631,56 @@ export async function runReview(opts: ReviewOpts): Promise<number> {
   } finally {
     ws.m.close();
   }
+}
+
+/**
+ * Return true iff this workspace has never recorded a brain.correction
+ * audit event. Used by the UX-2D first-session guided flow to decide
+ * whether to print the orientation block above the candidate list.
+ *
+ * Synchronous: the underlying handle is better-sqlite3 and the query
+ * is a primary-key-indexed COUNT against a small table.
+ */
+function checkIsFirstReview(db: ManthanSqliteHandle, workspaceId: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM audit_events
+       WHERE workspace_id = ? AND action = 'brain.correction'`,
+    )
+    .get(workspaceId) as { n: number };
+  return row.n === 0;
+}
+
+/**
+ * Format the UX-2D first-review orientation block. Called exactly
+ * once per workspace — the first time the operator opens the review
+ * queue.
+ *
+ * Three load-bearing concepts a novice cannot derive from the
+ * candidate list alone:
+ *   1. Promote = "this should appear in future plan bundles".
+ *   2. Skip   = "leave it in quarantine, decide later".
+ *   3. Demote = "this is wrong; contradict it in the record".
+ *
+ * No anthropomorphism, no abstract trust-ladder vocabulary in the
+ * intro — those concepts surface later, in the help text, when the
+ * operator is already moving.
+ *
+ * Exported for direct unit testing.
+ */
+export function formatFirstReviewIntro(): readonly string[] {
+  return [
+    'manthan brain review — first review in this workspace.',
+    '',
+    'Each captured fact is a statement the plan run produced about your project.',
+    'Nothing is in your continuity yet. You decide what to keep.',
+    '',
+    '  promote   keep this; future plans will see it as trusted context',
+    '  skip      do nothing; the fact stays in quarantine for later review',
+    '  demote    record this as contradicted; future plans will see it as wrong',
+    '',
+    'You can undo any decision within 7 days. Press `?` at the prompt for the',
+    'full command grammar.',
+    '',
+  ];
 }

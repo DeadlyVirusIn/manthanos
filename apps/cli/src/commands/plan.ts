@@ -243,9 +243,25 @@ export async function runPlan(opts: PlanOptions): Promise<number> {
       process.stdout.write(`${line}\n`);
     }
 
-    // Post-plan review hint — the load-bearing UX nudge.
+    // UX-2D first-session guided flow: if this was the first plan
+    // in the workspace, add a calm context block that explains the
+    // quarantine concept and points at brain review in task-oriented
+    // language. Detection is deterministic — a single `COUNT(*)`
+    // on `workflows`. The block does not appear on subsequent plans;
+    // the existing bold review nudge carries the call-to-action for
+    // returning operators who already understand the pattern.
     const factsCount = result.compound?.factsQuarantined ?? 0;
-    if (factsCount > 0) {
+    const isFirstPlanInWorkspace = await checkIsFirstPlan(opts.cwd);
+    if (isFirstPlanInWorkspace) {
+      process.stdout.write('\n');
+      for (const line of formatFirstPlanGuidance(factsCount)) {
+        process.stdout.write(`${line}\n`);
+      }
+    } else if (factsCount > 0) {
+      // Post-plan review hint — the load-bearing UX nudge for
+      // returning operators. Suppressed on the first plan because
+      // the calmer first-plan guidance already explains the same
+      // action without the loud rule.
       const isTty = process.stdout.isTTY;
       const bold = isTty ? '\x1b[1;33m' : '';
       const reset = isTty ? '\x1b[0m' : '';
@@ -340,4 +356,77 @@ export function formatPhaseEvent(event: PhaseEvent): readonly string[] {
         `[manthan] extracted plan; recorded ${event.factsRecorded} new fact${event.factsRecorded === 1 ? '' : 's'} for review`,
       ];
   }
+}
+
+/**
+ * Return true iff this workspace has exactly one workflow row.
+ *
+ * Called immediately after `runPlanWorkflow` returns, so the just-
+ * finished plan is already counted. count == 1 → this was the first
+ * plan in the workspace. Used by the UX-2D first-session guided
+ * flow to decide whether to print the calm orientation block.
+ *
+ * Returns false on any missing-DB/missing-row condition so a partial
+ * workspace never surprises the operator with first-session text.
+ */
+async function checkIsFirstPlan(cwd: string): Promise<boolean> {
+  const platform = getPlatform();
+  const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(cwd);
+  const dbPath = path.join(workspaceRoot, '.manthan', 'memory', 'manthan.db');
+  if (!existsSync(dbPath)) return false;
+  const m = await openDb({ dbPath });
+  try {
+    const ws = m.handle
+      .prepare('SELECT id FROM workspaces WHERE root_path = ? LIMIT 1')
+      .get(workspaceRoot) as { id: string } | undefined;
+    if (!ws) return false;
+    const row = m.handle
+      .prepare('SELECT COUNT(*) AS n FROM workflows WHERE workspace_id = ?')
+      .get(ws.id) as { n: number };
+    return row.n === 1;
+  } finally {
+    m.close();
+  }
+}
+
+/**
+ * Format the UX-2D first-session orientation block. Called exactly
+ * once per workspace — after the very first plan run completes.
+ *
+ * The wording carries three pieces of context that a novice operator
+ * cannot derive from the run summary alone:
+ *   1. "Quarantine" is a holding area, not a rejection.
+ *   2. Nothing has entered continuity yet — promotion is the
+ *      operator's explicit step.
+ *   3. The single literal command to take that step.
+ *
+ * No anthropomorphism, no progressive promises, no "magic". The
+ * facts-captured count is the only dynamic value.
+ *
+ * Exported for direct unit testing.
+ */
+export function formatFirstPlanGuidance(factsCaptured: number): readonly string[] {
+  if (factsCaptured === 0) {
+    return [
+      '[manthan] First plan complete in this workspace.',
+      '          No new facts were captured for review this time. The run is recorded',
+      '          and can be replayed with the command above.',
+      '',
+      '          Run `manthan next` at any time to see what is recommended now.',
+    ];
+  }
+  const factWord = factsCaptured === 1 ? 'fact' : 'facts';
+  const wereWas = factsCaptured === 1 ? 'was' : 'were';
+  return [
+    '[manthan] First plan complete in this workspace.',
+    `          ${factsCaptured} ${factWord} ${wereWas} captured in quarantine (T0). Quarantine = held aside`,
+    '          for your review. Nothing has been added to continuity yet.',
+    '',
+    '          Next step — decide which facts to keep:',
+    '              manthan brain review',
+    '',
+    '          Facts you promote will appear in future plan bundles. Facts you',
+    '          skip stay in quarantine until you choose. You can run `manthan next`',
+    '          at any time to see what is recommended now.',
+  ];
 }
