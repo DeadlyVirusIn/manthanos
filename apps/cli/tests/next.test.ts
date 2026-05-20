@@ -12,7 +12,8 @@
 //      each state via a prepared workspace; verify the
 //      inspector returns the expected discriminated state.
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type {
@@ -21,10 +22,11 @@ import type {
   AgentResponse,
   CanonicalAgentPayload,
 } from '@manthanos/adapters-sdk';
-import { openDb } from '@manthanos/memory';
-import { PLAN_TOOL_NAME, runPlanWorkflow } from '@manthanos/orchestrator';
+import { AsyncMutex, createBlobStore, openDb } from '@manthanos/memory';
+import { PLAN_TOOL_NAME, promoteFact, runPlanWorkflow } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
 import { afterEach, describe, expect, it } from 'vitest';
+import { runInit } from '../src/commands/init.js';
 import {
   type WorkflowState,
   formatWorkflowState,
@@ -192,6 +194,33 @@ describe('formatWorkflowState (pure)', () => {
     }
   });
 
+  it('recent_correction_no_plans: acknowledges continuity update before any plan', () => {
+    const state: WorkflowState = {
+      kind: 'recent_correction_no_plans',
+      correctionCount: 1,
+      trustedCount: 1,
+      quarantineCount: 2,
+    };
+    const out = render(state);
+    expect(out).toContain('Continuity updated');
+    expect(out).toContain('1 correction recorded');
+    expect(out).toContain('1 trusted fact');
+    expect(out).toContain('2 still in quarantine');
+    expect(trailingCommand(state)).toBe('manthan plan "describe the next change"');
+  });
+
+  it('recent_correction_no_plans (multi-correction) uses plural wording', () => {
+    const state: WorkflowState = {
+      kind: 'recent_correction_no_plans',
+      correctionCount: 3,
+      trustedCount: 2,
+      quarantineCount: 0,
+    };
+    const out = render(state);
+    expect(out).toContain('3 corrections recorded');
+    expect(out).toContain('2 trusted facts');
+  });
+
   it('every state starts with the `manthan next` title line', () => {
     const cases: WorkflowState[] = [
       { kind: 'no_workspace', cwd: '/x' },
@@ -199,6 +228,12 @@ describe('formatWorkflowState (pure)', () => {
       { kind: 'recovery_not_clean', recoveryStatus: 'corrupted', findingCount: 1 },
       { kind: 'last_plan_failed', runId: 'wf_x', status: 'failed' },
       { kind: 'no_plans_yet' },
+      {
+        kind: 'recent_correction_no_plans',
+        correctionCount: 1,
+        trustedCount: 1,
+        quarantineCount: 0,
+      },
       { kind: 'has_quarantine', quarantineCount: 1, latestRunId: null },
       { kind: 'idle_with_trust', trustedCount: 1, latestRunId: null },
       { kind: 'idle_empty_trust', latestRunId: null },
@@ -215,6 +250,12 @@ describe('formatWorkflowState (pure)', () => {
       { kind: 'recovery_not_clean', recoveryStatus: 'corrupted', findingCount: 2 },
       { kind: 'last_plan_failed', runId: 'wf_x', status: 'failed' },
       { kind: 'no_plans_yet' },
+      {
+        kind: 'recent_correction_no_plans',
+        correctionCount: 2,
+        trustedCount: 1,
+        quarantineCount: 1,
+      },
       { kind: 'has_quarantine', quarantineCount: 4, latestRunId: 'wf_x' },
       { kind: 'idle_with_trust', trustedCount: 6, latestRunId: 'wf_x' },
       { kind: 'idle_empty_trust', latestRunId: 'wf_x' },
@@ -233,6 +274,12 @@ describe('formatWorkflowState (pure)', () => {
       { kind: 'workspace_row_missing', cwd: '/x' },
       { kind: 'last_plan_failed', runId: 'wf_x', status: 'failed' },
       { kind: 'no_plans_yet' },
+      {
+        kind: 'recent_correction_no_plans',
+        correctionCount: 1,
+        trustedCount: 1,
+        quarantineCount: 0,
+      },
       { kind: 'has_quarantine', quarantineCount: 1, latestRunId: null },
       { kind: 'idle_with_trust', trustedCount: 1, latestRunId: null },
       { kind: 'idle_empty_trust', latestRunId: null },
@@ -402,6 +449,63 @@ describe('inspectWorkflowState (integration)', () => {
     });
     const state = await inspectWorkflowState({ cwd: env.workspaceRoot });
     expect(state.kind).toBe('idle_empty_trust');
+  });
+
+  it('recent_correction_no_plans: brain.correction audit event before any plan', async () => {
+    // Validation regression: a charter-fact promotion via
+    // `manthan brain review` writes a `brain.correction` audit
+    // event, but the operator may not have run any plan yet. The
+    // original `no_plans_yet` state ignored these corrections; the
+    // new state recognizes them. This test exercises the real
+    // init → promote-charter-fact path the validation transcript
+    // hit.
+    const tmp = await mkdtemp(path.join(os.tmpdir(), 'manthan-next-rcnp-'));
+    const root = await getPlatform().path.canonicalizeWorkspaceRoot(tmp);
+    workspaceRoot = root;
+    execSync('git init -q', { cwd: root, stdio: 'ignore' });
+    await writeFile(
+      path.join(root, 'package.json'),
+      JSON.stringify({ name: 'rcnp-fixture', type: 'module' }),
+    );
+    const initResult = await runInit({ cwd: root });
+    expect(initResult.charterFacts).toBeGreaterThan(0);
+
+    // Promote one charter fact (deterministic: pick the first non-
+    // charter-area T0 fact would fail because charter facts ARE in
+    // charter areas; the inspector's quarantine count excludes them.
+    // We promote a charter fact directly — the brain.correction event
+    // still fires.).
+    const dbPath = path.join(root, '.manthan', 'memory', 'manthan.db');
+    const jsonlPath = path.join(root, '.manthan', 'audit.log');
+    const blobs = createBlobStore(path.join(root, '.manthan', 'audit', 'blobs'));
+    const m = await openDb({ dbPath });
+    const factRow = m.handle
+      .prepare(
+        `SELECT id FROM semantic_facts
+         WHERE workspace_id = ? AND tier = 'T0' LIMIT 1`,
+      )
+      .get(initResult.workspaceId) as { id: string } | undefined;
+    expect(factRow).toBeDefined();
+    if (!factRow) throw new Error('no charter fact found');
+    try {
+      const promotion = await promoteFact({
+        ctx: { db: m.handle, blobs, jsonlPath, mutex: new AsyncMutex() },
+        db: m.handle,
+        workspaceId: initResult.workspaceId,
+        factId: factRow.id,
+        approver: 'rcnp-test',
+      });
+      expect(promotion.toTier).toBe('T+1');
+    } finally {
+      m.close();
+    }
+
+    const state = await inspectWorkflowState({ cwd: root });
+    expect(state.kind).toBe('recent_correction_no_plans');
+    if (state.kind === 'recent_correction_no_plans') {
+      expect(state.correctionCount).toBe(1);
+      expect(state.trustedCount).toBe(1);
+    }
   });
 
   it('idle_with_trust after a fact is promoted to T+1', async () => {

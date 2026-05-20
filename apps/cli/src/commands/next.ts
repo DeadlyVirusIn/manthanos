@@ -60,6 +60,12 @@ export type WorkflowState =
     }
   | { readonly kind: 'no_plans_yet' }
   | {
+      readonly kind: 'recent_correction_no_plans';
+      readonly correctionCount: number;
+      readonly trustedCount: number;
+      readonly quarantineCount: number;
+    }
+  | {
       readonly kind: 'has_quarantine';
       readonly quarantineCount: number;
       readonly latestRunId: string | null;
@@ -137,6 +143,40 @@ export async function inspectWorkflowState(opts: {
       .get(workspaceId) as { id: string; status: string } | undefined;
 
     if (!latestWorkflow) {
+      // No plans have been run, but the operator may already have
+      // promoted/demoted charter facts via `manthan brain review`.
+      // The BATCH1 validation transcript showed that in this state
+      // the original `no_plans_yet` message reads as if the operator
+      // had done nothing — even though `brain.correction` audit
+      // events exist. Distinguish the two cases by counting those
+      // events. Deterministic, no inference.
+      const correctionRow = m.handle
+        .prepare(
+          `SELECT COUNT(*) AS n FROM audit_events
+           WHERE workspace_id = ? AND action = 'brain.correction'`,
+        )
+        .get(workspaceId) as { n: number };
+      if (correctionRow.n > 0) {
+        const trustedRow = m.handle
+          .prepare(
+            `SELECT COUNT(*) AS n FROM semantic_facts
+             WHERE workspace_id = ? AND tier IN ('T+1','T+2','T+3')`,
+          )
+          .get(workspaceId) as { n: number };
+        const quarantineRow = m.handle
+          .prepare(
+            `SELECT COUNT(*) AS n FROM semantic_facts
+             WHERE workspace_id = ? AND tier = 'T0'
+                   AND area NOT IN ('language','project','package_manager','testing')`,
+          )
+          .get(workspaceId) as { n: number };
+        return {
+          kind: 'recent_correction_no_plans',
+          correctionCount: correctionRow.n,
+          trustedCount: trustedRow.n,
+          quarantineCount: quarantineRow.n,
+        };
+      }
       return { kind: 'no_plans_yet' };
     }
 
@@ -258,6 +298,19 @@ export function formatWorkflowState(state: WorkflowState): readonly string[] {
         `${arrow} Run your first plan:`,
         '            manthan plan "add a README"',
       ];
+    case 'recent_correction_no_plans': {
+      const correctionWord = state.correctionCount === 1 ? 'correction' : 'corrections';
+      const trustedWord = state.trustedCount === 1 ? 'fact' : 'facts';
+      return [
+        'manthan next',
+        '',
+        `  Continuity updated: ${state.correctionCount} ${correctionWord} recorded.`,
+        `  ${state.trustedCount} trusted ${trustedWord}, ${state.quarantineCount} still in quarantine.`,
+        '',
+        `${arrow} Run a plan to see the kept facts shape the next bundle:`,
+        '            manthan plan "describe the next change"',
+      ];
+    }
     case 'has_quarantine': {
       const factWord = state.quarantineCount === 1 ? 'fact' : 'facts';
       return [
