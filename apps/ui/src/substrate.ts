@@ -87,6 +87,52 @@ export type WorkflowState =
       readonly latestRunId: string | null;
     };
 
+export interface ReviewCandidate {
+  readonly factId: string;
+  readonly area: string;
+  readonly statement: string;
+  readonly confidence: number;
+  readonly ageDays: number;
+  readonly provenanceWorkflowId: string | null;
+}
+
+export async function loadReviewQueue(
+  ws: WorkspaceHandle,
+  limit: number,
+): Promise<readonly ReviewCandidate[]> {
+  return withDb(ws, async (db, workspaceId) => {
+    const rows = db
+      .prepare(
+        `SELECT id, area, statement, confidence, last_corroborated, provenance_workflow_id
+         FROM semantic_facts
+         WHERE workspace_id = ? AND tier = 'T0'
+               AND area NOT IN ('language','project','package_manager','testing')
+         ORDER BY last_corroborated ASC
+         LIMIT ?`,
+      )
+      .all(workspaceId, limit) as Array<{
+      id: string;
+      area: string;
+      statement: string;
+      confidence: number;
+      last_corroborated: string;
+      provenance_workflow_id: string | null;
+    }>;
+    const now = Date.now();
+    return rows.map((r) => ({
+      factId: r.id,
+      area: r.area,
+      statement: r.statement,
+      confidence: r.confidence,
+      ageDays: Math.max(
+        0,
+        Math.round((now - Date.parse(r.last_corroborated)) / (24 * 60 * 60 * 1000)),
+      ),
+      provenanceWorkflowId: r.provenance_workflow_id,
+    }));
+  });
+}
+
 export async function listRecentRunIds(
   ws: WorkspaceHandle,
   limit: number,

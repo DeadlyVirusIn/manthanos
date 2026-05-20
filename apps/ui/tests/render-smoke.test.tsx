@@ -74,6 +74,21 @@ describe('manthan-ui Phase 0 — Home screen', () => {
   });
 });
 
+describe('manthan-ui Phase 0 — Review Facts screen', () => {
+  it('navigates from Home to Review Facts when [r] is pressed', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 50));
+    inst.stdin.write('r');
+    await new Promise((r) => setTimeout(r, 50));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('Review Facts');
+    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('manthan brain review');
+  });
+});
+
 describe('manthan-ui Phase 0 — Replay screen', () => {
   it('navigates from Home to Replay when [v] is pressed', async () => {
     if (!workspaceHandle) throw new Error('workspace not prepared');

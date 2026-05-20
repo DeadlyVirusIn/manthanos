@@ -10,14 +10,15 @@
 // screen marker, nothing else.
 //
 // Screens implemented so far: Home (commit 1), Run Plan (commit 2),
-// Replay (this commit). The remaining two — Review Facts and Next
-// Action wiring — arrive in subsequent commits per the Phase 0
+// Replay (commit 3), Review Facts (this commit). The remaining
+// surface — Next Action wiring — arrives in commit 5 per the Phase 0
 // implementation contract.
 
 import { Box, Text, useApp, useInput } from 'ink';
 import { useState } from 'react';
 import { HomeScreen } from './screens/home.js';
 import { ReplayScreen } from './screens/replay.js';
+import { ReviewScreen } from './screens/review.js';
 import { RunPlanScreen } from './screens/run-plan.js';
 import type { WorkspaceHandle } from './substrate.js';
 
@@ -25,6 +26,7 @@ export type Screen =
   | { readonly kind: 'home' }
   | { readonly kind: 'run-plan' }
   | { readonly kind: 'replay'; readonly initialRunId: string | null }
+  | { readonly kind: 'review' }
   | { readonly kind: 'drop-to-cli'; readonly command: string };
 
 export interface AppProps {
@@ -48,6 +50,7 @@ export function App({ workspace }: AppProps) {
         workspaceRoot={workspace.root}
         screenLabel="Home"
         onRunPlan={() => setScreen({ kind: 'run-plan' })}
+        onReview={() => setScreen({ kind: 'review' })}
         onReplay={() => setScreen({ kind: 'replay', initialRunId: null })}
         onExit={() => setScreen({ kind: 'drop-to-cli', command: 'manthan next' })}
       />
@@ -70,6 +73,9 @@ export function App({ workspace }: AppProps) {
         onBack={() => setScreen({ kind: 'home' })}
       />
     );
+  }
+  if (screen.kind === 'review') {
+    return <ReviewScreen workspace={workspace} onBack={() => setScreen({ kind: 'home' })} />;
   }
   return (
     <Box flexDirection="column" paddingX={1}>
