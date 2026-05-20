@@ -87,6 +87,22 @@ export type WorkflowState =
       readonly latestRunId: string | null;
     };
 
+export async function listRecentRunIds(
+  ws: WorkspaceHandle,
+  limit: number,
+): Promise<readonly string[]> {
+  return withDb(ws, async (db, workspaceId) => {
+    const rows = db
+      .prepare(
+        `SELECT id FROM workflows
+         WHERE workspace_id = ?
+         ORDER BY started_at DESC LIMIT ?`,
+      )
+      .all(workspaceId, limit) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  });
+}
+
 export async function inspectWorkflowState(cwd: string): Promise<WorkflowState> {
   const platform = getPlatform();
   const root = await platform.path.canonicalizeWorkspaceRoot(cwd);

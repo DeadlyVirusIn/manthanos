@@ -9,20 +9,22 @@
 // substrate state — it carries the workspace handle and the current
 // screen marker, nothing else.
 //
-// Screens implemented so far: Home (commit 1), Run Plan (this
-// commit). The remaining three — Replay, Review Facts, Next Action
-// wiring — arrive in subsequent commits per the Phase 0
+// Screens implemented so far: Home (commit 1), Run Plan (commit 2),
+// Replay (this commit). The remaining two — Review Facts and Next
+// Action wiring — arrive in subsequent commits per the Phase 0
 // implementation contract.
 
 import { Box, Text, useApp, useInput } from 'ink';
 import { useState } from 'react';
 import { HomeScreen } from './screens/home.js';
+import { ReplayScreen } from './screens/replay.js';
 import { RunPlanScreen } from './screens/run-plan.js';
 import type { WorkspaceHandle } from './substrate.js';
 
 export type Screen =
   | { readonly kind: 'home' }
   | { readonly kind: 'run-plan' }
+  | { readonly kind: 'replay'; readonly initialRunId: string | null }
   | { readonly kind: 'drop-to-cli'; readonly command: string };
 
 export interface AppProps {
@@ -46,6 +48,7 @@ export function App({ workspace }: AppProps) {
         workspaceRoot={workspace.root}
         screenLabel="Home"
         onRunPlan={() => setScreen({ kind: 'run-plan' })}
+        onReplay={() => setScreen({ kind: 'replay', initialRunId: null })}
         onExit={() => setScreen({ kind: 'drop-to-cli', command: 'manthan next' })}
       />
     );
@@ -54,7 +57,16 @@ export function App({ workspace }: AppProps) {
     return (
       <RunPlanScreen
         workspaceRoot={workspace.root}
-        onPlanComplete={() => setScreen({ kind: 'home' })}
+        onPlanComplete={(runId) => setScreen({ kind: 'replay', initialRunId: runId })}
+        onBack={() => setScreen({ kind: 'home' })}
+      />
+    );
+  }
+  if (screen.kind === 'replay') {
+    return (
+      <ReplayScreen
+        workspace={workspace}
+        initialRunId={screen.initialRunId}
         onBack={() => setScreen({ kind: 'home' })}
       />
     );
