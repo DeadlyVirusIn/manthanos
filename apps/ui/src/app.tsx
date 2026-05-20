@@ -9,10 +9,18 @@
 // substrate state — it carries the workspace handle and the current
 // screen marker, nothing else.
 //
-// Screens implemented so far: Home (commit 1), Run Plan (commit 2),
-// Replay (commit 3), Review Facts (this commit). The remaining
-// surface — Next Action wiring — arrives in commit 5 per the Phase 0
-// implementation contract.
+// All five Phase 0 surfaces are now wired:
+//   1. Home          — `screen.kind === 'home'`
+//   2. Run Plan      — `screen.kind === 'run-plan'`
+//   3. Replay        — `screen.kind === 'replay'`
+//   4. Review Facts  — `screen.kind === 'review'`
+//   5. Next Action   — `screen.kind === 'next'` (same component as Home,
+//                      different label; reachable from any screen via
+//                      the [n] key — the "what should I do now?" escape
+//                      hatch the §6 affordance contract requires)
+//
+// No further surfaces. Adding a sixth would violate the §1 scope of
+// UI_PHASE0_IMPLEMENTATION_CONTRACT.md.
 
 import { Box, Text, useApp, useInput } from 'ink';
 import { useState } from 'react';
@@ -24,6 +32,7 @@ import type { WorkspaceHandle } from './substrate.js';
 
 export type Screen =
   | { readonly kind: 'home' }
+  | { readonly kind: 'next' }
   | { readonly kind: 'run-plan' }
   | { readonly kind: 'replay'; readonly initialRunId: string | null }
   | { readonly kind: 'review' }
@@ -38,17 +47,25 @@ export function App({ workspace }: AppProps) {
   const { exit } = useApp();
 
   useInput((input, key) => {
+    // Global [n] = jump to Next Action (the "what should I do now?"
+    // affordance). Reachable from any screen, mirroring the CLI's
+    // `manthan next` escape hatch — Phase 0 §6 replay-path /
+    // current-operation discipline applied to navigation, not data.
+    if (input === 'n' && screen.kind !== 'next' && screen.kind !== 'drop-to-cli') {
+      setScreen({ kind: 'next' });
+      return;
+    }
     if (screen.kind === 'drop-to-cli') {
       if (key.return || input === 'q') exit();
       if (input === 'b' || key.escape) setScreen({ kind: 'home' });
     }
   });
 
-  if (screen.kind === 'home') {
+  if (screen.kind === 'home' || screen.kind === 'next') {
     return (
       <HomeScreen
         workspaceRoot={workspace.root}
-        screenLabel="Home"
+        screenLabel={screen.kind === 'home' ? 'Home' : 'Next'}
         onRunPlan={() => setScreen({ kind: 'run-plan' })}
         onReview={() => setScreen({ kind: 'review' })}
         onReplay={() => setScreen({ kind: 'replay', initialRunId: null })}

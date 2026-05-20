@@ -104,9 +104,9 @@ function runIdOf(mode: Mode): string {
 }
 
 function hintsFor(mode: Mode): readonly string[] {
-  if (mode.kind === 'choosing') return ['[↑/↓] move · [enter] verify · [esc] back'];
-  if (mode.kind === 'verifying') return ['verifying…'];
-  return ['[b] back · [enter] back'];
+  if (mode.kind === 'choosing') return ['[↑/↓] move · [enter] verify · [esc] back · [n] next'];
+  if (mode.kind === 'verifying') return ['verifying… · [n] next'];
+  return ['[b] back · [enter] back · [n] next'];
 }
 
 function renderMode(mode: Mode) {

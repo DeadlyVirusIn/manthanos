@@ -90,6 +90,7 @@ function buildHints(opts: {
   if (opts.onRunPlan) parts.push('[p] run plan');
   if (opts.onReview) parts.push('[r] review facts');
   if (opts.onReplay) parts.push('[v] replay');
+  parts.push('[n] next');
   parts.push('[q] drop to CLI');
   return [parts.join('   ')];
 }

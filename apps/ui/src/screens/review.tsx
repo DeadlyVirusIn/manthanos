@@ -189,12 +189,14 @@ export function ReviewScreen({ workspace, onBack }: ReviewScreenProps) {
 }
 
 function renderHints(state: State): readonly string[] {
-  if (state.status === 'loading') return ['loading…'];
-  if (state.status === 'applying') return ['applying selections…'];
-  if (state.status === 'done') return ['[b] back · [enter] back'];
-  if (state.status === 'error') return ['[b] back · [enter] back'];
-  if (state.candidates.length === 0) return ['[b] back'];
-  return ['[↑/↓] move · [p] promote · [s] skip · [d] demote · [u] undo · [c] commit · [esc] back'];
+  if (state.status === 'loading') return ['loading… · [n] next'];
+  if (state.status === 'applying') return ['applying selections… · [n] next'];
+  if (state.status === 'done') return ['[b] back · [enter] back · [n] next'];
+  if (state.status === 'error') return ['[b] back · [enter] back · [n] next'];
+  if (state.candidates.length === 0) return ['[b] back · [n] next'];
+  return [
+    '[↑/↓] move · [p] promote · [s] skip · [d] demote · [u] undo · [c] commit · [esc] back · [n] next',
+  ];
 }
 
 function renderBody(state: State) {

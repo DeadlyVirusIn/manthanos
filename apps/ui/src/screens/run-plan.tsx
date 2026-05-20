@@ -113,13 +113,13 @@ export function RunPlanScreen({ workspaceRoot, onPlanComplete, onBack }: RunPlan
 function phaseHints(phase: Phase): readonly string[] {
   switch (phase.kind) {
     case 'input':
-      return ['[enter] run · [esc] back'];
+      return ['[enter] run · [esc] back · [n] next'];
     case 'running':
-      return ['running…'];
+      return ['running… · [n] next'];
     case 'done':
-      return ['[c] continue (next step) · [b] back to home'];
+      return ['[c] continue (next step) · [b] back to home · [n] next'];
     case 'error':
-      return ['[b] back · [enter] back'];
+      return ['[b] back · [enter] back · [n] next'];
   }
 }
 

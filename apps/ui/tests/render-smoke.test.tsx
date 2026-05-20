@@ -74,6 +74,40 @@ describe('manthan-ui Phase 0 — Home screen', () => {
   });
 });
 
+describe('manthan-ui Phase 0 — Next Action affordance', () => {
+  it('[n] is reachable from Run Plan and routes to the Next screen', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 50));
+    // Navigate Home → Run Plan
+    inst.stdin.write('p');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(inst.lastFrame() ?? '').toContain('Run Plan');
+    // From Run Plan, press [n] to jump to Next
+    inst.stdin.write('n');
+    await new Promise((r) => setTimeout(r, 50));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('Next');
+    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('manthan next');
+  });
+
+  it('[n] is reachable from Replay and routes to Next', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 50));
+    inst.stdin.write('v');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(inst.lastFrame() ?? '').toContain('Replay');
+    inst.stdin.write('n');
+    await new Promise((r) => setTimeout(r, 50));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('Next');
+  });
+});
+
 describe('manthan-ui Phase 0 — Review Facts screen', () => {
   it('navigates from Home to Review Facts when [r] is pressed', async () => {
     if (!workspaceHandle) throw new Error('workspace not prepared');
