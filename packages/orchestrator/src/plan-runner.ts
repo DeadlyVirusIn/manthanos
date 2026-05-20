@@ -105,14 +105,20 @@ export interface RunPlanOptions {
    *
    * No fabricated progress: each event corresponds to a real
    * substrate state transition. Heartbeats only fire if the adapter
-   * call exceeds the heartbeat interval (default 60s; configurable
+   * call exceeds the heartbeat interval (default 15s; configurable
    * via `heartbeatIntervalMs`).
    */
   readonly onPhase?: PhaseCallback;
   /**
    * Interval for `adapter_invoke_heartbeat` events while waiting on
-   * the adapter call. Default 60_000ms. Tests set this lower to
-   * exercise the heartbeat code path without long waits.
+   * the adapter call. Default 15_000ms. Lowered from the original
+   * 60_000ms after the BATCH1 validation transcript observed a
+   * 52-second CLI plan run produce zero heartbeats — the original
+   * default was longer than the typical short-brief Sonnet call
+   * latency, so the heartbeat never fired in real sessions despite
+   * the wiring being correct. 15s gives 1-2 heartbeats in a 30-90s
+   * wait without becoming noisy. Tests still set lower values to
+   * exercise the path without long waits.
    */
   readonly heartbeatIntervalMs?: number;
 }
@@ -472,7 +478,12 @@ export async function runPlanWorkflow(opts: RunPlanOptions): Promise<RunPlanResu
     // alive. Cleared in the finally so a thrown adapter call stops
     // the timer too.
     const adapterStart = Date.now();
-    const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? 60_000;
+    // BATCH1 validation finding: a 60_000ms default was longer than
+    // the typical short-brief Sonnet call latency (30-90s), so a
+    // 52-second wait fired zero heartbeats and looked silently hung.
+    // 15s gives operators 1-2 heartbeats in a 30-90s wait, which
+    // makes the wait observably-alive without spamming.
+    const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? 15_000;
     const heartbeatTimer = opts.onPhase
       ? setInterval(() => {
           opts.onPhase?.({
