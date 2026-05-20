@@ -45,10 +45,14 @@ program
       // remains discoverable via `manthan --help`; introducing it
       // here would frontload concepts the operator doesn't need yet.
       process.stdout.write('\nNext steps:\n');
-      process.stdout.write('  1. `manthan plan "<a task brief>"`  — run your first plan\n');
-      process.stdout.write('  2. `manthan brain review`           — choose what to keep\n');
       process.stdout.write(
-        '  3. `manthan plan "<another>"`       — see kept facts shape the next plan\n',
+        '  1. `manthan plan "add a README"`              — run your first plan\n',
+      );
+      process.stdout.write(
+        '  2. `manthan brain review`                     — choose what to keep\n',
+      );
+      process.stdout.write(
+        '  3. `manthan plan "describe the next change"`  — see kept facts shape the next plan\n',
       );
       process.stdout.write(
         '\nRun `manthan next` at any time to see what is recommended right now.\n',

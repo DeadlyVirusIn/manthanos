@@ -114,7 +114,16 @@ describe('formatWorkflowState (pure)', () => {
   it('no_plans_yet: instructs first plan run', () => {
     const state: WorkflowState = { kind: 'no_plans_yet' };
     expect(render(state)).toContain('No plans run yet');
-    expect(trailingCommand(state)).toBe('manthan plan "<a brief>"');
+    expect(trailingCommand(state)).toBe('manthan plan "add a README"');
+  });
+
+  it('no_plans_yet: trailing command is shell-safe (no chevrons, no placeholder syntax)', () => {
+    const state: WorkflowState = { kind: 'no_plans_yet' };
+    const cmd = trailingCommand(state) ?? '';
+    expect(cmd).not.toContain('<');
+    expect(cmd).not.toContain('>');
+    // The brief must be in matched double quotes so a copy-paste runs.
+    expect(cmd).toMatch(/^manthan plan "[^"]+"$/);
   });
 
   it('has_quarantine (N>1): instructs review', () => {
@@ -164,7 +173,23 @@ describe('formatWorkflowState (pure)', () => {
   it('idle_empty_trust: instructs first plan-style call', () => {
     const state: WorkflowState = { kind: 'idle_empty_trust', latestRunId: 'wf_abc' };
     expect(render(state)).toContain('No trusted facts recorded yet');
-    expect(trailingCommand(state)).toBe('manthan plan "<a brief>"');
+    expect(trailingCommand(state)).toBe('manthan plan "describe the next change"');
+  });
+
+  it('idle states never print a placeholder-chevron suggestion', () => {
+    // Cross-state regression check — the BATCH1 validation surfaced
+    // that an operator who copy-pastes `manthan plan "<a brief>"`
+    // verbatim runs the placeholder as the literal brief.
+    const states: WorkflowState[] = [
+      { kind: 'no_plans_yet' },
+      { kind: 'idle_empty_trust', latestRunId: null },
+      { kind: 'idle_with_trust', trustedCount: 1, latestRunId: null },
+    ];
+    for (const s of states) {
+      const out = render(s);
+      expect(out).not.toContain('"<');
+      expect(out).not.toContain('>"');
+    }
   });
 
   it('every state starts with the `manthan next` title line', () => {

@@ -256,7 +256,7 @@ export function formatWorkflowState(state: WorkflowState): readonly string[] {
         '  Workspace initialized. No plans run yet.',
         '',
         `${arrow} Run your first plan:`,
-        '            manthan plan "<a brief>"',
+        '            manthan plan "add a README"',
       ];
     case 'has_quarantine': {
       const factWord = state.quarantineCount === 1 ? 'fact' : 'facts';
@@ -277,7 +277,7 @@ export function formatWorkflowState(state: WorkflowState): readonly string[] {
         `  Workspace healthy. ${state.trustedCount} trusted ${factWord} in continuity. Review queue empty.`,
         '',
         `${arrow} Run another plan:`,
-        '            manthan plan "<a brief>"',
+        '            manthan plan "describe the next change"',
         '',
         '   Or inspect what is recorded:',
         '            manthan brain facts',
@@ -290,7 +290,7 @@ export function formatWorkflowState(state: WorkflowState): readonly string[] {
         '  Workspace healthy. No trusted facts recorded yet.',
         '',
         `${arrow} Run another plan to start building project context:`,
-        '            manthan plan "<a brief>"',
+        '            manthan plan "describe the next change"',
       ];
   }
 }
