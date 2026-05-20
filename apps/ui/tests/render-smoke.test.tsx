@@ -64,11 +64,38 @@ describe('manthan-ui Phase 0 — Home screen', () => {
     expect(frame).toContain('manthan next');
   });
 
-  it('Home shows the [q] drop-to-CLI affordance even with no other screens wired', () => {
+  it('Home shows navigation hints for landed screens', () => {
     if (!workspaceHandle) throw new Error('workspace not prepared');
     const inst = render(<App workspace={workspaceHandle} />);
     rendered.push(inst);
     const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('[p] run plan');
     expect(frame).toContain('[q] drop to CLI');
+  });
+});
+
+describe('manthan-ui Phase 0 — Run Plan screen', () => {
+  it('navigates from Home to Run Plan when [p] is pressed', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 50));
+    inst.stdin.write('p');
+    await new Promise((r) => setTimeout(r, 50));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('Run Plan');
+    expect(frame).toContain('Brief');
+  });
+
+  it('Run Plan shows the CLI equivalent affordance with the current brief', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 50));
+    inst.stdin.write('p');
+    await new Promise((r) => setTimeout(r, 50));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('manthan plan');
   });
 });

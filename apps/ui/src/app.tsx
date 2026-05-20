@@ -9,18 +9,20 @@
 // substrate state — it carries the workspace handle and the current
 // screen marker, nothing else.
 //
-// Screens implemented so far: Home (and its "Next" re-render). The
-// remaining four — Run Plan, Replay, Review Facts, Next Action wiring
-// — arrive in subsequent commits per the Phase 0 implementation
-// contract.
+// Screens implemented so far: Home (commit 1), Run Plan (this
+// commit). The remaining three — Replay, Review Facts, Next Action
+// wiring — arrive in subsequent commits per the Phase 0
+// implementation contract.
 
 import { Box, Text, useApp, useInput } from 'ink';
 import { useState } from 'react';
 import { HomeScreen } from './screens/home.js';
+import { RunPlanScreen } from './screens/run-plan.js';
 import type { WorkspaceHandle } from './substrate.js';
 
 export type Screen =
   | { readonly kind: 'home' }
+  | { readonly kind: 'run-plan' }
   | { readonly kind: 'drop-to-cli'; readonly command: string };
 
 export interface AppProps {
@@ -43,7 +45,17 @@ export function App({ workspace }: AppProps) {
       <HomeScreen
         workspaceRoot={workspace.root}
         screenLabel="Home"
+        onRunPlan={() => setScreen({ kind: 'run-plan' })}
         onExit={() => setScreen({ kind: 'drop-to-cli', command: 'manthan next' })}
+      />
+    );
+  }
+  if (screen.kind === 'run-plan') {
+    return (
+      <RunPlanScreen
+        workspaceRoot={workspace.root}
+        onPlanComplete={() => setScreen({ kind: 'home' })}
+        onBack={() => setScreen({ kind: 'home' })}
       />
     );
   }
