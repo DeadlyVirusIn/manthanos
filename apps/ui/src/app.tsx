@@ -23,12 +23,14 @@
 // UI_PHASE0_IMPLEMENTATION_CONTRACT.md.
 
 import { Box, Text, useApp, useInput } from 'ink';
-import { useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import { WorkspaceCtx } from './components/frame.js';
 import { HomeScreen } from './screens/home.js';
 import { ReplayScreen } from './screens/replay.js';
 import { ReviewScreen } from './screens/review.js';
 import { RunPlanScreen } from './screens/run-plan.js';
-import type { WorkspaceHandle } from './substrate.js';
+import { type WorkspaceContext, type WorkspaceHandle, loadWorkspaceContext } from './substrate.js';
 
 export type Screen =
   | { readonly kind: 'home' }
@@ -44,7 +46,31 @@ export interface AppProps {
 
 export function App({ workspace }: AppProps) {
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
+  const [wsContext, setWsContext] = useState<WorkspaceContext | null>(null);
   const { exit } = useApp();
+
+  // UX prototype 9.1: load the persistent workspace context on
+  // mount and re-load on every screen navigation. This is *not* a
+  // cache — each navigation re-reads the substrate. The context is
+  // held in React state only for the duration of one screen's
+  // render, so the substrate-boundary discipline holds: substrate
+  // is the source of truth, UI is presentation.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: screen.kind is intentional — the effect re-runs on every navigation so the persistent pane shows fresh substrate values.
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkspaceContext(workspace).then(
+      (ctx) => {
+        if (!cancelled) setWsContext(ctx);
+      },
+      () => {
+        // On failure, leave context null; the Frame renders a
+        // loading/blank state.
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace, screen.kind]);
 
   useInput((input, key) => {
     // Global [n] = jump to Next Action (the "what should I do now?"
@@ -61,6 +87,15 @@ export function App({ workspace }: AppProps) {
     }
   });
 
+  const body = renderScreen(screen, workspace, setScreen);
+  return <WorkspaceCtx.Provider value={wsContext}>{body}</WorkspaceCtx.Provider>;
+}
+
+function renderScreen(
+  screen: Screen,
+  workspace: WorkspaceHandle,
+  setScreen: (s: Screen) => void,
+): React.ReactElement {
   if (screen.kind === 'home' || screen.kind === 'next') {
     return (
       <HomeScreen

@@ -87,6 +87,74 @@ export type WorkflowState =
       readonly latestRunId: string | null;
     };
 
+/**
+ * Aggregated workspace context for the persistent left pane and
+ * status ribbon (UX prototype 9.1). Read fresh on every navigation
+ * from the App; never cached across screens.
+ *
+ * The fields here duplicate substrate counts that some `WorkflowState`
+ * variants already carry. They are exposed unconditionally so the
+ * left pane can render consistently across all states without
+ * branching on the discriminant.
+ *
+ * Substrate-boundary discipline: this function performs read-only
+ * SELECTs against the existing tables. No new columns, no new
+ * derived semantics. Equivalent to the operator running a sequence
+ * of `manthan brain facts` / `manthan next` / `cat audit.log`
+ * inspections — collapsed into one query batch.
+ */
+export interface WorkspaceContext {
+  readonly workspaceName: string;
+  readonly workflowState:
+    | WorkflowState
+    | { readonly kind: 'loading' }
+    | { readonly kind: 'error'; readonly msg: string };
+  readonly trustedCount: number;
+  readonly quarantineCount: number;
+  readonly runCount: number;
+  readonly latestRunId: string | null;
+}
+
+export async function loadWorkspaceContext(ws: WorkspaceHandle): Promise<WorkspaceContext> {
+  const workspaceName = path.basename(ws.root);
+  const workflowState = await inspectWorkflowState(ws.root);
+  return withDb(ws, async (db, workspaceId) => {
+    const trusted = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM semantic_facts
+         WHERE workspace_id = ? AND tier IN ('T+1','T+2','T+3')`,
+      )
+      .get(workspaceId) as { n: number };
+    const quarantine = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM semantic_facts
+         WHERE workspace_id = ? AND tier = 'T0'
+               AND area NOT IN ('language','project','package_manager','testing')`,
+      )
+      .get(workspaceId) as { n: number };
+    const runs = db
+      .prepare(
+        `SELECT COUNT(*) AS n, MAX(started_at) AS last_ts FROM workflows
+         WHERE workspace_id = ?`,
+      )
+      .get(workspaceId) as { n: number; last_ts: string | null };
+    const latest = db
+      .prepare(
+        `SELECT id FROM workflows WHERE workspace_id = ?
+         ORDER BY started_at DESC LIMIT 1`,
+      )
+      .get(workspaceId) as { id: string } | undefined;
+    return {
+      workspaceName,
+      workflowState,
+      trustedCount: trusted.n,
+      quarantineCount: quarantine.n,
+      runCount: runs.n,
+      latestRunId: latest?.id ?? null,
+    };
+  });
+}
+
 export interface ReviewCandidate {
   readonly factId: string;
   readonly area: string;

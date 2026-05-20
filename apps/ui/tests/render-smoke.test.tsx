@@ -45,6 +45,55 @@ afterEach(() => {
   while (rendered.length > 0) rendered.pop()?.unmount();
 });
 
+describe('manthan-ui UX prototype 9.1 — persistent layout', () => {
+  it('left context pane shows workspace identity, badge, and counts', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    // Wait for the App's loadWorkspaceContext promise to resolve.
+    await new Promise((r) => setTimeout(r, 200));
+    const frame = inst.lastFrame() ?? '';
+    // Workspace identity (basename of root) appears in the left pane.
+    expect(frame).toMatch(/manthan-ui-test-/);
+    // "on: Home" label confirms the current-surface affordance.
+    expect(frame).toContain('on: ');
+    expect(frame).toContain('Home');
+    // Count labels appear, regardless of values.
+    expect(frame).toContain('trusted');
+    expect(frame).toContain('in quarantine');
+  });
+
+  it('bottom ribbon shows CLI equivalent + op + hints, all three regions', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 200));
+    const frame = inst.lastFrame() ?? '';
+    expect(frame).toContain('CLI: ');
+    expect(frame).toContain('op: ');
+    // Hints still rendered (navigation affordances).
+    expect(frame).toContain('[p] run plan');
+  });
+
+  it('persistent pane survives navigation: Home → Run Plan → counts still visible', async () => {
+    if (!workspaceHandle) throw new Error('workspace not prepared');
+    const inst = render(<App workspace={workspaceHandle} />);
+    rendered.push(inst);
+    await new Promise((r) => setTimeout(r, 200));
+    // Navigate Home → Run Plan
+    inst.stdin.write('p');
+    await new Promise((r) => setTimeout(r, 200));
+    const frame = inst.lastFrame() ?? '';
+    // The workspace identity is still present in the left pane.
+    expect(frame).toMatch(/manthan-ui-test-/);
+    // The "on:" label has updated.
+    expect(frame).toContain('on: ');
+    expect(frame).toContain('Run Plan');
+    // CLI ribbon still present.
+    expect(frame).toContain('CLI: ');
+  });
+});
+
 describe('manthan-ui Phase 0 — Home screen', () => {
   it('App mounts at the Home screen', () => {
     if (!workspaceHandle) throw new Error('workspace not prepared');
@@ -60,7 +109,7 @@ describe('manthan-ui Phase 0 — Home screen', () => {
     const inst = render(<App workspace={workspaceHandle} />);
     rendered.push(inst);
     const frame = inst.lastFrame() ?? '';
-    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('CLI: ');
     expect(frame).toContain('manthan next');
   });
 
@@ -89,7 +138,7 @@ describe('manthan-ui Phase 0 — Next Action affordance', () => {
     await new Promise((r) => setTimeout(r, 50));
     const frame = inst.lastFrame() ?? '';
     expect(frame).toContain('Next');
-    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('CLI: ');
     expect(frame).toContain('manthan next');
   });
 
@@ -118,7 +167,7 @@ describe('manthan-ui Phase 0 — Review Facts screen', () => {
     await new Promise((r) => setTimeout(r, 50));
     const frame = inst.lastFrame() ?? '';
     expect(frame).toContain('Review Facts');
-    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('CLI: ');
     expect(frame).toContain('manthan brain review');
   });
 });
@@ -133,7 +182,7 @@ describe('manthan-ui Phase 0 — Replay screen', () => {
     await new Promise((r) => setTimeout(r, 50));
     const frame = inst.lastFrame() ?? '';
     expect(frame).toContain('Replay');
-    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('CLI: ');
     expect(frame).toContain('manthan replay');
   });
 });
@@ -159,7 +208,7 @@ describe('manthan-ui Phase 0 — Run Plan screen', () => {
     inst.stdin.write('p');
     await new Promise((r) => setTimeout(r, 50));
     const frame = inst.lastFrame() ?? '';
-    expect(frame).toContain('CLI equivalent:');
+    expect(frame).toContain('CLI: ');
     expect(frame).toContain('manthan plan');
   });
 });
