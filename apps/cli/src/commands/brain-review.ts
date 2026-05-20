@@ -321,22 +321,46 @@ function parseRanges(spec: string, max: number): number[] | string {
   return [...out].sort((x, y) => x - y);
 }
 
-const HELP_TEXT = [
-  'Commands:',
-  '  p <range>    promote to T+1            (e.g. "p 1 3-5")',
-  '  P <range>    promote to T+2 (corroborated)',
-  '  d <range>    demote to T-1 (contradicted)',
-  '  s <range>    explicit skip',
-  '  u            undo last selection (in-session only)',
-  '  c            clear all selections',
-  '  l            list current selections',
-  '  q            apply all selections + quit',
-  '  a            abort (discard selections)',
-  '  ?            this help',
-  '',
-  'Example:  `p 1 3-5` to promote facts 1, 3, 4, 5 then `q` to commit.',
-  'Tiers:    T0=quarantine  T+1=trusted  T+2=corroborated  T-1=contradicted',
-].join('\n');
+/**
+ * Build the help text shown when the operator types `?` (or at the
+ * top of an interactive session). The example phrases are
+ * queue-size-aware so they never instruct the operator to type an
+ * out-of-range index.
+ *
+ * The BATCH1 validation transcript surfaced that the literal example
+ * `p 1 3-5` failed (with "bad range") when the queue had only 3
+ * facts, because the static example assumed a queue ≥ 5. This
+ * function generates an example that always runs.
+ *
+ * Exported for direct unit testing.
+ */
+export function buildHelpText(candidateCount: number): string {
+  const inlineExample = candidateCount >= 3 ? 'p 1 3' : candidateCount >= 2 ? 'p 1-2' : 'p 1';
+  const safeExample =
+    candidateCount === 0
+      ? '(no facts pending — type `q` to exit.)'
+      : candidateCount === 1
+        ? 'Example:  `p 1` to promote the only fact then `q` to commit.'
+        : candidateCount === 2
+          ? 'Example:  `p 1-2` to promote both facts then `q` to commit.'
+          : `Example:  \`p 1 3-${candidateCount}\` to promote facts 1, 3, … ${candidateCount} then \`q\` to commit.`;
+  return [
+    'Commands:',
+    `  p <range>    promote to T+1            (e.g. "${inlineExample}")`,
+    '  P <range>    promote to T+2 (corroborated)',
+    '  d <range>    demote to T-1 (contradicted)',
+    '  s <range>    explicit skip',
+    '  u            undo last selection (in-session only)',
+    '  c            clear all selections',
+    '  l            list current selections',
+    '  q            apply all selections + quit',
+    '  a            abort (discard selections)',
+    '  ?            this help',
+    '',
+    safeExample,
+    'Tiers:    T0=quarantine  T+1=trusted  T+2=corroborated  T-1=contradicted',
+  ].join('\n');
+}
 
 interface Selection {
   factId: string;
@@ -349,6 +373,7 @@ async function runInteractive(
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const selections = new Map<string, SelectionAction>();
   const history: Array<{ factId: string; prev: SelectionAction | undefined }> = [];
+  const helpText = buildHelpText(candidates.length);
 
   function indicesToFactIds(indices: number[]): string[] {
     return indices
@@ -357,13 +382,13 @@ async function runInteractive(
       .map((c) => c.factId);
   }
 
-  process.stdout.write(`${HELP_TEXT}\n\n`);
+  process.stdout.write(`${helpText}\n\n`);
 
   while (true) {
     const line = (await rl.question('> ')).trim();
     if (line.length === 0) continue;
     if (line === '?') {
-      process.stdout.write(`${HELP_TEXT}\n`);
+      process.stdout.write(`${helpText}\n`);
       continue;
     }
     if (line === 'q') {
