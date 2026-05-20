@@ -6,6 +6,7 @@
     { "path": "packages/adapters-sdk" },
     { "path": "packages/memory" },
     { "path": "packages/safety" },
-    { "path": "apps/cli" }
+    { "path": "apps/cli" },
+    { "path": "apps/ui" }
   ]
 }
