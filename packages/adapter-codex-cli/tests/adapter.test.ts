@@ -27,9 +27,15 @@ describe('createCodexCliAdapter', () => {
   });
 
   it('reports subscription-style zero cost (no per-call USD billing)', () => {
-    const adapter = createCodexCliAdapter();
+    const adapter = createCodexCliAdapter({ costMode: 'subscription' });
     expect(adapter.metadata.cost.inputUsdMicroPer1k).toBe(0);
     expect(adapter.metadata.cost.outputUsdMicroPer1k).toBe(0);
+    expect(adapter.metadata.cost.mode).toBe('subscription');
+  });
+
+  it('honors explicit cost.mode override (api path)', () => {
+    const adapter = createCodexCliAdapter({ costMode: 'api' });
+    expect(adapter.metadata.cost.mode).toBe('api');
   });
 
   it('honors displayName override', () => {

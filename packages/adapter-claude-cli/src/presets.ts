@@ -12,6 +12,7 @@ export const CLI_PRESETS = {
     model: 'sonnet',
     displayName: 'Claude Sonnet (via Claude Code CLI)',
     cost: {
+      mode: 'subscription' as const,
       // Subscription-equivalent rates (informational only; CLI returns
       // total_cost_usd per call which we use as the authoritative number).
       inputUsdMicroPer1k: 3_000,
@@ -36,6 +37,7 @@ export const CLI_PRESETS = {
     model: 'opus',
     displayName: 'Claude Opus (via Claude Code CLI)',
     cost: {
+      mode: 'subscription' as const,
       inputUsdMicroPer1k: 15_000,
       outputUsdMicroPer1k: 75_000,
     },

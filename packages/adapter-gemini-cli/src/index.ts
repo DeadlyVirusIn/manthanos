@@ -15,6 +15,11 @@ import {
   type CanonicalAgentPayload,
 } from '@manthanos/adapters-sdk';
 import { getPlatform } from '@manthanos/platform';
+import {
+  GEMINI_FALLBACK_MODELS,
+  buildIsolatedEnv,
+  classifyProviderError,
+} from '@manthanos/providers';
 
 export interface GeminiCliAdapterConfig {
   readonly displayName?: string;
@@ -22,9 +27,28 @@ export interface GeminiCliAdapterConfig {
   /** Defaults to gemini's own default (currently gemini-3-flash-preview). */
   readonly model?: string;
   readonly now?: () => number;
+  /**
+   * Models to try in order when the primary returns a `model_not_found`
+   * error. Defaults to GEMINI_FALLBACK_MODELS from @manthanos/providers.
+   */
+  readonly fallbackModels?: ReadonlyArray<string>;
+  /**
+   * Override cost.mode. Defaults to 'api' when GEMINI_API_KEY or
+   * GOOGLE_API_KEY is set in process.env at construction; otherwise
+   * 'subscription'.
+   */
+  readonly costMode?: 'subscription' | 'api';
 }
 
-const ADAPTER_VERSION = '0.0.1';
+const ADAPTER_VERSION = '0.0.2';
+
+function inferGeminiCostMode(): 'subscription' | 'api' {
+  const a = process.env.GEMINI_API_KEY;
+  const b = process.env.GOOGLE_API_KEY;
+  return (typeof a === 'string' && a.length > 0) || (typeof b === 'string' && b.length > 0)
+    ? 'api'
+    : 'subscription';
+}
 
 /** Shape of `gemini -o json` stdout. Captured 2026-05-15. */
 interface GeminiJsonResult {
@@ -69,6 +93,7 @@ export function createGeminiCliAdapter(cfg: GeminiCliAdapterConfig = {}): AgentA
       structuredOutput: false,
     },
     cost: {
+      mode: cfg.costMode ?? inferGeminiCostMode(),
       inputUsdMicroPer1k: 0,
       outputUsdMicroPer1k: 0,
     },
@@ -100,28 +125,73 @@ export function createGeminiCliAdapter(cfg: GeminiCliAdapterConfig = {}): AgentA
           ? `=== SYSTEM CONTEXT ===\n${systemText}\n\n=== USER REQUEST ===\n${userText}`
           : userText;
 
-      const args: string[] = ['--skip-trust', '-o', 'json'];
-      if (cfg.model) {
-        args.push('-m', cfg.model);
-      }
-      // Gemini's -p flag reads the prompt from the argument when small, or
-      // from stdin when piped. Long prompts may exceed ARG_MAX; we pipe
-      // via stdin and pass an empty -p marker.
-      args.push('-p', '');
+      const isolatedEnv = buildIsolatedEnv({
+        allowKeys: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+      });
 
-      const result = await platform.process.spawn({
+      // Build argv for a given model. --approval-mode yolo + --skip-trust
+      // suppress the CLI's interactive trust gating in headless dispatch.
+      // Empty `-p ""` keeps the CLI in prompt-from-stdin mode for long inputs.
+      const buildArgs = (model: string | undefined): string[] => {
+        const a: string[] = ['--skip-trust', '--approval-mode', 'yolo', '-o', 'json'];
+        if (model) a.push('-m', model);
+        a.push('-p', '');
+        return a;
+      };
+
+      // Try the primary model first; on a `model_not_found` classification,
+      // walk the fallback chain once. Other failures bubble up immediately.
+      const fallbackChain = cfg.fallbackModels ?? GEMINI_FALLBACK_MODELS;
+      const modelsToTry: ReadonlyArray<string | undefined> = [
+        cfg.model,
+        ...fallbackChain.filter((m) => m !== cfg.model),
+      ];
+
+      let result = await platform.process.spawn({
         command: binPath,
-        args,
+        args: buildArgs(modelsToTry[0]),
         stdin: combinedPrompt,
+        env: isolatedEnv,
         abortSignal: req.abortSignal,
         timeoutMs: 600_000,
       });
+      let attemptedModel: string | undefined = modelsToTry[0];
 
       if (result.code !== 0 && result.stdout.trim().length === 0) {
+        const combined = `${result.stderr}\n${result.stdout}`;
+        const cls = classifyProviderError(combined);
+        if (cls.class === 'model_not_found') {
+          for (let i = 1; i < modelsToTry.length; i++) {
+            attemptedModel = modelsToTry[i];
+            result = await platform.process.spawn({
+              command: binPath,
+              args: buildArgs(attemptedModel),
+              stdin: combinedPrompt,
+              env: isolatedEnv,
+              abortSignal: req.abortSignal,
+              timeoutMs: 600_000,
+            });
+            if (result.code === 0 || result.stdout.trim().length > 0) break;
+            const innerCls = classifyProviderError(`${result.stderr}\n${result.stdout}`);
+            if (innerCls.class !== 'model_not_found') break;
+          }
+        }
+      }
+
+      if (result.code !== 0 && result.stdout.trim().length === 0) {
+        const cls = classifyProviderError(`${result.stderr}\n${result.stdout}`);
+        const code =
+          cls.class === 'auth'
+            ? 'auth'
+            : cls.class === 'quota_exhausted'
+              ? 'rate_limited'
+              : cls.class === 'timeout'
+                ? 'network'
+                : 'internal';
         throw new AdapterError({
-          code: 'internal',
-          message: `gemini exited ${result.code}: ${result.stderr.trim() || 'no stderr'}`,
-          retriable: false,
+          code,
+          message: `gemini exited ${result.code} (${cls.class}, model=${attemptedModel ?? 'default'}): ${result.stderr.trim() || 'no stderr'}`,
+          retriable: cls.retriable,
           cause: { stdout: result.stdout, stderr: result.stderr },
         });
       }

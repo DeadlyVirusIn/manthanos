@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: BSL-1.1
+// Copyright (c) 2026 DeadlyVirusIn
+
+// Combine binary detection + auth detection + (optional) local probe into
+// a single "is this provider runnable right now?" answer with a concise
+// next-action string for the operator.
+
+import { getPlatform } from '@manthanos/platform';
+import { type DetectAuthOptions, detectAuth } from './auth.js';
+import type { ProviderEntry, ProviderHealth } from './types.js';
+
+export interface ProviderHealthOptions extends DetectAuthOptions {
+  /** Override `platform.process.which` for tests. */
+  readonly which?: (bin: string) => Promise<string | null>;
+}
+
+export async function probeProviderHealth(
+  entry: ProviderEntry,
+  opts: ProviderHealthOptions = {},
+): Promise<ProviderHealth> {
+  const which = opts.which ?? ((bin: string) => getPlatform().process.which(bin));
+
+  let binaryFound = true;
+  let binaryPath: string | undefined;
+  if (entry.executable) {
+    const resolved = await which(entry.executable);
+    binaryFound = resolved !== null;
+    binaryPath = resolved ?? undefined;
+  }
+
+  const auth = await detectAuth(entry, opts);
+
+  const localReachable = entry.integrationType === 'local' ? auth.source === 'local' : undefined;
+
+  // Runnability rules:
+  //   - CLI providers: need binary present AND a non-'none' auth source.
+  //     OAuth that has expired is treated as not-runnable.
+  //     Exception: when entry.runnableIfBinary is true, the CLI manages
+  //     its own auth state inside its host and the binary's presence
+  //     alone is the strongest signal we can mechanically detect.
+  //   - API providers: need env auth (no binary required).
+  //   - Local providers: need binary present AND localReachable.
+  let runnable: boolean;
+  switch (entry.integrationType) {
+    case 'cli':
+      runnable =
+        binaryFound &&
+        ((auth.source !== 'none' && auth.expired !== true) || entry.runnableIfBinary === true);
+      break;
+    case 'api':
+      runnable = auth.source === 'env';
+      break;
+    case 'local':
+      runnable = binaryFound && localReachable === true;
+      break;
+    default:
+      runnable = false;
+  }
+
+  // Concise next-step. Empty when runnable.
+  let nextAction = '';
+  if (!runnable) {
+    if (entry.executable && !binaryFound) {
+      nextAction = `install \`${entry.executable}\` and place it on PATH`;
+    } else if (entry.integrationType === 'local' && localReachable === false) {
+      nextAction = `start the local ${entry.displayName} service (probed ${entry.localEndpoint})`;
+    } else if (auth.expired === true) {
+      nextAction = `re-authenticate ${entry.displayName} (token expired)`;
+    } else if (auth.source === 'none') {
+      const credHint = entry.credentialFiles[0]?.homeRelative;
+      const envHint = entry.envVars[0];
+      if (credHint && envHint) {
+        nextAction = `sign in (writes ~/${credHint}) or set $${envHint}`;
+      } else if (credHint) {
+        nextAction = `sign in to create ~/${credHint}`;
+      } else if (envHint) {
+        nextAction = `set $${envHint}`;
+      } else {
+        nextAction = `configure ${entry.displayName}`;
+      }
+    }
+  }
+
+  return {
+    providerId: entry.id,
+    binaryFound,
+    binaryPath,
+    auth,
+    localReachable,
+    runnable,
+    nextAction,
+  };
+}

@@ -49,6 +49,16 @@ export interface AgentMetadata {
   capabilities: AgentCapabilities;
   /** Per-1k-tokens USD micro-units (integer arithmetic — ARCH §10.1). */
   cost: {
+    /**
+     * Billing mode of this adapter at construction:
+     *  - 'subscription' : OAuth / subscription quota absorbs the cost; usdMicro
+     *                     fields are informational only.
+     *  - 'api'          : per-call USD is billed against a key; usdMicro fields
+     *                     are authoritative.
+     *  - 'local'        : local runtime; no remote billing of any kind.
+     * Explicit-by-construction; never inferred at use-site.
+     */
+    mode: 'subscription' | 'api' | 'local';
     inputUsdMicroPer1k: number;
     outputUsdMicroPer1k: number;
     perCallUsdMicro?: number;

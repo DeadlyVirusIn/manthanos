@@ -16,6 +16,7 @@
     { "path": "../../packages/memory" },
     { "path": "../../packages/orchestrator" },
     { "path": "../../packages/platform" },
+    { "path": "../../packages/providers" },
     { "path": "../../packages/safety" }
   ],
   "include": ["src/**/*.ts"],

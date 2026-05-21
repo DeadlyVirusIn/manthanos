@@ -17,6 +17,7 @@ export const PRESETS = {
     model: 'gpt-4o-2024-08-06',
     displayName: 'OpenAI gpt-4o (2024-08-06)',
     cost: {
+      mode: 'api' as const,
       // $2.50 / 1M = 2_500 micro per 1k input tokens.
       inputUsdMicroPer1k: 2_500,
       // $10.00 / 1M = 10_000 micro per 1k output tokens.

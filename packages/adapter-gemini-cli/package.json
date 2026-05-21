@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@manthanos/adapters-sdk": "workspace:*",
-    "@manthanos/platform": "workspace:*"
+    "@manthanos/platform": "workspace:*",
+    "@manthanos/providers": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

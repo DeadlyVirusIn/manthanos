@@ -3,6 +3,7 @@
 // Copyright (c) 2026 DeadlyVirusIn
 
 import type { ClaudePresetId } from '@manthanos/adapter-claude';
+import { cptProbeAdapterIds } from '@manthanos/providers';
 import { Command } from 'commander';
 import { runAuth } from './commands/auth.js';
 import { computeDoctorExitCode, runDoctor } from './commands/doctor.js';
@@ -661,7 +662,11 @@ experiments
   .option('--label <text>', 'experiment label (default: derived from brief filename)')
   .option('--out <dir>', 'output directory', './cpt-runs')
   .option('-m, --model <id>', 'CLI preset id', 'sonnet')
-  .option('--adapter <name>', "adapter: 'claude-cli' (default) or 'openai' (E6.1)", 'claude-cli')
+  .option(
+    '--adapter <name>',
+    `adapter to invoke; one of: ${cptProbeAdapterIds().join(', ')} (default: claude-cli)`,
+    'claude-cli',
+  )
   .option('--budget <usd>', 'per-run USD budget', '0.50')
   .option('--max-output <n>', 'max output tokens', '4096')
   .option('--context-budget <n>', 'max input tokens for bundle', '60000')
@@ -696,9 +701,10 @@ experiments
         process.exitCode = 2;
         return;
       }
-      if (opts.adapter !== 'claude-cli' && opts.adapter !== 'openai') {
+      const accepted = cptProbeAdapterIds();
+      if (!accepted.includes(opts.adapter)) {
         process.stderr.write(
-          "manthan experiments cpt-probe: --adapter must be 'claude-cli' or 'openai'\n",
+          `manthan experiments cpt-probe: --adapter must be one of: ${accepted.join(', ')}\n`,
         );
         process.exitCode = 2;
         return;
@@ -711,7 +717,7 @@ experiments
         label: opts.label,
         outDir: opts.out,
         model: opts.model,
-        adapter: opts.adapter as 'claude-cli' | 'openai',
+        adapter: opts.adapter as 'claude-cli' | 'openai' | 'codex-cli' | 'gemini-cli',
         maxUsdMicro: Math.round(usd * 1_000_000),
         maxOutputTokens: Number.parseInt(opts.maxOutput, 10),
         contextTokenBudget: Number.parseInt(opts.contextBudget, 10),

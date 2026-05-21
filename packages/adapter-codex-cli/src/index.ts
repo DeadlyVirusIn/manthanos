@@ -14,14 +14,27 @@ import {
   type CanonicalAgentPayload,
 } from '@manthanos/adapters-sdk';
 import { getPlatform } from '@manthanos/platform';
+import { buildIsolatedEnv, classifyProviderError } from '@manthanos/providers';
 
 export interface CodexCliAdapterConfig {
   readonly displayName?: string;
   readonly binPath?: string;
   readonly now?: () => number;
+  /**
+   * Override cost.mode. Defaults to 'api' when OPENAI_API_KEY is set in
+   * process.env at construction, otherwise 'subscription'. The runtime
+   * auth source (OAuth file vs env) is determined separately via
+   * @manthanos/providers detectAuth — this field is metadata-only.
+   */
+  readonly costMode?: 'subscription' | 'api';
 }
 
-const ADAPTER_VERSION = '0.0.1';
+const ADAPTER_VERSION = '0.0.2';
+
+function inferCostMode(): 'subscription' | 'api' {
+  const k = process.env.OPENAI_API_KEY;
+  return typeof k === 'string' && k.length > 0 ? 'api' : 'subscription';
+}
 
 export function createCodexCliAdapter(cfg: CodexCliAdapterConfig = {}): AgentAdapter {
   const now = cfg.now ?? (() => Date.now());
@@ -44,6 +57,7 @@ export function createCodexCliAdapter(cfg: CodexCliAdapterConfig = {}): AgentAda
       structuredOutput: false,
     },
     cost: {
+      mode: cfg.costMode ?? inferCostMode(),
       // Subscription quota burn; codex doesn't expose per-call USD via exec stdout.
       inputUsdMicroPer1k: 0,
       outputUsdMicroPer1k: 0,
@@ -90,15 +104,25 @@ export function createCodexCliAdapter(cfg: CodexCliAdapterConfig = {}): AgentAda
           '-', // read prompt from stdin
         ],
         stdin: combinedStdin,
+        env: buildIsolatedEnv({ allowKeys: ['OPENAI_API_KEY'] }),
         abortSignal: req.abortSignal,
         timeoutMs: 600_000,
       });
 
       if (result.code !== 0 && result.stdout.trim().length === 0) {
+        const cls = classifyProviderError(`${result.stderr}\n${result.stdout}`);
+        const code =
+          cls.class === 'auth'
+            ? 'auth'
+            : cls.class === 'quota_exhausted'
+              ? 'rate_limited'
+              : cls.class === 'timeout'
+                ? 'network'
+                : 'internal';
         throw new AdapterError({
-          code: 'internal',
-          message: `codex exec failed: ${result.stderr.trim() || `exit ${result.code}`}`,
-          retriable: false,
+          code,
+          message: `codex exec failed (${cls.class}): ${result.stderr.trim() || `exit ${result.code}`}`,
+          retriable: cls.retriable,
           cause: { stdout: result.stdout, stderr: result.stderr },
         });
       }

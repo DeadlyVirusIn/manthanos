@@ -5,7 +5,11 @@
     "rootDir": "./src",
     "composite": true
   },
-  "references": [{ "path": "../adapters-sdk" }, { "path": "../platform" }],
+  "references": [
+    { "path": "../adapters-sdk" },
+    { "path": "../platform" },
+    { "path": "../providers" }
+  ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "tests", "**/*.test.ts"]
 }

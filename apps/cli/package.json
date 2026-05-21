@@ -30,6 +30,7 @@
     "@manthanos/memory": "workspace:*",
     "@manthanos/orchestrator": "workspace:*",
     "@manthanos/platform": "workspace:*",
+    "@manthanos/providers": "workspace:*",
     "@manthanos/safety": "workspace:*",
     "commander": "^12.1.0"
   },

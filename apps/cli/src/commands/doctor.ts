@@ -20,6 +20,12 @@ import {
   runRecovery,
 } from '@manthanos/memory';
 import { getPlatform } from '@manthanos/platform';
+import {
+  PROVIDER_REGISTRY,
+  type ProviderEntry,
+  type ProviderHealth,
+  probeProviderHealth,
+} from '@manthanos/providers';
 import { scanGitHooks } from '@manthanos/safety';
 
 const MIN_NODE_VERSION = { major: 22, minor: 13, patch: 0 } as const;
@@ -73,9 +79,19 @@ export function computeDoctorExitCode(
 }
 
 export interface AdapterAvailability {
-  readonly id: 'claude-cli' | 'codex-cli' | 'gemini-cli' | 'anthropic-api';
-  readonly available: boolean;
-  readonly detail: string;
+  /** Provider id from the registry (e.g. 'codex-cli', 'openai'). */
+  readonly id: string;
+  readonly displayName: string;
+  readonly status: ProviderEntry['status'];
+  readonly costMode: ProviderEntry['costMode'];
+  readonly supportsCptProbe: boolean;
+  readonly binaryFound: boolean;
+  readonly binaryPath?: string;
+  readonly authSource: ProviderHealth['auth']['source'];
+  readonly credentialPath?: string;
+  readonly runnable: boolean;
+  /** Empty when runnable. */
+  readonly nextAction: string;
 }
 
 export interface DoctorReport {
@@ -92,40 +108,39 @@ export interface DoctorReport {
   readonly recoveryFindings?: ReadonlyArray<RecoveryFinding>;
 }
 
-async function checkAdapters(
-  platform: ReturnType<typeof getPlatform>,
-): Promise<AdapterAvailability[]> {
-  const [claude, codex, gemini] = await Promise.all([
-    platform.process.which('claude'),
-    platform.process.which('codex'),
-    platform.process.which('gemini'),
-  ]);
-  const hasAnthropicKey =
-    typeof process.env.ANTHROPIC_API_KEY === 'string' && process.env.ANTHROPIC_API_KEY.length > 0;
-  return [
-    {
-      id: 'claude-cli',
-      available: claude !== null,
-      detail: claude ? claude : 'install Claude Code CLI: https://claude.com/code',
-    },
-    {
-      id: 'anthropic-api',
-      available: hasAnthropicKey,
-      detail: hasAnthropicKey
-        ? 'ANTHROPIC_API_KEY set'
-        : 'set ANTHROPIC_API_KEY (or run `manthan auth --set global`) for --adapter=api',
-    },
-    {
-      id: 'codex-cli',
-      available: codex !== null,
-      detail: codex ? codex : 'install Codex CLI (npm install -g @openai/codex)',
-    },
-    {
-      id: 'gemini-cli',
-      available: gemini !== null,
-      detail: gemini ? gemini : 'install Gemini CLI (https://github.com/google-gemini/gemini-cli)',
-    },
+function healthToAvailability(entry: ProviderEntry, health: ProviderHealth): AdapterAvailability {
+  return {
+    id: entry.id,
+    displayName: entry.displayName,
+    status: entry.status,
+    costMode: entry.costMode,
+    supportsCptProbe: entry.supportsCptProbe,
+    binaryFound: health.binaryFound,
+    binaryPath: health.binaryPath,
+    authSource: health.auth.source,
+    credentialPath: health.auth.credentialPath,
+    runnable: health.runnable,
+    nextAction: health.nextAction,
+  };
+}
+
+async function checkAdapters(): Promise<AdapterAvailability[]> {
+  // Order: implemented first, then detected-only, then planned.
+  // Within each tier preserve registry order.
+  const ordered = [
+    ...PROVIDER_REGISTRY.filter((p) => p.status === 'implemented'),
+    ...PROVIDER_REGISTRY.filter((p) => p.status === 'detected-only'),
+    ...PROVIDER_REGISTRY.filter((p) => p.status === 'planned'),
   ];
+  const out: AdapterAvailability[] = [];
+  for (const entry of ordered) {
+    // No local-server reachability probe here — doctor stays read-only and
+    // wire-free. Local providers report `none` for auth source if the
+    // process can't otherwise confirm presence, with a clear next-step.
+    const health = await probeProviderHealth(entry);
+    out.push(healthToAvailability(entry, health));
+  }
+  return out;
 }
 
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
@@ -152,7 +167,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   const nodeOk = parsedNode !== null && nodeMeetsMinimum(parsedNode);
 
   // Adapter availability
-  const adapters = await checkAdapters(platform);
+  const adapters = await checkAdapters();
 
   const workspaceRoot = await platform.path.canonicalizeWorkspaceRoot(opts.cwd);
   const manthanDir = path.join(workspaceRoot, '.manthan');
@@ -171,11 +186,24 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
   process.stdout.write(`  cwd:      ${workspaceRoot}\n`);
   process.stdout.write('\n');
 
-  // Adapter availability section
-  process.stdout.write('  adapters:\n');
+  // Provider availability section. Registry-driven; runnable providers
+  // first, then detected-only, then planned. cpt-probe column shows
+  // whether `--adapter <id>` is accepted today.
+  process.stdout.write('  providers:\n');
+  process.stdout.write(
+    `    ${'PROVIDER'.padEnd(14)} ${'STATUS'.padEnd(14)} ${'AUTH'.padEnd(8)} ${'COST'.padEnd(12)} ${'CPT'.padEnd(4)} DETAIL\n`,
+  );
   for (const a of adapters) {
-    const mark = a.available ? '✓' : '✗';
-    process.stdout.write(`    ${mark} ${a.id.padEnd(14)} ${a.detail}\n`);
+    const mark = a.runnable ? '✓' : a.status === 'implemented' ? '✗' : '·';
+    const cpt = a.supportsCptProbe ? 'yes' : '-';
+    const detail = a.runnable
+      ? a.binaryPath
+        ? `${a.binaryPath}${a.credentialPath ? ` · ${a.credentialPath}` : ''}`
+        : (a.credentialPath ?? 'runnable')
+      : a.nextAction || 'unavailable';
+    process.stdout.write(
+      `    ${mark} ${a.id.padEnd(12)} ${a.status.padEnd(14)} ${a.authSource.padEnd(8)} ${a.costMode.padEnd(12)} ${cpt.padEnd(4)} ${detail}\n`,
+    );
   }
   process.stdout.write('\n');
 

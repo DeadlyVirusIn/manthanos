@@ -19,6 +19,8 @@ import {
   createClaudeCliAdapter,
   presetToConfig as presetToConfigCli,
 } from '@manthanos/adapter-claude-cli';
+import { createCodexCliAdapter } from '@manthanos/adapter-codex-cli';
+import { createGeminiCliAdapter } from '@manthanos/adapter-gemini-cli';
 import {
   type OpenAIPresetId,
   createOpenAIAdapter,
@@ -29,6 +31,14 @@ import { pack } from '@manthanos/context';
 import { openDb } from '@manthanos/memory';
 import { type RunPlanResult, runPlanWorkflow } from '@manthanos/orchestrator';
 import { getPlatform } from '@manthanos/platform';
+import { cptProbeAdapterIds } from '@manthanos/providers';
+
+/** Adapter ids accepted by `--adapter`. Filtered from the provider registry. */
+export type CptAdapterId = 'claude-cli' | 'openai' | 'codex-cli' | 'gemini-cli';
+
+export function isAcceptedCptAdapter(value: string): value is CptAdapterId {
+  return cptProbeAdapterIds().includes(value);
+}
 
 interface WorkspaceFacts {
   trusted: Array<{
@@ -435,35 +445,45 @@ async function loadOpenAIKey(): Promise<string | null> {
 }
 
 async function buildAdapter(opts: {
-  adapter: 'claude-cli' | 'openai';
+  adapter: CptAdapterId;
   model: string;
 }): Promise<AgentAdapter> {
-  if (opts.adapter === 'openai') {
-    const apiKey = await loadOpenAIKey();
-    if (!apiKey) {
-      throw new Error(
-        'adapter=openai: OPENAI_API_KEY not found in env or ~/.config/manthan/api-keys.env',
+  switch (opts.adapter) {
+    case 'openai': {
+      const apiKey = await loadOpenAIKey();
+      if (!apiKey) {
+        throw new Error(
+          'adapter=openai: OPENAI_API_KEY not found in env or ~/.config/manthan/api-keys.env',
+        );
+      }
+      // Single preset for cross-model validation; model arg ignored.
+      return createOpenAIAdapter(
+        presetToConfigOpenAI('gpt-4o' as OpenAIPresetId, apiKey, {
+          recommendedFor: ['implementation', 'review'],
+        }),
       );
     }
-    // E6.1: single preset; model arg ignored for openai.
-    return createOpenAIAdapter(
-      presetToConfigOpenAI('gpt-4o' as OpenAIPresetId, apiKey, {
-        recommendedFor: ['implementation', 'review'],
-      }),
-    );
+    case 'codex-cli':
+      // OAuth-first; falls back to OPENAI_API_KEY if set. Auth source is
+      // determined by the codex CLI itself at invocation time.
+      return createCodexCliAdapter();
+    case 'gemini-cli':
+      // OAuth-first; falls back to GEMINI_API_KEY/GOOGLE_API_KEY if set.
+      return createGeminiCliAdapter({ model: opts.model === 'sonnet' ? undefined : opts.model });
+    default:
+      return createClaudeCliAdapter(
+        presetToConfigCli(opts.model as ClaudeCliPresetId, {
+          recommendedFor: ['architecture', 'implementation'],
+        }),
+      );
   }
-  return createClaudeCliAdapter(
-    presetToConfigCli(opts.model as ClaudeCliPresetId, {
-      recommendedFor: ['architecture', 'implementation'],
-    }),
-  );
 }
 
 async function liveRunForWorkspace(opts: {
   workspaceRoot: string;
   brief: string;
   model: string;
-  adapter: 'claude-cli' | 'openai';
+  adapter: CptAdapterId;
   maxUsdMicro: number;
   maxOutputTokens: number;
   contextTokenBudget: number;
@@ -490,7 +510,7 @@ export interface CptProbeOpts {
   readonly label?: string;
   readonly outDir: string;
   readonly model: string;
-  readonly adapter: 'claude-cli' | 'openai';
+  readonly adapter: CptAdapterId;
   readonly maxUsdMicro: number;
   readonly maxOutputTokens: number;
   readonly contextTokenBudget: number;

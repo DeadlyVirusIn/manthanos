@@ -17,6 +17,7 @@ export const PRESETS = {
     model: 'claude-opus-4-5',
     displayName: 'Anthropic Claude Opus 4.5',
     cost: {
+      mode: 'api' as const,
       inputUsdMicroPer1k: 15_000, // $15 / 1M = $0.015 / 1k = 15_000 micro
       outputUsdMicroPer1k: 75_000,
     },
@@ -45,6 +46,7 @@ export const PRESETS = {
     model: 'claude-sonnet-4-5',
     displayName: 'Anthropic Claude Sonnet 4.5',
     cost: {
+      mode: 'api' as const,
       inputUsdMicroPer1k: 3_000, // $3 / 1M
       outputUsdMicroPer1k: 15_000,
     },
@@ -67,6 +69,7 @@ export const PRESETS = {
     model: 'claude-haiku-4-5',
     displayName: 'Anthropic Claude Haiku 4.5',
     cost: {
+      mode: 'api' as const,
       inputUsdMicroPer1k: 1_000, // $1 / 1M
       outputUsdMicroPer1k: 5_000,
     },

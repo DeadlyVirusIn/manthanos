@@ -1,7 +1,7 @@
 {
-  "name": "@manthanos/adapter-codex-cli",
+  "name": "@manthanos/providers",
   "version": "0.0.0",
-  "description": "ManthanOS Codex adapter shelling out to `codex exec`. Uses the user's ChatGPT subscription quota. Built minimal for the E6 cross-model continuity experiment.",
+  "description": "ManthanOS provider connector foundation: registry, auth discovery, error classifier, env isolation, nonce wrap.",
   "license": "BSL-1.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,12 +16,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@manthanos/adapters-sdk": "workspace:*",
-    "@manthanos/platform": "workspace:*",
-    "@manthanos/providers": "workspace:*"
+    "@manthanos/platform": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
