@@ -25,7 +25,11 @@ export {
 } from './registry.js';
 
 export { type DetectAuthOptions, detectAuth } from './auth.js';
-export { type ProviderHealthOptions, probeProviderHealth } from './health.js';
+export {
+  type ProviderHealthOptions,
+  defaultLocalHttpProbe,
+  probeProviderHealth,
+} from './health.js';
 export {
   GEMINI_FALLBACK_MODELS,
   classifyProviderError,

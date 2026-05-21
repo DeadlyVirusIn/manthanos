@@ -24,6 +24,7 @@ import {
   PROVIDER_REGISTRY,
   type ProviderEntry,
   type ProviderHealth,
+  defaultLocalHttpProbe,
   probeProviderHealth,
 } from '@manthanos/providers';
 import { scanGitHooks } from '@manthanos/safety';
@@ -134,10 +135,10 @@ async function checkAdapters(): Promise<AdapterAvailability[]> {
   ];
   const out: AdapterAvailability[] = [];
   for (const entry of ordered) {
-    // No local-server reachability probe here — doctor stays read-only and
-    // wire-free. Local providers report `none` for auth source if the
-    // process can't otherwise confirm presence, with a clear next-step.
-    const health = await probeProviderHealth(entry);
+    // Read-only HTTP GET for `local` providers (e.g. Ollama's
+    // localhost:11434). 2s default timeout; failures classify as
+    // "not reachable" without raising. No side effects beyond the GET.
+    const health = await probeProviderHealth(entry, { probeLocal: defaultLocalHttpProbe });
     out.push(healthToAvailability(entry, health));
   }
   return out;

@@ -14,6 +14,27 @@ export interface ProviderHealthOptions extends DetectAuthOptions {
   readonly which?: (bin: string) => Promise<string | null>;
 }
 
+/**
+ * Default reachability probe for 'local' providers. Issues a GET with a
+ * short timeout; returns true iff the response is 2xx. Network errors,
+ * non-2xx, and timeouts all classify as "not reachable".
+ *
+ * Kept here (rather than in doctor) so any consumer that needs to know
+ * whether a local provider is live can use the same primitive.
+ */
+export async function defaultLocalHttpProbe(endpoint: string, timeoutMs = 2000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(endpoint, { method: 'GET', signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function probeProviderHealth(
   entry: ProviderEntry,
   opts: ProviderHealthOptions = {},
