@@ -112,6 +112,11 @@ function renderScreen(
     return (
       <RunPlanScreen
         workspaceRoot={workspace.root}
+        // UX 9.2: the Run Plan done view now shows inline replay
+        // verification automatically. `onPlanComplete` is the
+        // optional upgrade path for operators who want the dedicated
+        // full-detail Replay screen (audit-seq, full hashes, etc.).
+        // The default workflow now ends on the Run Plan screen itself.
         onPlanComplete={(runId) => setScreen({ kind: 'replay', initialRunId: runId })}
         onBack={() => setScreen({ kind: 'home' })}
       />
