@@ -4,18 +4,45 @@
 // ManthanOS provider connector foundation — public surface.
 
 export type {
+  ApiKeyDestination,
   AuthDetectionResult,
+  AuthFlavor,
   AuthMode,
   AuthSource,
+  AuthSpec,
   ClassifiedError,
   CostMode,
   CredentialFileSpec,
+  InstallSpec,
   IntegrationType,
+  PostInstallSpec,
   ProviderEntry,
   ProviderErrorClass,
   ProviderHealth,
   ProviderStatus,
 } from './types.js';
+
+export {
+  type DeferredItem,
+  type PhaseId,
+  type PhaseResult,
+  type PhaseStatus,
+  type PromptIo,
+  type ProviderSetupResult,
+  type SetupEngineOptions,
+  type SetupRunners,
+  type SetupSummary,
+  authRunner,
+  createDefaultIo,
+  defaultRunners,
+  emitDeferredScript,
+  installRunner,
+  isInteractiveTty,
+  postInstallRunner,
+  runProviderInstall,
+  runProviderLogin,
+  runSetup,
+} from './setup/index.js';
 
 export {
   PROVIDER_REGISTRY,

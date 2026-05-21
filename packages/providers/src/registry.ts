@@ -28,6 +28,20 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     // Claude Code owns its own auth state; presence of the binary is
     // taken as evidence the host environment can invoke it.
     runnableIfBinary: true,
+    install: {
+      command: 'npm install -g @anthropic-ai/claude-code',
+      requiresSudo: false,
+      riskLevel: 'safe',
+      sourceUrl: 'https://docs.claude.com/en/docs/claude-code/setup',
+    },
+    auth: {
+      flavor: 'manual-only',
+      needsTty: false,
+      manualSteps: [
+        'Open Claude Code (the IDE / CLI host) and complete sign-in there.',
+        'Once Claude Code reports an active session, `manthan doctor` will show Claude as ✓.',
+      ],
+    },
   },
   {
     id: 'openai',
@@ -42,6 +56,15 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: '@manthanos/adapter-openai',
     status: 'implemented',
     runnableHint: 'OPENAI_API_KEY set on a funded account.',
+    auth: {
+      flavor: 'api-key-paste',
+      needsTty: true,
+      keyIssueUrl: 'https://platform.openai.com/api-keys',
+      keyDestination: {
+        homeRelativePath: '.config/manthan/keys.env',
+        envVarName: 'OPENAI_API_KEY',
+      },
+    },
   },
   {
     id: 'codex-cli',
@@ -58,6 +81,17 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     status: 'implemented',
     runnableHint:
       '`codex` on PATH; signed in via ChatGPT subscription (~/.codex/auth.json) or OPENAI_API_KEY set.',
+    install: {
+      command: 'npm install -g @openai/codex',
+      requiresSudo: false,
+      riskLevel: 'safe',
+      sourceUrl: 'https://github.com/openai/codex',
+    },
+    auth: {
+      flavor: 'oauth-browser',
+      command: 'codex login',
+      needsTty: true,
+    },
   },
   {
     id: 'gemini-cli',
@@ -74,6 +108,17 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     status: 'implemented',
     runnableHint:
       '`gemini` on PATH; signed in via Google account (~/.gemini/oauth_creds.json) or GEMINI_API_KEY/GOOGLE_API_KEY set.',
+    install: {
+      command: 'npm install -g @google/gemini-cli',
+      requiresSudo: false,
+      riskLevel: 'safe',
+      sourceUrl: 'https://github.com/google-gemini/gemini-cli',
+    },
+    auth: {
+      flavor: 'oauth-browser',
+      command: 'gemini',
+      needsTty: true,
+    },
   },
   {
     id: 'copilot',
@@ -108,6 +153,17 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: null,
     status: 'detected-only',
     runnableHint: '`qwen` on PATH; Qwen OAuth or QWEN_API_KEY set.',
+    install: {
+      command: 'npm install -g @qwen-code/qwen-code',
+      requiresSudo: false,
+      riskLevel: 'safe',
+      sourceUrl: 'https://github.com/QwenLM/qwen-code',
+    },
+    auth: {
+      flavor: 'oauth-browser',
+      command: 'qwen',
+      needsTty: true,
+    },
   },
   {
     id: 'ollama',
@@ -124,6 +180,17 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: null,
     status: 'detected-only',
     runnableHint: '`ollama` on PATH with the local daemon listening on :11434.',
+    install: {
+      command: 'curl -fsSL https://ollama.com/install.sh | sh',
+      requiresSudo: true,
+      riskLevel: 'prompt-user',
+      sourceUrl: 'https://ollama.com/download',
+    },
+    postInstall: {
+      description: 'Pull a small starter model (llama3.2:3b, ~2 GB)',
+      command: 'ollama pull llama3.2:3b',
+      optional: true,
+    },
   },
   {
     id: 'perplexity',

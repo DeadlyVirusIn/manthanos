@@ -11,6 +11,11 @@ import { InitError, runInit } from './commands/init.js';
 import { runNext } from './commands/next.js';
 import { runPlan } from './commands/plan.js';
 import { runReplay } from './commands/replay.js';
+import {
+  runManthanProviderInstall,
+  runManthanProviderLogin,
+  runManthanSetup,
+} from './commands/setup.js';
 import { runVersion } from './commands/version.js';
 import { CLI_VERSION } from './version-const.js';
 
@@ -76,6 +81,49 @@ program
     const strict = opts.strict ?? false;
     const report = await runDoctor({ cwd: process.cwd(), strict });
     process.exitCode = computeDoctorExitCode(report, strict);
+  });
+
+program
+  .command('setup')
+  .description('Guided provider onboarding — install, authenticate, verify')
+  .option(
+    '--providers <ids>',
+    'comma-separated subset of provider ids (default: all known providers)',
+  )
+  .option('--non-interactive', 'skip prompts; defer interactive flows to a script')
+  .option('--dry-run', 'preview the steps without executing anything')
+  .action(async (opts: { providers?: string; nonInteractive?: boolean; dryRun?: boolean }) => {
+    const providerIds = opts.providers
+      ? opts.providers
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
+    process.exitCode = await runManthanSetup({
+      providerIds,
+      nonInteractive: opts.nonInteractive,
+      dryRun: opts.dryRun,
+    });
+  });
+
+const provider = program
+  .command('provider')
+  .description('Per-provider onboarding actions (install / login)');
+
+provider
+  .command('install <id>')
+  .description('Install a single provider (e.g. `manthan provider codex-cli install`)')
+  .option('--dry-run', 'show what would happen without executing')
+  .action(async (id: string, opts: { dryRun?: boolean }) => {
+    process.exitCode = await runManthanProviderInstall({ providerId: id, dryRun: opts.dryRun });
+  });
+
+provider
+  .command('login <id>')
+  .description('Run the auth flow for a single provider')
+  .option('--dry-run', 'show what would happen without executing')
+  .action(async (id: string, opts: { dryRun?: boolean }) => {
+    process.exitCode = await runManthanProviderLogin({ providerId: id, dryRun: opts.dryRun });
   });
 
 program

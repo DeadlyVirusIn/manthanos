@@ -51,6 +51,12 @@ export interface ProviderEntry {
    * mechanically verify auth without invoking the CLI.
    */
   readonly runnableIfBinary?: boolean;
+  /** How to install the binary, when applicable. */
+  readonly install?: InstallSpec;
+  /** How to authenticate, when applicable. */
+  readonly auth?: AuthSpec;
+  /** Optional post-install action (e.g. Ollama starter model pull). */
+  readonly postInstall?: PostInstallSpec;
 }
 
 export interface AuthDetectionResult {
@@ -76,6 +82,66 @@ export interface ProviderHealth {
   readonly runnable: boolean;
   /** Concise next-step a novice operator can act on. Empty when runnable. */
   readonly nextAction: string;
+}
+
+/**
+ * How a novice gets the binary on their machine. Omit on `install` for
+ * providers that need no install step (e.g. API-only providers).
+ */
+export interface InstallSpec {
+  /** Exact shell command. May contain `|`/`&&`; runs via bash -c when so. */
+  readonly command: string;
+  /** True when the install command itself elevates (e.g. `sudo`). */
+  readonly requiresSudo: boolean;
+  /**
+   *  - 'safe': the command is widely-trusted (npm install -g) and runs after
+   *    a single confirm.
+   *  - 'prompt-user': the command is heavier (`curl | sh`, system service
+   *    install) and gets an extra explicit confirmation.
+   */
+  readonly riskLevel: 'safe' | 'prompt-user';
+  /** Defaults to `<executable> --version`. Used to confirm install worked. */
+  readonly verifyCommand?: string;
+  /** Source URL the command was taken from; shown in --dry-run output. */
+  readonly sourceUrl?: string;
+}
+
+/** Four supported auth flavors, plus the trivially-no-auth shape (absence). */
+export type AuthFlavor = 'oauth-browser' | 'oauth-device-code' | 'api-key-paste' | 'manual-only';
+
+/** Where an api-key-paste flow writes the user's key. */
+export interface ApiKeyDestination {
+  /** Path relative to $HOME, e.g. ".config/manthan/keys.env". */
+  readonly homeRelativePath: string;
+  /** Variable name written into the env file as KEY=VALUE. */
+  readonly envVarName: string;
+}
+
+export interface AuthSpec {
+  readonly flavor: AuthFlavor;
+  /** Command to drive the auth flow. Required for oauth-* flavors. */
+  readonly command?: string;
+  /**
+   * True when the auth command takes over the terminal (browser OAuth, TUI).
+   * The setup engine refuses to run such flows in a non-TTY shell and
+   * instead emits a script the user can run elsewhere.
+   */
+  readonly needsTty: boolean;
+  /** For api-key-paste: where the user issues a key. Shown verbatim. */
+  readonly keyIssueUrl?: string;
+  /** For api-key-paste: where to persist the key. */
+  readonly keyDestination?: ApiKeyDestination;
+  /** For manual-only: ordered steps printed to the user. */
+  readonly manualSteps?: ReadonlyArray<string>;
+}
+
+/** Optional post-install nicety (e.g. Ollama: pull a starter model). */
+export interface PostInstallSpec {
+  /** Shown to the user as "would you like to <description>?". */
+  readonly description: string;
+  readonly command: string;
+  /** When true, the user is prompted; when false, runs automatically. */
+  readonly optional: boolean;
 }
 
 export type ProviderErrorClass =

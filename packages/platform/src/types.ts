@@ -39,6 +39,14 @@ export interface SpawnOptions {
   cwd?: string;
   env?: Readonly<Record<string, string>>;
   stdin?: 'inherit' | 'ignore' | 'pipe' | string;
+  /**
+   * When true, all three stdio streams are inherited from the parent
+   * process. Used for interactive flows (OAuth in a TUI, sudo prompts)
+   * that need a real terminal. Mutually exclusive with `stdin` as a
+   * string payload; the literal-string-stdin form requires capture.
+   * Result `stdout`/`stderr` are empty strings when inherit is set.
+   */
+  inherit?: boolean;
   timeoutMs?: number;
   abortSignal?: AbortSignal;
 }

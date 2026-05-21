@@ -24,19 +24,22 @@ export const processOps: ProcessOps = {
   async spawn(opts: SpawnOptions): Promise<SpawnResult> {
     const start = Date.now();
     return new Promise<SpawnResult>((resolve, reject) => {
+      const useInherit = opts.inherit === true;
       const child = nodeSpawn(opts.command, [...opts.args], {
         cwd: opts.cwd,
         env: opts.env ?? process.env,
-        stdio: [
-          typeof opts.stdin === 'string' &&
-          opts.stdin !== 'inherit' &&
-          opts.stdin !== 'ignore' &&
-          opts.stdin !== 'pipe'
-            ? 'pipe'
-            : (opts.stdin ?? 'ignore'),
-          'pipe',
-          'pipe',
-        ],
+        stdio: useInherit
+          ? ['inherit', 'inherit', 'inherit']
+          : [
+              typeof opts.stdin === 'string' &&
+              opts.stdin !== 'inherit' &&
+              opts.stdin !== 'ignore' &&
+              opts.stdin !== 'pipe'
+                ? 'pipe'
+                : (opts.stdin ?? 'ignore'),
+              'pipe',
+              'pipe',
+            ],
         // Never invoke through a shell — argv array only.
         shell: false,
         windowsHide: true,
@@ -59,23 +62,25 @@ export const processOps: ProcessOps = {
       };
       opts.abortSignal?.addEventListener('abort', onAbort, { once: true });
 
-      child.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf8');
-      });
-      child.stderr?.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf8');
-      });
+      if (!useInherit) {
+        child.stdout?.on('data', (chunk: Buffer) => {
+          stdout += chunk.toString('utf8');
+        });
+        child.stderr?.on('data', (chunk: Buffer) => {
+          stderr += chunk.toString('utf8');
+        });
 
-      // If a literal stdin string was provided, write and close.
-      if (
-        typeof opts.stdin === 'string' &&
-        opts.stdin !== 'inherit' &&
-        opts.stdin !== 'ignore' &&
-        opts.stdin !== 'pipe' &&
-        child.stdin
-      ) {
-        child.stdin.write(opts.stdin);
-        child.stdin.end();
+        // If a literal stdin string was provided, write and close.
+        if (
+          typeof opts.stdin === 'string' &&
+          opts.stdin !== 'inherit' &&
+          opts.stdin !== 'ignore' &&
+          opts.stdin !== 'pipe' &&
+          child.stdin
+        ) {
+          child.stdin.write(opts.stdin);
+          child.stdin.end();
+        }
       }
 
       child.on('error', (err) => {
