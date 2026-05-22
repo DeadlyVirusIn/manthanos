@@ -192,12 +192,15 @@ describe('audited-write paths must funnel through the lock', () => {
     const callSites: string[] = [];
     for (const file of files) {
       if (!file.endsWith('.ts')) continue;
-      const content = await readFile(file, 'utf8');
-      if (/\bauditedWrite\s*\(/.test(content)) {
+      const raw = await readFile(file, 'utf8');
+      // Strip JS line and block comments before scanning, so docstring
+      // mentions of `auditedWrite()` (e.g., explaining why a module does
+      // NOT call it) don't get flagged as offenders.
+      const code = raw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      if (/\bauditedWrite\s*\(/.test(code)) {
         callSites.push(path.relative(apiSrc, file));
       }
     }
-    // Sort for deterministic comparison.
     callSites.sort();
     // The explicit allow-list. Adding a new call site requires updating
     // this list, which forces a code review of the new mutation path.

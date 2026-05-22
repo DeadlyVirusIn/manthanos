@@ -19,6 +19,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { type Config, loadConfig } from './config.js';
 import { registerHealth } from './health.js';
 import { registerLoopbackGuard } from './loopback-guard.js';
+import { registerAuditRoutes } from './routes/audit.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
 import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
 
@@ -124,6 +125,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
       substrate,
       daemonWorkspaceRoot: config.workspaceRoot,
     });
+    registerAuditRoutes(app, { substrate });
   }
 
   let started = false;
