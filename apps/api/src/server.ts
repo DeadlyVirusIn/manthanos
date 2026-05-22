@@ -19,6 +19,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { type Config, loadConfig } from './config.js';
 import { registerHealth } from './health.js';
 import { registerLoopbackGuard } from './loopback-guard.js';
+import { registerWorkspaceRoutes } from './routes/workspace.js';
+import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
 
 export const VERSION = '0.0.0';
 
@@ -29,6 +31,7 @@ export interface DaemonHandle {
   readonly startedAt: number;
   readonly workspaceRoot: string;
   readonly lock: WorkspaceLockHandle;
+  readonly substrate: SubstrateHandle | null;
   readonly shutdown: () => Promise<void>;
 }
 
@@ -42,6 +45,11 @@ export interface CreateDaemonOptions {
    * semantics use this to avoid colliding on shared workspace dirs.
    */
   readonly skipLock?: boolean;
+  /**
+   * When true, skip substrate (SQLite + blob store) initialization. Used
+   * by inject-only tests that only need /health and the loopback guard.
+   */
+  readonly skipSubstrate?: boolean;
 }
 
 export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<DaemonHandle> {
@@ -85,6 +93,20 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     };
   }
 
+  // Open the substrate (SQLite + blob store + audit chain mutex) once the
+  // workspace lock is held. Done before route registration so workspace
+  // mutations have a context to write through. If substrate open fails,
+  // release the lock and propagate.
+  let substrate: SubstrateHandle | null = null;
+  if (!opts.skipSubstrate) {
+    try {
+      substrate = await openSubstrate(config.workspaceRoot);
+    } catch (err) {
+      await lock?.release().catch(() => undefined);
+      throw err;
+    }
+  }
+
   const app = Fastify({
     logger: { level: config.logLevel },
     disableRequestLogging: false,
@@ -97,6 +119,12 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     boundHost: config.host,
     port: config.port,
   });
+  if (substrate) {
+    registerWorkspaceRoutes(app, {
+      substrate,
+      daemonWorkspaceRoot: config.workspaceRoot,
+    });
+  }
 
   let started = false;
   try {
@@ -107,9 +135,18 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     }
     started = true;
   } finally {
-    if (!started && lock) {
-      // Roll back the lock if listen() / ready() failed.
-      await lock.release().catch(() => undefined);
+    if (!started) {
+      // Roll back substrate + lock if listen() / ready() failed.
+      if (substrate) {
+        try {
+          substrate.close();
+        } catch {
+          /* swallow */
+        }
+      }
+      if (lock) {
+        await lock.release().catch(() => undefined);
+      }
     }
   }
 
@@ -120,10 +157,18 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     startedAt,
     workspaceRoot: config.workspaceRoot,
     lock,
+    substrate,
     shutdown: async () => {
-      // Close Fastify first (drains in-flight requests).
+      // Close Fastify first (drains in-flight requests), then substrate,
+      // then release the workspace lock so the next acquirer can proceed.
       await app.close();
-      // Then release the workspace lock so the next acquirer can proceed.
+      if (substrate) {
+        try {
+          substrate.close();
+        } catch {
+          /* swallow */
+        }
+      }
       await lock?.release();
     },
   };

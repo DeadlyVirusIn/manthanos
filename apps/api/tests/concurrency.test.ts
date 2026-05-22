@@ -178,22 +178,30 @@ describe('multi-process workspace-lock concurrency', () => {
 });
 
 describe('audited-write paths must funnel through the lock', () => {
-  // Static check: Task 2 source contains zero direct auditedWrite call
-  // sites. Tasks 3-10 will add them, all inside the daemon's lock window
-  // (the daemon holds the lock for its entire lifetime per server.ts).
+  // Static check: every auditedWrite call site in apps/api lives inside a
+  // service module reachable only from within the daemon's lifetime. The
+  // daemon acquires the workspace lock at startup (server.ts:58) and
+  // releases it on shutdown, so all auditedWrite calls happen inside the
+  // lock-held window by construction. The check below enumerates the
+  // call sites so any new ones added by future tasks are reviewed
+  // explicitly rather than added silently.
 
-  it('apps/api source contains no direct auditedWrite call sites in Task 2', async () => {
+  it('all auditedWrite call sites live in services/ (lock-window enforced)', async () => {
     const apiSrc = path.join(__dirname, '..', 'src');
     const files = await listSourceFiles(apiSrc);
-    const offenders: string[] = [];
+    const callSites: string[] = [];
     for (const file of files) {
       if (!file.endsWith('.ts')) continue;
       const content = await readFile(file, 'utf8');
       if (/\bauditedWrite\s*\(/.test(content)) {
-        offenders.push(path.relative(apiSrc, file));
+        callSites.push(path.relative(apiSrc, file));
       }
     }
-    expect(offenders).toEqual([]);
+    // Sort for deterministic comparison.
+    callSites.sort();
+    // The explicit allow-list. Adding a new call site requires updating
+    // this list, which forces a code review of the new mutation path.
+    expect(callSites).toEqual(['services/workspace.ts']);
   });
 });
 

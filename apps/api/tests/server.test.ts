@@ -147,6 +147,7 @@ describe('GET /health', () => {
       },
       noListen: true,
       skipLock: true,
+      skipSubstrate: true,
     });
   });
 
@@ -209,6 +210,7 @@ describe('non-loopback Host header rejection', () => {
       },
       noListen: true,
       skipLock: true,
+      skipSubstrate: true,
     });
   });
 
