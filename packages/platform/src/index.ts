@@ -33,6 +33,25 @@ export type {
   TerminalOps,
 } from './types.js';
 
+export {
+  acquireWorkspaceLock,
+  DEFAULTS as WORKSPACE_LOCK_DEFAULTS,
+  inspectWorkspaceLock,
+  LOCK_FILE_NAME,
+  LOCK_FILE_VERSION,
+  MANTHAN_DIR_NAME,
+  withWorkspaceLock,
+  WorkspaceLockedError,
+  workspaceLockPath,
+} from './workspace-lock.js';
+export type {
+  WorkspaceLockActor,
+  WorkspaceLockFailureReason,
+  WorkspaceLockHandle,
+  WorkspaceLockInfo,
+  WorkspaceLockOptions,
+} from './workspace-lock.js';
+
 let cached: Platform | undefined;
 
 export function getPlatform(): Platform {

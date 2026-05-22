@@ -13,6 +13,7 @@ export interface Config {
   readonly port: number;
   readonly host: string;
   readonly logLevel: LogLevel;
+  readonly workspaceRoot: string;
 }
 
 const DEFAULT_PORT = 7373;
@@ -34,7 +35,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: parsePort(env.MANTHANOS_PORT),
     host: env.MANTHANOS_HOST?.trim() || DEFAULT_HOST,
     logLevel: parseLogLevel(env.MANTHANOS_LOG_LEVEL),
+    workspaceRoot: parseWorkspaceRoot(env),
   };
+}
+
+function parseWorkspaceRoot(env: NodeJS.ProcessEnv): string {
+  const explicit = env.MANTHANOS_WORKSPACE_ROOT?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  const dataDir = env.MANTHANOS_DATA_DIR?.trim();
+  const home = env.HOME ?? env.USERPROFILE;
+  const base = dataDir || (home ? `${home}/.manthanos` : '.manthanos');
+  return `${base}/workspaces/default`;
 }
 
 function parsePort(raw: string | undefined): number {

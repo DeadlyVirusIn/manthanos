@@ -3,24 +3,47 @@
 
 // Sprint 1 Task 2 acceptance tests.
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { WorkspaceLockedError, inspectWorkspaceLock } from '@manthanos/platform';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { isLoopbackHost } from '../src/loopback-guard.js';
 import { type DaemonHandle, VERSION, createDaemon } from '../src/server.js';
 
 const TEST_PORT = 0; // 0 = OS picks an ephemeral free port.
-const TEST_CONFIG = {
-  port: TEST_PORT,
-  host: '127.0.0.1',
-  logLevel: 'silent' as const,
-};
+
+async function makeTestConfig() {
+  const ws = await mkdtemp(path.join(tmpdir(), 'mws-daemon-'));
+  return {
+    config: {
+      port: TEST_PORT,
+      host: '127.0.0.1',
+      logLevel: 'silent' as const,
+      workspaceRoot: ws,
+    },
+    cleanup: () => rm(ws, { recursive: true, force: true }),
+  };
+}
 
 describe('config', () => {
   it('uses defaults when env is empty', () => {
-    const config = loadConfig({});
+    const config = loadConfig({ HOME: '/tmp/fake-home' });
     expect(config.port).toBe(7373);
     expect(config.host).toBe('127.0.0.1');
     expect(config.logLevel).toBe('info');
+    expect(config.workspaceRoot).toBe('/tmp/fake-home/.manthanos/workspaces/default');
+  });
+
+  it('honors MANTHANOS_WORKSPACE_ROOT explicitly', () => {
+    const config = loadConfig({ MANTHANOS_WORKSPACE_ROOT: '/some/path' });
+    expect(config.workspaceRoot).toBe('/some/path');
+  });
+
+  it('honors MANTHANOS_DATA_DIR when no explicit workspace root', () => {
+    const config = loadConfig({ MANTHANOS_DATA_DIR: '/data' });
+    expect(config.workspaceRoot).toBe('/data/workspaces/default');
   });
 
   it('honors MANTHANOS_PORT', () => {
@@ -73,19 +96,23 @@ describe('isLoopbackHost', () => {
 
 describe('daemon boot + shutdown', () => {
   let handle: DaemonHandle | undefined;
+  let cleanup: (() => Promise<void>) | undefined;
 
   afterEach(async () => {
     if (handle) {
       await handle.shutdown();
       handle = undefined;
     }
+    if (cleanup) {
+      await cleanup();
+      cleanup = undefined;
+    }
   });
 
   it('boots on a real loopback port and reports it', async () => {
-    handle = await createDaemon({ config: TEST_CONFIG });
-    // Fastify replaces port 0 with the actual ephemeral port assigned by the
-    // OS via server.address(). The daemon's exposed `port` reflects config
-    // (i.e., 0 here); the assigned address is what we inspect.
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    handle = await createDaemon({ config: t.config });
     const address = handle.app.server.address();
     expect(address).not.toBeNull();
     if (typeof address === 'string' || address === null) {
@@ -96,11 +123,12 @@ describe('daemon boot + shutdown', () => {
   });
 
   it('shutdown closes cleanly and is idempotent', async () => {
-    handle = await createDaemon({ config: TEST_CONFIG });
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    handle = await createDaemon({ config: t.config });
     await handle.shutdown();
-    // Second call should not throw.
     await expect(handle.shutdown()).resolves.toBeUndefined();
-    handle = undefined; // already shut down; skip afterEach cleanup
+    handle = undefined;
   });
 });
 
@@ -108,7 +136,18 @@ describe('GET /health', () => {
   let handle: DaemonHandle;
 
   beforeEach(async () => {
-    handle = await createDaemon({ config: TEST_CONFIG, noListen: true });
+    // Inject-only tests don't need real workspace state. Skip the lock so we
+    // can run them in parallel without colliding on test workspace dirs.
+    handle = await createDaemon({
+      config: {
+        port: TEST_PORT,
+        host: '127.0.0.1',
+        logLevel: 'silent',
+        workspaceRoot: '/dev/null/unused',
+      },
+      noListen: true,
+      skipLock: true,
+    });
   });
 
   afterEach(async () => {
@@ -129,7 +168,7 @@ describe('GET /health', () => {
     expect(typeof body.uptime_ms).toBe('number');
     expect(body.uptime_ms).toBeGreaterThanOrEqual(0);
     expect(body.bound_host).toBe('127.0.0.1');
-    expect(body.port).toBe(TEST_CONFIG.port);
+    expect(body.port).toBe(TEST_PORT);
   });
 
   it('returns 405 with Allow: GET on POST /health', async () => {
@@ -161,7 +200,16 @@ describe('non-loopback Host header rejection', () => {
   let handle: DaemonHandle;
 
   beforeEach(async () => {
-    handle = await createDaemon({ config: TEST_CONFIG, noListen: true });
+    handle = await createDaemon({
+      config: {
+        port: TEST_PORT,
+        host: '127.0.0.1',
+        logLevel: 'silent',
+        workspaceRoot: '/dev/null/unused',
+      },
+      noListen: true,
+      skipLock: true,
+    });
   });
 
   afterEach(async () => {
@@ -213,6 +261,96 @@ describe('non-loopback Host header rejection', () => {
         headers: { host },
       });
       expect(response.statusCode, `host=${host}`).toBe(200);
+    }
+  });
+});
+
+describe('daemon workspace lock', () => {
+  let handle: DaemonHandle | undefined;
+  let cleanup: (() => Promise<void>) | undefined;
+
+  afterEach(async () => {
+    if (handle) {
+      await handle.shutdown().catch(() => undefined);
+      handle = undefined;
+    }
+    if (cleanup) {
+      await cleanup();
+      cleanup = undefined;
+    }
+  });
+
+  it('acquires the workspace lock on start', async () => {
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    handle = await createDaemon({ config: t.config });
+    const onDisk = await inspectWorkspaceLock(t.config.workspaceRoot);
+    expect(onDisk).not.toBeNull();
+    if (!onDisk) throw new Error('unreachable');
+    expect(onDisk.actor).toBe('daemon');
+    expect(onDisk.pid).toBe(process.pid);
+    expect(onDisk.owner_id).toBe(handle.lock.info.owner_id);
+  });
+
+  it('refuses to start a second daemon against the same workspace', async () => {
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    handle = await createDaemon({ config: t.config });
+    await expect(
+      createDaemon({
+        config: { ...t.config, port: 0 },
+      }),
+    ).rejects.toBeInstanceOf(WorkspaceLockedError);
+  });
+
+  it('releases the lock on shutdown', async () => {
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    handle = await createDaemon({ config: t.config });
+    await handle.shutdown();
+    handle = undefined;
+    const onDisk = await inspectWorkspaceLock(t.config.workspaceRoot);
+    expect(onDisk).toBeNull();
+  });
+
+  it('after shutdown a new daemon can start against the same workspace', async () => {
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    const first = await createDaemon({ config: t.config });
+    await first.shutdown();
+    handle = await createDaemon({ config: { ...t.config, port: 0 } });
+    expect(handle.lock.info.owner_id).not.toBe(first.lock.info.owner_id);
+  });
+
+  it('listen failure releases the lock', async () => {
+    const t = await makeTestConfig();
+    cleanup = t.cleanup;
+    // Hold a port. Then try to start a daemon on the same port; listen will
+    // fail (EADDRINUSE) and the lock must be released.
+    const blocker = await createDaemon({ config: t.config });
+    const blockerAddr = blocker.app.server.address();
+    if (typeof blockerAddr !== 'object' || blockerAddr === null) {
+      throw new Error('expected AddressInfo');
+    }
+    const blockedPort = blockerAddr.port;
+
+    // Release the blocker's lock so the second daemon can attempt to acquire
+    // it (we want to test "listen fails → lock released", not "lock blocks").
+    await blocker.shutdown();
+
+    // Second daemon: same workspace (lock free), same port (a third helper
+    // will hold it).
+    const portHolder = await createDaemon({
+      config: { ...t.config, port: blockedPort, workspaceRoot: `${t.config.workspaceRoot}-holder` },
+    });
+    try {
+      await expect(createDaemon({ config: { ...t.config, port: blockedPort } })).rejects.toThrow();
+      // The workspace lock must NOT remain held after the failed listen.
+      const stillLocked = await inspectWorkspaceLock(t.config.workspaceRoot);
+      expect(stillLocked).toBeNull();
+    } finally {
+      await portHolder.shutdown();
+      await rm(portHolder.workspaceRoot, { recursive: true, force: true });
     }
   });
 });

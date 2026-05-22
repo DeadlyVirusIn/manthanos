@@ -10,6 +10,11 @@
 
 import { resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  type WorkspaceLockHandle,
+  WorkspaceLockedError,
+  acquireWorkspaceLock,
+} from '@manthanos/platform';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { type Config, loadConfig } from './config.js';
 import { registerHealth } from './health.js';
@@ -22,6 +27,8 @@ export interface DaemonHandle {
   readonly port: number;
   readonly boundHost: string;
   readonly startedAt: number;
+  readonly workspaceRoot: string;
+  readonly lock: WorkspaceLockHandle;
   readonly shutdown: () => Promise<void>;
 }
 
@@ -30,11 +37,53 @@ export interface CreateDaemonOptions {
   readonly config?: Config;
   /** When true, do not call app.listen() — useful for inject-only tests. */
   readonly noListen?: boolean;
+  /**
+   * When true, skip workspace-lock acquisition. Tests that don't need lock
+   * semantics use this to avoid colliding on shared workspace dirs.
+   */
+  readonly skipLock?: boolean;
 }
 
 export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<DaemonHandle> {
   const config = opts.config ?? loadConfig();
   const startedAt = Date.now();
+
+  // Acquire the workspace lock BEFORE constructing the app. This is the
+  // single-writer guarantee for the workspace. If another daemon or CLI
+  // process already holds the lock, daemon startup fails fast with the
+  // peer's identity in the error message.
+  let lock: WorkspaceLockHandle | null = null;
+  if (!opts.skipLock) {
+    try {
+      lock = await acquireWorkspaceLock(config.workspaceRoot, {
+        actor: 'daemon',
+        // 0 = single-attempt; the daemon doesn't queue.
+        acquisitionTimeoutMs: 0,
+      });
+    } catch (err) {
+      if (err instanceof WorkspaceLockedError) {
+        throw err;
+      }
+      throw err;
+    }
+  } else {
+    // Test affordance: a stub handle that does nothing.
+    lock = {
+      info: {
+        actor: 'test',
+        heartbeat_at: new Date(startedAt).toISOString(),
+        hostname: 'test',
+        lock_version: 1,
+        owner_id: '00000000-0000-4000-8000-000000000000',
+        pid: process.pid,
+        started_at: new Date(startedAt).toISOString(),
+      },
+      lockPath: '',
+      released: false,
+      refresh: async () => undefined,
+      release: async () => undefined,
+    };
+  }
 
   const app = Fastify({
     logger: { level: config.logLevel },
@@ -49,12 +98,19 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     port: config.port,
   });
 
-  if (!opts.noListen) {
-    await app.listen({ host: config.host, port: config.port });
-  } else {
-    // For inject-only tests: ensure routes are registered before inject() is
-    // called. ready() resolves after plugin/route registration is complete.
-    await app.ready();
+  let started = false;
+  try {
+    if (!opts.noListen) {
+      await app.listen({ host: config.host, port: config.port });
+    } else {
+      await app.ready();
+    }
+    started = true;
+  } finally {
+    if (!started && lock) {
+      // Roll back the lock if listen() / ready() failed.
+      await lock.release().catch(() => undefined);
+    }
   }
 
   return {
@@ -62,8 +118,13 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     port: config.port,
     boundHost: config.host,
     startedAt,
+    workspaceRoot: config.workspaceRoot,
+    lock,
     shutdown: async () => {
+      // Close Fastify first (drains in-flight requests).
       await app.close();
+      // Then release the workspace lock so the next acquirer can proceed.
+      await lock?.release();
     },
   };
 }
@@ -72,12 +133,12 @@ async function main(): Promise<void> {
   const handle = await createDaemon();
   let shuttingDown = false;
 
-  const shutdown = async (signal: string): Promise<void> => {
+  const shutdown = async (cause: string): Promise<void> => {
     if (shuttingDown) {
       return;
     }
     shuttingDown = true;
-    handle.app.log.info({ signal }, 'shutting down');
+    handle.app.log.info({ cause }, 'shutting down');
     try {
       await handle.shutdown();
       process.exit(0);
@@ -92,6 +153,14 @@ async function main(): Promise<void> {
   });
   process.on('SIGTERM', () => {
     void shutdown('SIGTERM');
+  });
+  process.on('uncaughtException', (err) => {
+    handle.app.log.error({ err }, 'uncaught exception — releasing lock');
+    void shutdown('uncaughtException').finally(() => process.exit(1));
+  });
+  process.on('unhandledRejection', (reason) => {
+    handle.app.log.error({ reason }, 'unhandled rejection — releasing lock');
+    void shutdown('unhandledRejection').finally(() => process.exit(1));
   });
 }
 
