@@ -53,13 +53,11 @@ describe('manthan setup CLI surface', () => {
   });
 
   it('provider login rejects a provider without auth metadata', async () => {
-    // Find a provider with no auth (none today have empty auth — vibe/cursor have planned auth)
-    // Synthesize via the "no install" rejection path for a provider that only has auth.
     const original = process.stderr.write.bind(process.stderr);
     process.stderr.write = (() => true) as typeof process.stderr.write;
     try {
-      // 'opencode' is detected-only with no install/auth metadata.
-      const code = await runManthanProviderLogin({ providerId: 'opencode', dryRun: true });
+      // `vibe` is intentionally left without onboarding metadata.
+      const code = await runManthanProviderLogin({ providerId: 'vibe', dryRun: true });
       expect(code).toBe(2);
     } finally {
       process.stderr.write = original;

@@ -9,6 +9,13 @@ import { PROVIDER_REGISTRY, getProvider } from '../src/registry.js';
 
 const BATCH_2_TARGETS = ['claude-cli', 'codex-cli', 'gemini-cli', 'qwen', 'ollama', 'openai'];
 
+// Providers added to the onboarding surface in the metadata expansion.
+const BATCH_2_5_TARGETS = ['copilot', 'opencode', 'perplexity', 'openrouter', 'cursor-agent'];
+
+// Providers we intentionally leave without onboarding metadata because the
+// install/auth path is unverified.
+const UNTOUCHED = ['vibe'];
+
 describe('provider onboarding metadata', () => {
   it('each Batch 2 target has either install or auth metadata', () => {
     for (const id of BATCH_2_TARGETS) {
@@ -16,6 +23,24 @@ describe('provider onboarding metadata', () => {
       expect(p, id).toBeDefined();
       const hasSomething = Boolean(p?.install || p?.auth);
       expect(hasSomething, `${id} missing install/auth`).toBe(true);
+    }
+  });
+
+  it('each expansion target also has install or auth metadata', () => {
+    for (const id of BATCH_2_5_TARGETS) {
+      const p = getProvider(id);
+      expect(p, id).toBeDefined();
+      const hasSomething = Boolean(p?.install || p?.auth);
+      expect(hasSomething, `${id} missing install/auth`).toBe(true);
+    }
+  });
+
+  it('intentionally-untouched providers remain without onboarding metadata', () => {
+    for (const id of UNTOUCHED) {
+      const p = getProvider(id);
+      expect(p, id).toBeDefined();
+      expect(p?.install).toBeUndefined();
+      expect(p?.auth).toBeUndefined();
     }
   });
 
@@ -59,5 +84,37 @@ describe('provider onboarding metadata', () => {
     expect(p?.install).toBeTruthy();
     expect(p?.postInstall).toBeTruthy();
     expect(p?.auth).toBeUndefined();
+  });
+
+  it('Perplexity + OpenRouter use api-key-paste to the shared keys.env', () => {
+    for (const id of ['perplexity', 'openrouter']) {
+      const p = getProvider(id);
+      expect(p?.auth?.flavor, id).toBe('api-key-paste');
+      expect(p?.auth?.keyDestination?.homeRelativePath, id).toBe('.config/manthan/keys.env');
+      expect(p?.auth?.keyIssueUrl, id).toBeTruthy();
+    }
+  });
+
+  it('OpenCode has install + oauth-browser via `opencode auth login`', () => {
+    const p = getProvider('opencode');
+    expect(p?.install?.command).toContain('opencode');
+    expect(p?.auth?.flavor).toBe('oauth-browser');
+    expect(p?.auth?.command).toBe('opencode auth login');
+    expect(p?.auth?.needsTty).toBe(true);
+  });
+
+  it('Cursor install is prompt-user risk; auth is manual-only', () => {
+    const p = getProvider('cursor-agent');
+    expect(p?.install?.riskLevel).toBe('prompt-user');
+    expect(p?.auth?.flavor).toBe('manual-only');
+    expect((p?.auth?.manualSteps ?? []).length).toBeGreaterThan(0);
+  });
+
+  it('Copilot has manual-only auth with explicit channel guidance and no install', () => {
+    const p = getProvider('copilot');
+    expect(p?.install).toBeUndefined();
+    expect(p?.auth?.flavor).toBe('manual-only');
+    const steps = p?.auth?.manualSteps ?? [];
+    expect(steps.some((s) => s.includes('gh extension install'))).toBe(true);
   });
 });

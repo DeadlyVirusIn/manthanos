@@ -135,6 +135,21 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     status: 'detected-only',
     runnableHint:
       '`copilot` on PATH; signed in via GitHub (~/.copilot/config.json) or a GitHub token in env.',
+    // No install metadata: the GitHub Copilot CLI story is split across
+    // multiple shipping channels (gh-extension vs standalone binary) and
+    // we will not encode a specific install command we cannot verify.
+    // Auth is manual-only with explicit pointers; the user picks a channel.
+    auth: {
+      flavor: 'manual-only',
+      needsTty: false,
+      manualSteps: [
+        'Pick a Copilot CLI channel that fits your setup:',
+        '  Option A (recommended): `gh extension install github/gh-copilot` then `gh auth login`.',
+        '  Option B: the standalone `copilot` binary if your organization provides one.',
+        'After either path, ManthanOS detects: ~/.copilot/config.json or a GitHub token in env.',
+        'Reference: https://docs.github.com/copilot/github-copilot-in-the-cli',
+      ],
+    },
   },
   {
     id: 'qwen',
@@ -205,6 +220,15 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: null,
     status: 'planned',
     runnableHint: 'PERPLEXITY_API_KEY set.',
+    auth: {
+      flavor: 'api-key-paste',
+      needsTty: true,
+      keyIssueUrl: 'https://www.perplexity.ai/settings/api',
+      keyDestination: {
+        homeRelativePath: '.config/manthan/keys.env',
+        envVarName: 'PERPLEXITY_API_KEY',
+      },
+    },
   },
   {
     id: 'openrouter',
@@ -219,6 +243,15 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: null,
     status: 'planned',
     runnableHint: 'OPENROUTER_API_KEY set.',
+    auth: {
+      flavor: 'api-key-paste',
+      needsTty: true,
+      keyIssueUrl: 'https://openrouter.ai/keys',
+      keyDestination: {
+        homeRelativePath: '.config/manthan/keys.env',
+        envVarName: 'OPENROUTER_API_KEY',
+      },
+    },
   },
   {
     id: 'opencode',
@@ -234,6 +267,20 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: null,
     status: 'detected-only',
     runnableHint: '`opencode` on PATH; auth managed by the opencode CLI itself.',
+    install: {
+      command: 'npm install -g opencode-ai',
+      requiresSudo: false,
+      riskLevel: 'safe',
+      sourceUrl: 'https://opencode.ai',
+    },
+    // OpenCode's auth flow is interactive (TUI menu that lets the user
+    // configure provider-specific keys). Inherits stdio so the menu
+    // renders correctly; the engine re-probes via auth.json afterwards.
+    auth: {
+      flavor: 'oauth-browser',
+      command: 'opencode auth login',
+      needsTty: true,
+    },
   },
   {
     id: 'cursor-agent',
@@ -250,6 +297,25 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     status: 'planned',
     runnableHint:
       '`agent` on PATH (Cursor CLI) with Cursor session or CURSOR_API_KEY. Detection is conservative: identity must be confirmed separately.',
+    install: {
+      command: 'curl -fsSL https://cursor.com/install | bash',
+      requiresSudo: false,
+      riskLevel: 'prompt-user',
+      sourceUrl: 'https://cursor.com',
+    },
+    // Cursor's CLI inherits its session from the Cursor desktop app;
+    // there is no headless OAuth flow we can drive. Manual steps point
+    // the user at the desktop sign-in.
+    auth: {
+      flavor: 'manual-only',
+      needsTty: false,
+      manualSteps: [
+        'Sign in to Cursor in the desktop app (the CLI inherits that session).',
+        'After signing in, `agent --version` should work and ManthanOS will detect',
+        '  ~/.cursor/cli-config.json or a CURSOR_API_KEY in env.',
+        'Reference: https://cursor.com',
+      ],
+    },
   },
   {
     id: 'vibe',
