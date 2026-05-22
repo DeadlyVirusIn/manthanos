@@ -67,7 +67,27 @@ export async function openDb(opts: OpenDbOptions): Promise<ManthanDb> {
   };
 }
 
-function applyMigrations(db: Database.Database): void {
+/**
+ * Per-migration atomicity contract (audit BUG-6):
+ *
+ *   Every migration's SQL + its schema_migrations bookkeeping row is
+ *   committed inside a single db.transaction(). If any statement in
+ *   the migration throws, better-sqlite3 rolls back to the savepoint
+ *   so no partial schema change persists and no schema_migrations
+ *   row is recorded for the failed migration. The next openDb() will
+ *   re-attempt the same migration cleanly.
+ *
+ * Migration authors MUST NOT include explicit `BEGIN` or `COMMIT` in
+ * their SQL — better-sqlite3 manages the transaction via SAVEPOINT
+ * and nested explicit transactions confuse it. This is enforced
+ * defensively below.
+ */
+const FORBIDDEN_MIGRATION_KEYWORDS = /\b(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
+
+export function applyMigrations(
+  db: Database.Database,
+  migrations: ReadonlyArray<{ readonly id: string; readonly sql: string }> = MIGRATIONS,
+): void {
   // Probe for schema_migrations table existence.
   const existing = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
@@ -81,8 +101,16 @@ function applyMigrations(db: Database.Database): void {
     applied = new Set(rows.map((r) => r.id));
   }
 
-  for (const m of MIGRATIONS) {
+  for (const m of migrations) {
     if (applied.has(m.id)) continue;
+    // Strip line and block comments before scanning for forbidden keywords,
+    // so explanatory comments mentioning these words don't trip the check.
+    const stripped = m.sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    if (FORBIDDEN_MIGRATION_KEYWORDS.test(stripped)) {
+      throw new Error(
+        `Migration ${m.id} contains an explicit BEGIN/COMMIT/ROLLBACK/SAVEPOINT/RELEASE statement. The runner wraps every migration in a transaction; remove the explicit transaction control.`,
+      );
+    }
     const tx = db.transaction(() => {
       db.exec(m.sql);
       db.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run(
