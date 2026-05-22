@@ -1,0 +1,39 @@
+{
+  "name": "@manthanos/api",
+  "version": "0.0.0",
+  "description": "ManthanOS local HTTP daemon. Exposes the substrate via versioned REST routes for the apps/web frontend.",
+  "license": "BSL-1.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "manthanos-api": "./dist/server.js"
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "dev": "node --import tsx src/server.ts"
+  },
+  "dependencies": {
+    "@manthanos/adapter-claude-cli": "workspace:*",
+    "@manthanos/adapter-openai": "workspace:*",
+    "@manthanos/adapters-sdk": "workspace:*",
+    "@manthanos/context": "workspace:*",
+    "@manthanos/memory": "workspace:*",
+    "@manthanos/orchestrator": "workspace:*",
+    "@manthanos/platform": "workspace:*",
+    "@manthanos/providers": "workspace:*",
+    "@manthanos/safety": "workspace:*",
+    "fastify": "^5.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

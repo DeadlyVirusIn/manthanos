@@ -8,6 +8,8 @@
     { "path": "packages/memory" },
     { "path": "packages/safety" },
     { "path": "apps/cli" },
-    { "path": "apps/ui" }
+    { "path": "apps/ui" },
+    { "path": "apps/api" },
+    { "path": "apps/web" }
   ]
 }
