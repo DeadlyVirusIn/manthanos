@@ -252,4 +252,46 @@ export const MIGRATIONS: ReadonlyArray<{ readonly id: string; readonly sql: stri
         WHERE last_administratively_touched = '';
     `,
   },
+  {
+    id: '0003_workspace_status_columns',
+    sql: `
+      -- ============================================================
+      -- Sprint 1 Task 3 — workspace API.
+      --
+      -- Adds the per-Data-Model §1.1 columns needed by the workspace
+      -- routes:
+      --   name                    human-editable label
+      --   status                  active / paused / killed
+      --   status_changed_at       ISO 8601 timestamp (NULL until first change)
+      --   status_reason           user-provided when killing or pausing
+      --   stage_at_open           cached journey stage (computed at session)
+      --   portfolio_mode_enabled  cross-workspace knowledge opt-in
+      --   discovery_archive_ref   pointer if Discovery was used
+      --   schema_version          per-workspace bookkeeping
+      --   audit_chain_seq_high    cached high-water mark for fast tail recovery
+      --
+      -- Existing rows (from migration 0001) get sensible defaults:
+      --   - name defaults to NULL (route handlers fill in on first read)
+      --   - status defaults to 'active'
+      --   - schema_version defaults to 3
+      --   - portfolio_mode_enabled defaults to 0 (false)
+      --   - timestamp and reference columns default to NULL
+      --
+      -- The runner wraps this whole migration in a single transaction;
+      -- if any ALTER fails, all roll back and the next openDb retries.
+      -- ============================================================
+
+      ALTER TABLE workspaces ADD COLUMN name TEXT;
+      ALTER TABLE workspaces ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+      ALTER TABLE workspaces ADD COLUMN status_changed_at TEXT;
+      ALTER TABLE workspaces ADD COLUMN status_reason TEXT;
+      ALTER TABLE workspaces ADD COLUMN stage_at_open TEXT;
+      ALTER TABLE workspaces ADD COLUMN portfolio_mode_enabled INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE workspaces ADD COLUMN discovery_archive_ref TEXT;
+      ALTER TABLE workspaces ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 3;
+      ALTER TABLE workspaces ADD COLUMN audit_chain_seq_high INTEGER NOT NULL DEFAULT 0;
+
+      CREATE INDEX ix_workspaces_status ON workspaces(status);
+    `,
+  },
 ];
