@@ -9,9 +9,9 @@
 // VERIFY). Every phase returns a PhaseResult; failures are turned into
 // one-line user-visible status, never stack traces.
 
-import { defaultLocalHttpProbe, probeProviderHealth } from '../health.js';
+import { applySupersession, defaultLocalHttpProbe, probeProviderHealth } from '../health.js';
 import { PROVIDER_REGISTRY } from '../registry.js';
-import type { ProviderEntry } from '../types.js';
+import type { ProviderEntry, ProviderHealth } from '../types.js';
 import { type DeferredItem, emitDeferredScript } from './defer.js';
 import { createDefaultIo, isInteractiveTty } from './io.js';
 import { defaultRunners } from './runners.js';
@@ -50,8 +50,28 @@ function deriveOutcome(phases: ReadonlyArray<PhaseResult>): ProviderSetupResult[
 }
 
 async function defaultProbe(entry: ProviderEntry): Promise<{ runnable: boolean; detail: string }> {
-  const h = await probeProviderHealth(entry, { probeLocal: defaultLocalHttpProbe });
-  return { runnable: h.runnable, detail: h.nextAction || h.auth.detail };
+  // Probe this entry and any provider it lists in supersededBy. If any
+  // of those is runnable, treat this entry as covered (runnable for the
+  // user's setup intent — they don't need to configure it separately).
+  const own = await probeProviderHealth(entry, { probeLocal: defaultLocalHttpProbe });
+  if (!entry.supersededBy || entry.supersededBy.length === 0) {
+    return { runnable: own.runnable, detail: own.nextAction || own.auth.detail };
+  }
+  const byId = new Map<string, ProviderHealth>();
+  for (const otherId of entry.supersededBy) {
+    const other = PROVIDER_REGISTRY.find((p) => p.id === otherId);
+    if (!other) continue;
+    const otherHealth = await probeProviderHealth(other, { probeLocal: defaultLocalHttpProbe });
+    byId.set(otherId, otherHealth);
+  }
+  const resolved = applySupersession(own, entry, byId);
+  if (resolved.supersededBy) {
+    return {
+      runnable: true,
+      detail: `covered by ${resolved.supersededBy.displayName}`,
+    };
+  }
+  return { runnable: own.runnable, detail: own.nextAction || own.auth.detail };
 }
 
 export async function runSetup(opts: SetupEngineOptions = {}): Promise<SetupSummary> {
@@ -120,7 +140,10 @@ export async function runSetup(opts: SetupEngineOptions = {}): Promise<SetupSumm
       detail: detectStart.runnable ? 'already ready' : detectStart.detail,
     });
     if (detectStart.runnable) {
-      io.log('  ✓ already ready — no action needed');
+      const reason = detectStart.detail.startsWith('covered by')
+        ? `  → ${detectStart.detail} — no separate setup needed`
+        : '  ✓ already ready — no action needed';
+      io.log(reason);
       results.push({
         providerId: entry.id,
         displayName: entry.displayName,

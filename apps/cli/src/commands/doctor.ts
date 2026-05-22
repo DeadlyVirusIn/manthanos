@@ -24,6 +24,7 @@ import {
   PROVIDER_REGISTRY,
   type ProviderEntry,
   type ProviderHealth,
+  applySupersession,
   defaultLocalHttpProbe,
   probeProviderHealth,
 } from '@manthanos/providers';
@@ -93,6 +94,8 @@ export interface AdapterAvailability {
   readonly runnable: boolean;
   /** Empty when runnable. */
   readonly nextAction: string;
+  /** Set when supersededBy in the registry resolves to a runnable provider. */
+  readonly supersededBy?: ProviderHealth['supersededBy'];
 }
 
 export interface DoctorReport {
@@ -122,6 +125,7 @@ function healthToAvailability(entry: ProviderEntry, health: ProviderHealth): Ada
     credentialPath: health.auth.credentialPath,
     runnable: health.runnable,
     nextAction: health.nextAction,
+    supersededBy: health.supersededBy,
   };
 }
 
@@ -133,13 +137,20 @@ async function checkAdapters(): Promise<AdapterAvailability[]> {
     ...PROVIDER_REGISTRY.filter((p) => p.status === 'detected-only'),
     ...PROVIDER_REGISTRY.filter((p) => p.status === 'planned'),
   ];
+  // First pass: probe every provider.
+  const rawHealths = new Map<string, ProviderHealth>();
+  for (const entry of ordered) {
+    const health = await probeProviderHealth(entry, { probeLocal: defaultLocalHttpProbe });
+    rawHealths.set(entry.id, health);
+  }
+  // Second pass: apply supersededBy resolution now that we know which
+  // providers are runnable.
   const out: AdapterAvailability[] = [];
   for (const entry of ordered) {
-    // Read-only HTTP GET for `local` providers (e.g. Ollama's
-    // localhost:11434). 2s default timeout; failures classify as
-    // "not reachable" without raising. No side effects beyond the GET.
-    const health = await probeProviderHealth(entry, { probeLocal: defaultLocalHttpProbe });
-    out.push(healthToAvailability(entry, health));
+    const raw = rawHealths.get(entry.id);
+    if (!raw) continue;
+    const resolved = applySupersession(raw, entry, rawHealths);
+    out.push(healthToAvailability(entry, resolved));
   }
   return out;
 }
@@ -195,15 +206,18 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorReport> {
     `    ${'PROVIDER'.padEnd(14)} ${'STATUS'.padEnd(14)} ${'AUTH'.padEnd(8)} ${'COST'.padEnd(12)} ${'CPT'.padEnd(4)} DETAIL\n`,
   );
   for (const a of adapters) {
-    const mark = a.runnable ? '✓' : a.status === 'implemented' ? '✗' : '·';
+    const mark = a.runnable ? '✓' : a.supersededBy ? '→' : a.status === 'implemented' ? '✗' : '·';
     const cpt = a.supportsCptProbe ? 'yes' : '-';
-    const detail = a.runnable
-      ? a.binaryPath
-        ? `${a.binaryPath}${a.credentialPath ? ` · ${a.credentialPath}` : ''}`
-        : (a.credentialPath ?? 'runnable')
-      : a.nextAction || 'unavailable';
+    const authCell = a.supersededBy ? 'covered' : a.authSource;
+    const detail = a.supersededBy
+      ? `covered by ${a.supersededBy.displayName} — no separate setup needed`
+      : a.runnable
+        ? a.binaryPath
+          ? `${a.binaryPath}${a.credentialPath ? ` · ${a.credentialPath}` : ''}`
+          : (a.credentialPath ?? 'runnable')
+        : a.nextAction || 'unavailable';
     process.stdout.write(
-      `    ${mark} ${a.id.padEnd(12)} ${a.status.padEnd(14)} ${a.authSource.padEnd(8)} ${a.costMode.padEnd(12)} ${cpt.padEnd(4)} ${detail}\n`,
+      `    ${mark} ${a.id.padEnd(12)} ${a.status.padEnd(14)} ${authCell.padEnd(8)} ${a.costMode.padEnd(12)} ${cpt.padEnd(4)} ${detail}\n`,
     );
   }
   process.stdout.write('\n');

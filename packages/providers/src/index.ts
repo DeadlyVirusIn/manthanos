@@ -54,6 +54,7 @@ export {
 export { type DetectAuthOptions, detectAuth } from './auth.js';
 export {
   type ProviderHealthOptions,
+  applySupersession,
   defaultLocalHttpProbe,
   probeProviderHealth,
 } from './health.js';

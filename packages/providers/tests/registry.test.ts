@@ -17,17 +17,21 @@ describe('PROVIDER_REGISTRY', () => {
       'openai',
       'codex-cli',
       'gemini-cli',
-      'copilot',
       'qwen',
       'ollama',
+      'opencode',
       'perplexity',
       'openrouter',
-      'opencode',
       'cursor-agent',
-      'vibe',
     ]) {
       expect(ids.has(expected), `missing provider id: ${expected}`).toBe(true);
     }
+  });
+
+  it('does not contain providers with unverified install/auth paths', () => {
+    const ids = new Set(listProviderIds());
+    expect(ids.has('vibe'), 'vibe should be removed').toBe(false);
+    expect(ids.has('copilot'), 'copilot should be removed').toBe(false);
   });
 
   it('has no duplicate provider ids', () => {

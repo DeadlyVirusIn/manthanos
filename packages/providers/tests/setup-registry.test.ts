@@ -10,11 +10,7 @@ import { PROVIDER_REGISTRY, getProvider } from '../src/registry.js';
 const BATCH_2_TARGETS = ['claude-cli', 'codex-cli', 'gemini-cli', 'qwen', 'ollama', 'openai'];
 
 // Providers added to the onboarding surface in the metadata expansion.
-const BATCH_2_5_TARGETS = ['copilot', 'opencode', 'perplexity', 'openrouter', 'cursor-agent'];
-
-// Providers we intentionally leave without onboarding metadata because the
-// install/auth path is unverified.
-const UNTOUCHED = ['vibe'];
+const BATCH_2_5_TARGETS = ['opencode', 'perplexity', 'openrouter', 'cursor-agent'];
 
 describe('provider onboarding metadata', () => {
   it('each Batch 2 target has either install or auth metadata', () => {
@@ -35,13 +31,15 @@ describe('provider onboarding metadata', () => {
     }
   });
 
-  it('intentionally-untouched providers remain without onboarding metadata', () => {
-    for (const id of UNTOUCHED) {
-      const p = getProvider(id);
-      expect(p, id).toBeDefined();
-      expect(p?.install).toBeUndefined();
-      expect(p?.auth).toBeUndefined();
+  it('removed providers are no longer in the registry', () => {
+    for (const id of ['vibe', 'copilot']) {
+      expect(getProvider(id), `${id} should be removed`).toBeUndefined();
     }
+  });
+
+  it('openai is supersededBy codex-cli', () => {
+    const openai = getProvider('openai');
+    expect(openai?.supersededBy).toEqual(['codex-cli']);
   });
 
   it('install commands are non-empty and reference the executable when present', () => {
@@ -108,13 +106,5 @@ describe('provider onboarding metadata', () => {
     expect(p?.install?.riskLevel).toBe('prompt-user');
     expect(p?.auth?.flavor).toBe('manual-only');
     expect((p?.auth?.manualSteps ?? []).length).toBeGreaterThan(0);
-  });
-
-  it('Copilot has manual-only auth with explicit channel guidance and no install', () => {
-    const p = getProvider('copilot');
-    expect(p?.install).toBeUndefined();
-    expect(p?.auth?.flavor).toBe('manual-only');
-    const steps = p?.auth?.manualSteps ?? [];
-    expect(steps.some((s) => s.includes('gh extension install'))).toBe(true);
   });
 });

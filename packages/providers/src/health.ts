@@ -7,11 +7,39 @@
 
 import { getPlatform } from '@manthanos/platform';
 import { type DetectAuthOptions, detectAuth } from './auth.js';
+import { PROVIDER_REGISTRY } from './registry.js';
 import type { ProviderEntry, ProviderHealth } from './types.js';
 
 export interface ProviderHealthOptions extends DetectAuthOptions {
   /** Override `platform.process.which` for tests. */
   readonly which?: (bin: string) => Promise<string | null>;
+}
+
+/**
+ * Apply ProviderEntry.supersededBy resolution against a set of
+ * already-computed healths. Returns a new ProviderHealth with
+ * `supersededBy` populated when one of the listed providers is
+ * runnable. Pure function — does not re-probe anything.
+ */
+export function applySupersession(
+  health: ProviderHealth,
+  entry: ProviderEntry,
+  healthByProviderId: ReadonlyMap<string, ProviderHealth>,
+): ProviderHealth {
+  if (!entry.supersededBy || entry.supersededBy.length === 0) return health;
+  for (const otherId of entry.supersededBy) {
+    const otherHealth = healthByProviderId.get(otherId);
+    if (!otherHealth?.runnable) continue;
+    const other = PROVIDER_REGISTRY.find((p) => p.id === otherId);
+    return {
+      ...health,
+      supersededBy: {
+        providerId: otherId,
+        displayName: other?.displayName ?? otherId,
+      },
+    };
+  }
+  return health;
 }
 
 /**

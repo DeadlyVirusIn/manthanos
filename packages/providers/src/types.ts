@@ -57,6 +57,19 @@ export interface ProviderEntry {
   readonly auth?: AuthSpec;
   /** Optional post-install action (e.g. Ollama starter model pull). */
   readonly postInstall?: PostInstallSpec;
+  /**
+   * When any of the listed provider ids is currently runnable, this
+   * provider is treated as "already covered" by that account/session.
+   * Doctor displays a `→` mark and "covered by …" message instead of
+   * "✗ needs setup", and `manthan setup` skips it.
+   *
+   * Used for providers that share an underlying account (e.g. OpenAI
+   * HTTP API is covered by an active Codex CLI session — both consume
+   * the same OpenAI account). Does not affect cpt-probe acceptance:
+   * the user can still pick `--adapter openai` if they want the
+   * API-key path specifically.
+   */
+  readonly supersededBy?: ReadonlyArray<string>;
 }
 
 export interface AuthDetectionResult {
@@ -82,6 +95,8 @@ export interface ProviderHealth {
   readonly runnable: boolean;
   /** Concise next-step a novice operator can act on. Empty when runnable. */
   readonly nextAction: string;
+  /** Set when this provider is `supersededBy` another runnable provider. */
+  readonly supersededBy?: { providerId: string; displayName: string };
 }
 
 /**

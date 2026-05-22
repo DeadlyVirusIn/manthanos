@@ -56,6 +56,13 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
     adapterPackage: '@manthanos/adapter-openai',
     status: 'implemented',
     runnableHint: 'OPENAI_API_KEY set on a funded account.',
+    // When the user is signed in via Codex CLI (ChatGPT subscription),
+    // the OpenAI account is already linked and a separate API-key
+    // pasting flow is not required for ordinary usage. Setup skips
+    // this entry; doctor reports it as "covered by Codex CLI".
+    // Note: `--adapter openai` for E6.1 still requires an API key in
+    // env — that is a workflow decision, not a setup-time one.
+    supersededBy: ['codex-cli'],
     auth: {
       flavor: 'api-key-paste',
       needsTty: true,
@@ -118,37 +125,6 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
       flavor: 'oauth-browser',
       command: 'gemini',
       needsTty: true,
-    },
-  },
-  {
-    id: 'copilot',
-    displayName: 'GitHub Copilot (via copilot CLI)',
-    integrationType: 'cli',
-    authModes: ['oauth', 'env'],
-    executable: 'copilot',
-    envVars: ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
-    credentialFiles: [{ homeRelative: '.copilot/config.json' }],
-    costMode: 'subscription',
-    supportsStructuredOutput: false,
-    supportsCptProbe: false,
-    adapterPackage: null,
-    status: 'detected-only',
-    runnableHint:
-      '`copilot` on PATH; signed in via GitHub (~/.copilot/config.json) or a GitHub token in env.',
-    // No install metadata: the GitHub Copilot CLI story is split across
-    // multiple shipping channels (gh-extension vs standalone binary) and
-    // we will not encode a specific install command we cannot verify.
-    // Auth is manual-only with explicit pointers; the user picks a channel.
-    auth: {
-      flavor: 'manual-only',
-      needsTty: false,
-      manualSteps: [
-        'Pick a Copilot CLI channel that fits your setup:',
-        '  Option A (recommended): `gh extension install github/gh-copilot` then `gh auth login`.',
-        '  Option B: the standalone `copilot` binary if your organization provides one.',
-        'After either path, ManthanOS detects: ~/.copilot/config.json or a GitHub token in env.',
-        'Reference: https://docs.github.com/copilot/github-copilot-in-the-cli',
-      ],
     },
   },
   {
@@ -316,21 +292,6 @@ export const PROVIDER_REGISTRY: ReadonlyArray<ProviderEntry> = Object.freeze([
         'Reference: https://cursor.com',
       ],
     },
-  },
-  {
-    id: 'vibe',
-    displayName: 'Mistral (via vibe CLI)',
-    integrationType: 'cli',
-    authModes: ['env', 'oauth'],
-    executable: 'vibe',
-    envVars: ['MISTRAL_API_KEY'],
-    credentialFiles: [{ homeRelative: '.vibe/.env' }, { homeRelative: '.vibe/config.toml' }],
-    costMode: 'unknown',
-    supportsStructuredOutput: false,
-    supportsCptProbe: false,
-    adapterPackage: null,
-    status: 'planned',
-    runnableHint: '`vibe` on PATH; MISTRAL_API_KEY or vibe config present.',
   },
 ]);
 
