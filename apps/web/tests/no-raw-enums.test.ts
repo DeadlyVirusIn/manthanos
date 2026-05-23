@@ -81,7 +81,16 @@ const ENUM_FIELD_NAMES: ReadonlyArray<string> = [
 // through the sanctioned translation surface. Used to suppress the
 // raw-enum-jsx scan for lines like
 //   `<EnumLabel kind="audience_fit" value={c.audience_fit} />`
-const SANCTIONED_HELPERS: ReadonlyArray<string> = ['<EnumLabel', 'getEnumLabel(', 'useEnumLabel('];
+const SANCTIONED_HELPERS: ReadonlyArray<string> = [
+  '<EnumLabel',
+  'getEnumLabel(',
+  'useEnumLabel(',
+  // TrustLevelIndicator takes a raw FactTier prop and renders the
+  // translated label + 4-dot visual. The component's own test
+  // (trust-level-indicator.test.tsx) enforces that the raw tier
+  // letter never reaches the DOM, so the prop hand-off is safe.
+  '<TrustLevelIndicator',
+];
 
 // User-facing JSX attributes whose string values are visible to the user.
 // `placeholder`, `title`, `aria-label`, `alt`, `label`. Not `name`/`id`
