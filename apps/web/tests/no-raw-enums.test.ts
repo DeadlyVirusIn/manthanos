@@ -113,6 +113,11 @@ const ALLOW_LIST: ReadonlyArray<string> = [
   'tests/i18n-labels.test.tsx',
   // The scanner itself defines the forbidden vocabulary as data.
   'tests/no-raw-enums.test.ts',
+  // Trust-level visual uses the raw tier strings as Record keys for
+  // the dot-count lookup; never renders them to the DOM. The
+  // component's own test (trust-level-indicator.test.tsx) enforces
+  // that invariant for every tier.
+  'src/components/TrustLevelIndicator.tsx',
 ];
 
 function isAllowListed(relPath: string): boolean {
