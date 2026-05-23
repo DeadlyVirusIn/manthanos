@@ -451,4 +451,99 @@ export const MIGRATIONS: ReadonlyArray<{ readonly id: string; readonly sql: stri
         ON conversation_verbatim_quotes(conversation_id, position);
     `,
   },
+  {
+    id: '0008_conversation_tombstone_extraction_provenance',
+    sql: `
+      -- ============================================================
+      -- Sprint 1 Task 6B commit 1 — schema for:
+      --   conversation tombstone (mirrors fact tombstone)
+      --   per-conversation extraction lifecycle
+      --   content-provenance linkage (facts ↔ quotes / conversations)
+      --
+      -- API + service code lands in commits 2 and 3. This migration is
+      -- structural only; pre-existing conversations inherit the column
+      -- defaults (NULL for tombstone fields and last_extracted_at, the
+      -- string 'pending' for fact_extraction_status).
+      --
+      -- Re-extraction policy (decided in the Task 6B plan): if extracted
+      -- content matches an existing fact, a NEW provenance row is
+      -- created pointing at the existing fact_id. Truth accumulates
+      -- evidence; duplicate content corroborates rather than rejects.
+      -- The schema permits many provenance rows per fact_id; no UNIQUE
+      -- constraint forbids it.
+      --
+      -- Enum vocabularies (enforced at the @manthanos/api service
+      -- layer — same TEXT-only pattern as semantic_facts.tier and the
+      -- conversation enums in migration 0007):
+      --
+      --   fact_extraction_status   pending | extracted | skipped
+      --   extractor                manual                 (more in 6C)
+      --
+      -- Indexes:
+      --   ix_conversations_outcome              — closes a gap from
+      --                                            the 6A audit (filter
+      --                                            by outcome).
+      --   ix_conversations_tombstoned           — partial; locate
+      --                                            tombstoned rows.
+      --   ix_conversations_extraction_status    — locate by status.
+      --   ix_fact_provenance_fact               — list a fact's
+      --                                            provenance.
+      --   ix_fact_provenance_quote / _conversation
+      --                                          — partial; reverse
+      --                                            lookups when a
+      --                                            quote/conversation
+      --                                            is tombstoned.
+      --   ix_fact_provenance_degraded           — partial; cheap
+      --                                            EXISTS check for
+      --                                            the FactView's
+      --                                            derived
+      --                                            provenance_degraded
+      --                                            flag.
+      -- ============================================================
+
+      ALTER TABLE conversations ADD COLUMN tombstoned_at TEXT;
+      ALTER TABLE conversations ADD COLUMN tombstone_reason TEXT;
+
+      ALTER TABLE conversations
+        ADD COLUMN fact_extraction_status TEXT NOT NULL DEFAULT 'pending';
+      ALTER TABLE conversations ADD COLUMN last_extracted_at TEXT;
+
+      CREATE INDEX ix_conversations_outcome
+        ON conversations(workspace_id, outcome);
+
+      CREATE INDEX ix_conversations_tombstoned
+        ON conversations(workspace_id, tombstoned_at)
+        WHERE tombstoned_at IS NOT NULL;
+
+      CREATE INDEX ix_conversations_extraction_status
+        ON conversations(workspace_id, fact_extraction_status);
+
+      CREATE TABLE fact_provenance_sources (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+        fact_id TEXT NOT NULL REFERENCES semantic_facts(id),
+        quote_id TEXT REFERENCES conversation_verbatim_quotes(id),
+        conversation_id TEXT REFERENCES conversations(id),
+        extracted_at TEXT NOT NULL,
+        extractor TEXT NOT NULL,
+        degraded_at TEXT,
+        degraded_reason TEXT
+      );
+
+      CREATE INDEX ix_fact_provenance_fact
+        ON fact_provenance_sources(fact_id);
+
+      CREATE INDEX ix_fact_provenance_quote
+        ON fact_provenance_sources(quote_id)
+        WHERE quote_id IS NOT NULL;
+
+      CREATE INDEX ix_fact_provenance_conversation
+        ON fact_provenance_sources(conversation_id)
+        WHERE conversation_id IS NOT NULL;
+
+      CREATE INDEX ix_fact_provenance_degraded
+        ON fact_provenance_sources(workspace_id, degraded_at)
+        WHERE degraded_at IS NOT NULL;
+    `,
+  },
 ];
