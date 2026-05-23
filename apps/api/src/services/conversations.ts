@@ -148,12 +148,16 @@ export class ConversationNotFoundError extends Error {
 }
 
 /** Raised when a caller tries to mutate a conversation whose lifecycle
- *  forbids it: e.g. tombstoning an already-tombstoned conversation, or
- *  extracting a fact from a tombstoned conversation (commit 3). */
+ *  forbids it. States:
+ *   - `tombstoned`: the conversation is terminal — no further mutations.
+ *   - `already_skipped`: the conversation is already marked as not useful;
+ *     a second skip is a no-op the caller probably didn't mean.
+ *  Both surface as HTTP 409 with `error: 'invalid_lifecycle'` and the
+ *  `state` field carrying the specific reason. */
 export class ConversationLifecycleError extends Error {
-  readonly state: 'tombstoned';
+  readonly state: 'tombstoned' | 'already_skipped';
   readonly conversationId: string;
-  constructor(state: 'tombstoned', conversationId: string, message: string) {
+  constructor(state: 'tombstoned' | 'already_skipped', conversationId: string, message: string) {
     super(message);
     this.name = 'ConversationLifecycleError';
     this.state = state;
@@ -1204,4 +1208,104 @@ export async function updateConversation(
     throw new Error(`conversation ${existing.id} disappeared mid-update`);
   }
   return { conversation: view, audit };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Sprint 2 M1 — Skip-extraction ("mark as not useful")
+// ─────────────────────────────────────────────────────────────────
+
+export interface SkipExtractionInput {
+  /** Optional explanation. Trimmed; max 2000 characters. */
+  readonly reason?: string;
+}
+
+export interface SkipExtractionResult {
+  readonly conversation: ConversationView;
+  /** The status the conversation had before this call. Captured so the
+   *  audit payload distinguishes "never extracted" (`pending`) from
+   *  "had been extracted, changed mind" (`extracted`). */
+  readonly previous_status: FactExtractionStatus;
+  readonly audit: AuditedWriteResult;
+}
+
+/**
+ * Mark a conversation as not useful for fact extraction.
+ *
+ * Status transitions:
+ *   pending   → skipped       (never extracted)
+ *   extracted → skipped       (had been extracted, changed mind)
+ *   skipped   → 409 already_skipped
+ *   tombstoned → 409 tombstoned
+ *
+ * Reverse path: a subsequent `extractFactFromConversation` call on a
+ * skipped conversation flips status back to `extracted` via the
+ * existing extract path's unconditional UPDATE — no special case
+ * needed here.
+ *
+ * Side effects:
+ *   - sets `fact_extraction_status = 'skipped'`
+ *   - bumps `audit_seq` to the new event's seq
+ *   - leaves `last_extracted_at` unchanged (so the "I extracted then
+ *     changed my mind" history is preserved)
+ *   - emits `conversation.skip_extraction` audit event
+ */
+export async function skipConversationExtraction(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  input: SkipExtractionInput,
+): Promise<SkipExtractionResult> {
+  const existing = selectConversationById(ctx.db, workspaceId, conversationId);
+  if (!existing) {
+    throw new ConversationNotFoundError(conversationId);
+  }
+  assertConversationNotTombstoned(existing);
+
+  if (existing.fact_extraction_status === 'skipped') {
+    throw new ConversationLifecycleError(
+      'already_skipped',
+      existing.id,
+      `conversation ${existing.id} is already marked as not useful`,
+    );
+  }
+
+  // Reason is optional. If provided, it must be a non-empty trimmed
+  // string ≤ 2000 chars. Null is accepted and treated as omitted.
+  let reason: string | null = null;
+  if (input.reason !== undefined && input.reason !== null) {
+    reason = validateNonEmptyString('reason', input.reason, 2000);
+  }
+
+  const previousStatus = existing.fact_extraction_status;
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'conversation.skip_extraction',
+    kind: 'conversation',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      conversation_id: existing.id,
+      previous_status: previousStatus,
+      reason,
+      skipped_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      ctx.db
+        .prepare(
+          `UPDATE conversations
+              SET fact_extraction_status = 'skipped',
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(seq, workspaceId, existing.id);
+    },
+  });
+
+  const view = getConversation(ctx.db, workspaceId, existing.id);
+  if (!view) {
+    throw new Error(`conversation ${existing.id} disappeared mid-skip`);
+  }
+  return { conversation: view, previous_status: previousStatus, audit };
 }

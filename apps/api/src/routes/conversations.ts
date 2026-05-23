@@ -6,8 +6,9 @@
 //   POST   /api/v1/workspaces/:id/conversations
 //   GET    /api/v1/workspaces/:id/conversations
 //   GET    /api/v1/workspaces/:id/conversations/:conversation_id
-//   PATCH  /api/v1/workspaces/:id/conversations/:conversation_id   (M1 C1.1)
+//   PATCH  /api/v1/workspaces/:id/conversations/:conversation_id            (M1 C1.1)
 //   POST   /api/v1/workspaces/:id/conversations/:conversation_id/tombstone
+//   POST   /api/v1/workspaces/:id/conversations/:conversation_id/skip-extraction (M1 C1.2)
 //   POST   /api/v1/workspaces/:id/conversations/:conversation_id/extract
 //   GET    /api/v1/workspaces/:id/conversations/:conversation_id/facts
 
@@ -27,6 +28,7 @@ import {
   isConversationOutcome,
   isConversationType,
   listConversations,
+  skipConversationExtraction,
   tombstoneConversation,
   updateConversation,
 } from '../services/conversations.js';
@@ -393,6 +395,67 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       throw err;
     }
   });
+
+  // POST .../skip-extraction — mark this conversation as not useful for
+  // fact extraction (M1 C1.2). Status transitions pending → skipped or
+  // extracted → skipped; a subsequent extract call restores it to
+  // extracted via the existing extract path. See
+  // services/conversations.ts:skipConversationExtraction.
+  app.post<{
+    Params: { id: string; conversation_id: string };
+    Body: { reason?: unknown };
+  }>(
+    '/api/v1/workspaces/:id/conversations/:conversation_id/skip-extraction',
+    async (req, reply) => {
+      const db = rc.substrate.db.handle;
+      if (!workspaceExists(db, req.params.id)) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const body = (req.body ?? {}) as { reason?: unknown };
+      if (body.reason !== undefined && body.reason !== null && typeof body.reason !== 'string') {
+        await reply.code(400).send({
+          error: 'validation',
+          field: 'reason',
+          details: 'reason must be a string when provided',
+        });
+        return;
+      }
+      try {
+        const result = await skipConversationExtraction(
+          rc.substrate.ctx,
+          req.params.id,
+          req.params.conversation_id,
+          { reason: (body.reason ?? undefined) as string | undefined },
+        );
+        await reply.send({
+          conversation: result.conversation,
+          previous_status: result.previous_status,
+        });
+      } catch (err) {
+        if (err instanceof ConversationNotFoundError) {
+          await reply.code(404).send({ error: 'not_found' });
+          return;
+        }
+        if (err instanceof ConversationValidationError) {
+          await reply
+            .code(400)
+            .send({ error: 'validation', field: err.field, details: err.message });
+          return;
+        }
+        if (err instanceof ConversationLifecycleError) {
+          await reply.code(409).send({
+            error: 'invalid_lifecycle',
+            state: err.state,
+            conversation_id: err.conversationId,
+            details: err.message,
+          });
+          return;
+        }
+        throw err;
+      }
+    },
+  );
 
   // POST .../extract — extract a fact from this conversation. Creates a
   // new fact when the content is novel; corroborates an existing one
