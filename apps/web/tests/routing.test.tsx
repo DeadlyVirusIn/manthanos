@@ -29,6 +29,7 @@
 // All tests use `renderToString` from `react-dom/server` and
 // `MemoryRouter` from `react-router-dom`, so no jsdom is required.
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
@@ -38,11 +39,19 @@ import { ErrorBoundary, ErrorFallback, LoadingFallback } from '../src/layout/ind
 
 const PROJ = 'proj-test-1';
 
+// Routing tests render through the real route table, and C2.2's Home
+// page uses useProjects (TanStack Query). Wrap every render in a
+// QueryClientProvider so the data hooks can mount.
 function renderAt(path: string): string {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
   return renderToString(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <AppRoutes />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
