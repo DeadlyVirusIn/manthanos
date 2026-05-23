@@ -17,6 +17,7 @@ import {
   type ConversationType,
   ConversationValidationError,
   createConversation,
+  extractFactFromConversation,
   getConversation,
   isAudienceFit,
   isConversationOutcome,
@@ -24,6 +25,12 @@ import {
   listConversations,
   tombstoneConversation,
 } from '../services/conversations.js';
+import {
+  type FactTier,
+  FactValidationError,
+  isFactTier,
+  listFactsByConversation,
+} from '../services/facts.js';
 import type { SubstrateHandle } from '../services/substrate.js';
 
 interface RouteContext {
@@ -251,4 +258,124 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       throw err;
     }
   });
+
+  // POST .../extract — extract a fact from this conversation. Creates a
+  // new fact when the content is novel; corroborates an existing one
+  // when the (area, statement) hash already lives in the workspace.
+  app.post<{
+    Params: { id: string; conversation_id: string };
+    Body: { area?: unknown; statement?: unknown; tier?: unknown; quote_id?: unknown };
+  }>('/api/v1/workspaces/:id/conversations/:conversation_id/extract', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as {
+      area?: unknown;
+      statement?: unknown;
+      tier?: unknown;
+      quote_id?: unknown;
+    };
+    if (typeof body.area !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'area', details: 'area must be a string' });
+      return;
+    }
+    if (typeof body.statement !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'statement', details: 'statement must be a string' });
+      return;
+    }
+    if (body.tier !== undefined && !isFactTier(body.tier)) {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'tier',
+        details: 'tier must be one of T-2, T-1, T0, T+1',
+      });
+      return;
+    }
+    if (
+      body.quote_id !== undefined &&
+      body.quote_id !== null &&
+      typeof body.quote_id !== 'string'
+    ) {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'quote_id',
+        details: 'quote_id must be a string when provided',
+      });
+      return;
+    }
+    try {
+      const result = await extractFactFromConversation(
+        rc.substrate.ctx,
+        req.params.id,
+        req.params.conversation_id,
+        {
+          area: body.area,
+          statement: body.statement,
+          tier: body.tier as FactTier | undefined,
+          quote_id: (body.quote_id ?? undefined) as string | undefined,
+        },
+      );
+      // 201 when a new fact was minted; 200 when an existing fact was
+      // corroborated (only a provenance row was created).
+      await reply.code(result.was_created ? 201 : 200).send({
+        fact: result.fact,
+        was_created: result.was_created,
+      });
+    } catch (err) {
+      if (err instanceof ConversationNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof ConversationValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof FactValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof ConversationLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          conversation_id: err.conversationId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  // GET .../facts — list facts that have at least one provenance row
+  // pointing at this conversation (quote-level or conversation-level).
+  app.get<{ Params: { id: string; conversation_id: string } }>(
+    '/api/v1/workspaces/:id/conversations/:conversation_id/facts',
+    async (req, reply) => {
+      const db = rc.substrate.db.handle;
+      if (!workspaceExists(db, req.params.id)) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      // Confirm the conversation itself exists; otherwise 404 even
+      // though listFactsByConversation would return an empty list.
+      const conversation = getConversation(db, req.params.id, req.params.conversation_id);
+      if (!conversation) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const result = listFactsByConversation(db, req.params.id, req.params.conversation_id);
+      await reply.send({
+        conversation_id: req.params.conversation_id,
+        facts: result.facts,
+        total: result.total,
+      });
+    },
+  );
 }

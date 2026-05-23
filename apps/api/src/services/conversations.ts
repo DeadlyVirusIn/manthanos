@@ -17,8 +17,21 @@ import {
 } from '@manthanos/memory';
 import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
 import {
+  type FactRow,
+  type FactTier,
+  FactValidationError,
+  type FactView,
+  TIER_CONFIDENCE,
+  computeStatementHash,
+  generateFactId,
+  getFact,
+  isFactTier,
+  selectFactByHash,
+} from './facts.js';
+import {
   DEGRADATION_REASON_CONVERSATION_TOMBSTONED,
   markProvenanceDegradedByConversation,
+  recordProvenanceSource,
 } from './provenance.js';
 
 // ─────────────────────────────────────────────────────────────────
@@ -718,4 +731,285 @@ export async function tombstoneConversation(
     affected_provenance_count: affectedProvenanceCount,
     affected_fact_ids_sample: affectedFactIdsSample,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Task 6B commit 3 — fact extraction
+// ─────────────────────────────────────────────────────────────────
+
+// Length cap reused for area / statement on the extraction path;
+// matches services/facts.ts's validateNonEmpty cap.
+const MAX_FACT_FIELD_LEN = 2000;
+
+interface QuoteOwnershipRow {
+  id: string;
+  conversation_id: string;
+}
+
+function selectQuoteById(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  quoteId: string,
+): QuoteOwnershipRow | null {
+  const row = db
+    .prepare(
+      `SELECT id, conversation_id
+         FROM conversation_verbatim_quotes
+        WHERE workspace_id = ? AND id = ?`,
+    )
+    .get(workspaceId, quoteId) as QuoteOwnershipRow | undefined;
+  return row ?? null;
+}
+
+export interface ExtractFactInput {
+  readonly area: string;
+  readonly statement: string;
+  readonly tier?: FactTier;
+  /** Optional. If absent, provenance is recorded at conversation level. */
+  readonly quote_id?: string;
+}
+
+export interface ExtractFactResult {
+  readonly fact: FactView;
+  /** true when a new fact row was created; false when an existing fact
+   *  was corroborated (a new provenance row was added but the fact
+   *  itself already existed). */
+  readonly was_created: boolean;
+  readonly audit: AuditedWriteResult;
+}
+
+/**
+ * Extract a fact from a conversation. Two paths:
+ *
+ *   - Create: no existing fact matches the (area, statement) hash. A
+ *     new fact is inserted, a provenance row is created, and the
+ *     conversation's extraction status is bumped to 'extracted'. The
+ *     audit event is `fact.create` with an `extraction_source` field.
+ *
+ *   - Corroborate: a non-tombstoned fact with the same hash exists.
+ *     A new provenance row is added pointing at the existing fact;
+ *     the fact's `last_corroborated` and `audit_seq` advance; tier
+ *     and confidence are preserved. The audit event is
+ *     `fact.corroborate`. Truth accumulates evidence; duplicate
+ *     content corroborates rather than rejects.
+ *
+ * Forbidden against a tombstoned conversation (409 'tombstoned').
+ * `quote_id`, if provided, must belong to the target conversation
+ * (400 otherwise).
+ */
+export async function extractFactFromConversation(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  input: ExtractFactInput,
+): Promise<ExtractFactResult> {
+  // 1. Conversation existence + lifecycle.
+  const conv = selectConversationById(ctx.db, workspaceId, conversationId);
+  if (!conv) {
+    throw new ConversationNotFoundError(conversationId);
+  }
+  assertConversationNotTombstoned(conv);
+
+  // 2. Quote ownership (if provided).
+  let quoteId: string | undefined;
+  if (input.quote_id !== undefined && input.quote_id !== null) {
+    const quote = selectQuoteById(ctx.db, workspaceId, input.quote_id);
+    if (!quote || quote.conversation_id !== conversationId) {
+      throw new ConversationValidationError(
+        'quote_id',
+        `quote_id ${input.quote_id} does not belong to conversation ${conversationId}`,
+      );
+    }
+    quoteId = input.quote_id;
+  }
+
+  // 3. Content validation. Routed through conversations' validator so
+  //    the field labels stay 'area' / 'statement' (matching the public
+  //    API surface). Cap matches services/facts.ts.
+  const area = validateNonEmptyString('area', input.area, MAX_FACT_FIELD_LEN);
+  const statement = validateNonEmptyString('statement', input.statement, MAX_FACT_FIELD_LEN);
+
+  // 4. Tier validation. Default T0 mirrors createFact.
+  if (input.tier !== undefined && !isFactTier(input.tier)) {
+    throw new FactValidationError('tier', 'tier must be one of T-2, T-1, T0, T+1');
+  }
+  const requestedTier: FactTier = input.tier ?? 'T0';
+
+  // 5. Hash + lookup.
+  const statementHash = computeStatementHash(area, statement);
+  const existingFact = selectFactByHash(ctx.db, workspaceId, statementHash);
+
+  if (existingFact) {
+    return corroborateExistingFact(ctx, workspaceId, conversationId, existingFact, {
+      area,
+      statement,
+      statementHash,
+      quoteId,
+    });
+  }
+  return createFactFromExtraction(ctx, workspaceId, conversationId, {
+    area,
+    statement,
+    statementHash,
+    tier: requestedTier,
+    quoteId,
+  });
+}
+
+interface ExtractionProps {
+  readonly area: string;
+  readonly statement: string;
+  readonly statementHash: string;
+  readonly quoteId: string | undefined;
+}
+
+interface CreationProps extends ExtractionProps {
+  readonly tier: FactTier;
+}
+
+async function corroborateExistingFact(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  existing: FactRow,
+  props: ExtractionProps,
+): Promise<ExtractFactResult> {
+  const now = new Date().toISOString();
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.corroborate',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      fact_id: existing.id,
+      area: props.area,
+      statement: props.statement,
+      statement_hash: props.statementHash,
+      conversation_id: conversationId,
+      quote_id: props.quoteId ?? null,
+      extractor: 'manual',
+      corroborated_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      // 1. New provenance row pointing at the existing fact.
+      recordProvenanceSource(ctx.db, workspaceId, {
+        factId: existing.id,
+        quoteId: props.quoteId,
+        conversationId: props.quoteId === undefined ? conversationId : undefined,
+        extractor: 'manual',
+        extractedAt: now,
+      });
+      // 2. Bump the fact's last_corroborated (Stabilization §3.1: this
+      //    IS a genuine corroboration, not an administrative touch).
+      ctx.db
+        .prepare(
+          `UPDATE semantic_facts
+              SET last_corroborated = ?,
+                  last_administratively_touched = ?,
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(now, now, seq, workspaceId, existing.id);
+      // 3. Bump the conversation's extraction status. Idempotent for
+      //    repeated extractions on the same conversation.
+      ctx.db
+        .prepare(
+          `UPDATE conversations
+              SET fact_extraction_status = 'extracted',
+                  last_extracted_at = ?,
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(now, seq, workspaceId, conversationId);
+    },
+  });
+
+  const fact = getFact(ctx.db, workspaceId, existing.id);
+  if (!fact) {
+    throw new Error(`fact ${existing.id} disappeared mid-corroborate`);
+  }
+  return { fact, was_created: false, audit };
+}
+
+async function createFactFromExtraction(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  props: CreationProps,
+): Promise<ExtractFactResult> {
+  const id = generateFactId();
+  const confidence = TIER_CONFIDENCE[props.tier];
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.create',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      fact_id: id,
+      workspace_id: workspaceId,
+      area: props.area,
+      statement: props.statement,
+      statement_hash: props.statementHash,
+      tier: props.tier,
+      confidence,
+      created_at: now,
+      // Extension over the standard fact.create payload: the source of
+      // this creation, present iff the fact came from an extraction.
+      extraction_source: {
+        conversation_id: conversationId,
+        quote_id: props.quoteId ?? null,
+      },
+    },
+    brainWrites: ({ seq }) => {
+      // 1. Insert the new fact.
+      ctx.db
+        .prepare(
+          `INSERT INTO semantic_facts (
+             id, workspace_id, area, statement, statement_hash,
+             provenance_workflow_id, tier, last_corroborated, confidence,
+             audit_seq, last_administratively_touched
+           ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          workspaceId,
+          props.area,
+          props.statement,
+          props.statementHash,
+          props.tier,
+          now,
+          confidence,
+          seq,
+          now,
+        );
+      // 2. Provenance row.
+      recordProvenanceSource(ctx.db, workspaceId, {
+        factId: id,
+        quoteId: props.quoteId,
+        conversationId: props.quoteId === undefined ? conversationId : undefined,
+        extractor: 'manual',
+        extractedAt: now,
+      });
+      // 3. Conversation status.
+      ctx.db
+        .prepare(
+          `UPDATE conversations
+              SET fact_extraction_status = 'extracted',
+                  last_extracted_at = ?,
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(now, seq, workspaceId, conversationId);
+    },
+  });
+
+  const fact = getFact(ctx.db, workspaceId, id);
+  if (!fact) {
+    throw new Error(`fact ${id} disappeared mid-extract`);
+  }
+  return { fact, was_created: true, audit };
 }

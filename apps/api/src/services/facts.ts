@@ -40,7 +40,9 @@ const TIER_RANK: Record<FactTier, number> = {
 // Confidence values mirror the existing brain-trust.ts convention but
 // trimmed to the Task 5A range. The CLI promote path still uses its own
 // table; values here apply only to the HTTP-routed lifecycle.
-const TIER_CONFIDENCE: Record<FactTier, number> = {
+// Exported so the conversation-extraction path (Task 6B commit 3) can
+// pick the right confidence for a freshly extracted fact.
+export const TIER_CONFIDENCE: Record<FactTier, number> = {
   'T+1': 0.7,
   T0: 0.3,
   'T-1': 0.1,
@@ -88,7 +90,7 @@ export interface FactView {
   readonly provenance_degraded: boolean;
 }
 
-interface FactRow {
+export interface FactRow {
   id: string;
   workspace_id: string;
   area: string;
@@ -217,16 +219,18 @@ function assertNotSuperseded(row: FactRow): void {
 // Helpers
 // ─────────────────────────────────────────────────────────────────
 
-function computeStatementHash(area: string, statement: string): string {
+export function computeStatementHash(area: string, statement: string): string {
   // Same shape as brain-compound.ts (`${area}::${text}`). Audit BUG-4
   // flagged the `::` delimiter as theoretically collidable; the dedup
   // semantics here match the existing CLI's view of the brain. A future
   // hardening pass can swap the delimiter in lockstep with the CLI.
+  // Exported for the conversation-extraction path (Task 6B commit 3),
+  // which needs to compute the same hash to look up existing facts.
   const canonical = `${area}::${statement}`;
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
-function generateFactId(): string {
+export function generateFactId(): string {
   return `fact-${randomUUID().slice(0, 12)}`;
 }
 
@@ -292,7 +296,7 @@ function selectFactById(
   return row ?? null;
 }
 
-function selectFactByHash(
+export function selectFactByHash(
   db: ManthanSqliteHandle,
   workspaceId: string,
   statementHash: string,
@@ -426,6 +430,58 @@ export function getFact(
 ): FactView | null {
   const row = selectFactById(db, workspaceId, factId);
   return row ? rowToView(row) : null;
+}
+
+export interface ListFactsByConversationResult {
+  readonly facts: readonly FactView[];
+  readonly total: number;
+}
+
+/**
+ * Return every fact in the workspace that has at least one provenance
+ * row pointing at the given conversation — either directly (the row's
+ * conversation_id matches) or transitively (its quote_id belongs to a
+ * quote of that conversation).
+ *
+ * Implementation note: we use an `IN (SELECT DISTINCT fact_id ...)`
+ * subquery rather than a JOIN to avoid an alias collision with the
+ * `p` aliases inside FACT_SELECT_COLUMNS's correlated COUNT subqueries.
+ * The subquery approach also gives one row per fact naturally (no
+ * outer DISTINCT needed) and lets the partial indexes do the work.
+ *
+ * No pagination: a single conversation realistically yields tens of
+ * facts at most, not enough to warrant limit/offset plumbing.
+ */
+export function listFactsByConversation(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  conversationId: string,
+): ListFactsByConversationResult {
+  const rows = db
+    .prepare(
+      `SELECT ${FACT_SELECT_COLUMNS}
+         FROM semantic_facts
+        WHERE workspace_id = ?
+          AND id IN (
+            SELECT DISTINCT fact_id
+              FROM fact_provenance_sources
+             WHERE workspace_id = ?
+               AND (
+                 conversation_id = ?
+                 OR quote_id IN (
+                   SELECT id FROM conversation_verbatim_quotes
+                    WHERE conversation_id = ?
+                 )
+               )
+          )
+        ORDER BY audit_seq DESC, id ASC`,
+    )
+    .all(workspaceId, workspaceId, conversationId, conversationId) as FactRow[];
+
+  return {
+    facts: rows.map(rowToView),
+    total: rows.length,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────

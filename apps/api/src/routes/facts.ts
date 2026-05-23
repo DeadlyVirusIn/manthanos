@@ -32,6 +32,7 @@ import {
   uncontestFact,
   updateFact,
 } from '../services/facts.js';
+import { listProvenanceForFact } from '../services/provenance.js';
 import type { SubstrateHandle } from '../services/substrate.js';
 
 interface RouteContext {
@@ -629,4 +630,29 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
       throw err;
     }
   });
+
+  // GET .../facts/:fact_id/provenance — list every provenance source
+  // attached to this fact (quote- or conversation-level), including
+  // degraded ones (degraded_at + degraded_reason populated).
+  app.get<{ Params: { id: string; fact_id: string } }>(
+    '/api/v1/workspaces/:id/facts/:fact_id/provenance',
+    async (req, reply) => {
+      const db = rc.substrate.db.handle;
+      if (!workspaceExists(db, req.params.id)) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const fact = getFact(db, req.params.id, req.params.fact_id);
+      if (!fact) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const provenance = listProvenanceForFact(db, req.params.id, req.params.fact_id);
+      await reply.send({
+        fact_id: req.params.fact_id,
+        provenance,
+        total: provenance.length,
+      });
+    },
+  );
 }
