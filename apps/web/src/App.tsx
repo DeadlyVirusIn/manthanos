@@ -1,44 +1,71 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-// Root React component for ManthanOS web. Sprint 2 M1 C1.6 wires:
-//   - <QueryClientProvider>  for Tanstack Query (data fetching, M1 C1.7)
-//   - <BrowserRouter>        for client-side routing (real routes land in M1 C1.10)
+// Root React component for ManthanOS web. Sprint 2 M1 C1.10 wires the
+// full routing skeleton on top of C1.6's chrome (QueryClientProvider +
+// BrowserRouter) and C1.7's API layer.
 //
-// At C1.6 there are no routes wired yet — the router shell renders a
-// placeholder. M1 C1.10 adds the 5 placeholder routes (Today,
-// Validation, Conversation, Fact, Workspace Home) + Project Picker.
+// Three components are exported:
+//   - App         — production root (BrowserRouter + boundaries + routes)
+//   - AppRoutes   — the route table alone (router-agnostic). Tests render
+//                   this inside a MemoryRouter so paths can be controlled
+//                   without a real browser.
+//   - queryClient — exported so tests can inspect / reset cache state.
+//
+// The route table:
+//   /                       Home (project picker)        ┐
+//   /today                  Today                        │ all rendered
+//   /validation             Validation                   │ inside <AppShell>
+//   /conversations/:id      ConversationDetail           │ (nav + outlet)
+//   /facts/:id              FactDetail                   │
+//   /workspaces/:id         WorkspaceHome                ┘
+//   *                       NotFound                       (no shell)
+//
+// Real page logic lands in M2+. M1 ships placeholders so the routing,
+// navigation, and boundaries can be exercised end-to-end.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { StrictMode, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
-// Shared QueryClient instance. M1 C1.7 (API client layer) will refine
-// defaults (stale time, cache time, retry policy). At C1.6 defaults are
-// fine — no live queries fire yet.
-const queryClient = new QueryClient({
+import { AppShell, ErrorBoundary, LoadingFallback } from './layout/index.js';
+import {
+  ConversationDetail,
+  FactDetail,
+  Home,
+  NotFound,
+  Today,
+  Validation,
+  WorkspaceHome,
+} from './pages/index.js';
+
+// Shared QueryClient. M2 may refine defaults per-query; the global
+// defaults below are fine for the placeholder pages M1 ships.
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Don't retry aggressively in dev; failures should surface quickly.
       retry: 1,
-      // Local daemon is fast; aggressive refetch isn't useful.
       refetchOnWindowFocus: false,
     },
   },
 });
 
-/** Placeholder page rendered until M1 C1.10 wires the real route table. */
-function M1Placeholder(): JSX.Element {
+/** The route table, router-agnostic. Render inside whatever Router the
+ *  caller chooses (BrowserRouter in prod, MemoryRouter in tests). */
+export function AppRoutes(): JSX.Element {
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: '36rem' }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>ManthanOS</h1>
-      <p style={{ color: '#666', marginTop: '1rem' }}>
-        Sprint 2 M1 — frontend foundation. Pages land starting in M2.
-      </p>
-      <p style={{ color: '#999', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-        ManthanOS is running on your computer. No login needed.
-      </p>
-    </main>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/today" element={<Today />} />
+        <Route path="/validation" element={<Validation />} />
+        <Route path="/conversations/:id" element={<ConversationDetail />} />
+        <Route path="/facts/:id" element={<FactDetail />} />
+        <Route path="/workspaces/:id" element={<WorkspaceHome />} />
+      </Route>
+      {/* NotFound renders outside the shell — no nav, no chrome. */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 
@@ -47,12 +74,11 @@ export function App(): JSX.Element {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <Routes>
-            {/* Real route table lands in M1 C1.10. For now, every path
-                resolves to the M1 placeholder so the dev server has
-                something to render. */}
-            <Route path="*" element={<M1Placeholder />} />
-          </Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <AppRoutes />
+            </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
       </QueryClientProvider>
     </StrictMode>
