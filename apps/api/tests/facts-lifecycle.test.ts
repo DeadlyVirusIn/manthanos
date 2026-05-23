@@ -14,7 +14,14 @@
 //   9.  contest/uncontest workspace isolation
 //   10. contest/uncontest audit-chain participation
 //   11. exclude_contested list filter
-// Tombstone tests are added in commit 4.
+//   12. tombstone lifecycle
+//   13. double tombstone returns 409
+//   14. tombstone validation
+//   15. all mutations blocked after tombstone
+//   16. include_tombstoned list filter
+//   17. tombstone workspace isolation
+//   18. tombstone audit-chain participation
+//   19. history includes tombstone state
 
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -166,6 +173,34 @@ async function uncontest(
   const r = await handle.app.inject({
     method: 'POST',
     url: `/api/v1/workspaces/${workspaceId}/facts/${factId}/uncontest`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function demote(
+  workspaceId: string,
+  factId: string,
+  body: object = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/facts/${factId}/demote`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function tombstone(
+  workspaceId: string,
+  factId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/facts/${factId}/tombstone`,
     headers: { host: '127.0.0.1' },
     payload: body,
   });
@@ -709,5 +744,335 @@ describe('11 — exclude_contested list filter', () => {
     expect((await listFacts(ws, '?exclude_contested=true')).body.total).toBe(0);
     await uncontest(ws, a.body.id as string, { resolution: 'cleared' });
     expect((await listFacts(ws, '?exclude_contested=true')).body.total).toBe(1);
+  });
+});
+
+// ────────── 12. tombstone lifecycle ──────────
+
+describe('12 — tombstone lifecycle', () => {
+  it('tombstoning sets tombstoned_at, tombstone_reason, and suppresses the statement', async () => {
+    const ws = await createWorkspace('Tombstone happy');
+    const v1 = await postFact(ws, { area: 'sensitive', statement: 'PII payload' });
+    expect(v1.body.is_tombstoned).toBe(false);
+    expect(v1.body.statement).toBe('PII payload');
+
+    const r = await tombstone(ws, v1.body.id as string, { reason: 'GDPR erasure' });
+    expect(r.status).toBe(200);
+    const fact = r.body.fact as Record<string, unknown>;
+    expect(typeof fact.tombstoned_at).toBe('string');
+    expect(fact.tombstone_reason).toBe('GDPR erasure');
+    expect(fact.is_tombstoned).toBe(true);
+    expect(fact.statement).toBe('[tombstoned]');
+    // Identity preserved — id, area, statement_hash unchanged.
+    expect(fact.id).toBe(v1.body.id);
+    expect(fact.area).toBe('sensitive');
+    expect(fact.statement_hash).toBe(v1.body.statement_hash);
+  });
+
+  it('subsequent GET returns the sentinel statement', async () => {
+    const ws = await createWorkspace('Sentinel persistence');
+    const v1 = await postFact(ws, { area: 'a', statement: 'real' });
+    await tombstone(ws, v1.body.id as string, { reason: 'erase' });
+    const r = await getFact(ws, v1.body.id as string);
+    expect(r.status).toBe(200);
+    expect(r.body.statement).toBe('[tombstoned]');
+    expect(r.body.is_tombstoned).toBe(true);
+  });
+
+  it('tombstoning a superseded fact requires allow_superseded=true', async () => {
+    const ws = await createWorkspace('Tombstone superseded gate');
+    const v1 = await postFact(ws, { area: 'a', statement: 's1' });
+    await revise(ws, v1.body.id as string, { statement: 's2' });
+
+    const denied = await tombstone(ws, v1.body.id as string, { reason: 'erase v1' });
+    expect(denied.status).toBe(409);
+    expect(denied.body.state).toBe('superseded');
+
+    const allowed = await tombstone(ws, v1.body.id as string, {
+      reason: 'erase v1',
+      allow_superseded: true,
+    });
+    expect(allowed.status).toBe(200);
+    expect((allowed.body.fact as Record<string, unknown>).is_tombstoned).toBe(true);
+  });
+
+  it('after tombstoning, a fresh fact with the same content can be created (dedup excludes tombstoned)', async () => {
+    const ws = await createWorkspace('Dedup post-tomb');
+    const v1 = await postFact(ws, { area: 'a', statement: 'reusable' });
+    await tombstone(ws, v1.body.id as string, { reason: 'erase' });
+    const v2 = await postFact(ws, { area: 'a', statement: 'reusable' });
+    expect(v2.status).toBe(201);
+    expect((v2.body as { id: string }).id).not.toBe(v1.body.id);
+  });
+});
+
+// ────────── 13. double tombstone returns 409 ──────────
+
+describe('13 — double tombstone returns 409', () => {
+  it('a tombstoned fact cannot be tombstoned again', async () => {
+    const ws = await createWorkspace('Double tombstone');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await tombstone(ws, v1.body.id as string, { reason: 'first' });
+    const r = await tombstone(ws, v1.body.id as string, { reason: 'second' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('invalid_lifecycle');
+    expect(r.body.state).toBe('tombstoned');
+  });
+});
+
+// ────────── 14. tombstone validation ──────────
+
+describe('14 — tombstone validation', () => {
+  it('requires a string reason', async () => {
+    const ws = await createWorkspace('Missing tomb reason');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    const r = await tombstone(ws, v1.body.id as string, {});
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('reason');
+  });
+
+  it('rejects empty or whitespace reason', async () => {
+    const ws = await createWorkspace('Empty tomb reason');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    expect((await tombstone(ws, v1.body.id as string, { reason: '' })).status).toBe(400);
+    expect((await tombstone(ws, v1.body.id as string, { reason: '  ' })).status).toBe(400);
+  });
+
+  it('rejects non-boolean allow_superseded', async () => {
+    const ws = await createWorkspace('Bad allow flag');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    const r = await tombstone(ws, v1.body.id as string, {
+      reason: 'r',
+      allow_superseded: 'yes',
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('allow_superseded');
+  });
+
+  it('returns 404 on unknown fact id', async () => {
+    const ws = await createWorkspace('Unknown fact tomb');
+    const r = await tombstone(ws, 'fact-does-not-exist', { reason: 'r' });
+    expect(r.status).toBe(404);
+  });
+});
+
+// ────────── 15. all mutations blocked after tombstone ──────────
+
+describe('15 — all mutations blocked after tombstone', () => {
+  async function makeTombstoned(workspaceId: string): Promise<string> {
+    const v1 = await postFact(workspaceId, { area: 'a', statement: 's' });
+    await tombstone(workspaceId, v1.body.id as string, { reason: 'erase' });
+    return v1.body.id as string;
+  }
+
+  it('PATCH on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Patch tombstoned');
+    const id = await makeTombstoned(ws);
+    const r = await patchFact(ws, id, { statement: 'restored' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('promote on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Promote tombstoned');
+    const id = await makeTombstoned(ws);
+    const r = await promote(ws, id);
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('demote on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Demote tombstoned');
+    const id = await makeTombstoned(ws);
+    const r = await demote(ws, id);
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('revise on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Revise tombstoned');
+    const id = await makeTombstoned(ws);
+    const r = await revise(ws, id, { statement: 'alive again' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('contest on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Contest tombstoned');
+    const id = await makeTombstoned(ws);
+    const r = await contest(ws, id, { reason: 'late flag' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('uncontest on a tombstoned fact returns 409 tombstoned', async () => {
+    const ws = await createWorkspace('Uncontest tombstoned');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    await tombstone(ws, v1.body.id as string, { reason: 'erase contested' });
+    const r = await uncontest(ws, v1.body.id as string, { resolution: 'cleared' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('tombstoned');
+  });
+});
+
+// ────────── 16. include_tombstoned list filter ──────────
+
+describe('16 — include_tombstoned list filter', () => {
+  it('default list hides tombstoned facts', async () => {
+    const ws = await createWorkspace('Default hides tomb');
+    const a = await postFact(ws, { area: 'x', statement: 'live' });
+    const b = await postFact(ws, { area: 'x', statement: 'dead' });
+    await tombstone(ws, b.body.id as string, { reason: 'erase' });
+    const r = await listFacts(ws);
+    expect(r.body.total).toBe(1);
+    expect((r.body.facts as Array<{ id: string }>)[0]?.id).toBe(a.body.id);
+  });
+
+  it('?include_tombstoned=true reveals tombstoned facts with the sentinel statement', async () => {
+    const ws = await createWorkspace('Reveal tomb');
+    await postFact(ws, { area: 'x', statement: 'live' });
+    const b = await postFact(ws, { area: 'x', statement: 'dead' });
+    await tombstone(ws, b.body.id as string, { reason: 'erase' });
+    const r = await listFacts(ws, '?include_tombstoned=true');
+    expect(r.body.total).toBe(2);
+    const tombFact = (r.body.facts as Array<Record<string, unknown>>).find(
+      (f) => f.id === b.body.id,
+    );
+    expect(tombFact?.statement).toBe('[tombstoned]');
+    expect(tombFact?.is_tombstoned).toBe(true);
+  });
+});
+
+// ────────── 17. tombstone workspace isolation ──────────
+
+describe('17 — tombstone workspace isolation', () => {
+  it('tombstone against another workspace returns 404 and leaves the original untouched', async () => {
+    const wsA = await createWorkspace('IsoTombA');
+    const wsB = await createWorkspace('IsoTombB');
+    const f = await postFact(wsA, { area: 'x', statement: 'original' });
+    const r = await tombstone(wsB, f.body.id as string, { reason: 'cross' });
+    expect(r.status).toBe(404);
+    const stillLive = await getFact(wsA, f.body.id as string);
+    expect(stillLive.body.is_tombstoned).toBe(false);
+    expect(stillLive.body.statement).toBe('original');
+  });
+});
+
+// ────────── 18. tombstone audit-chain participation ──────────
+
+describe('18 — tombstone audit-chain participation', () => {
+  it('fact.tombstone payload carries reason, previous tier, hash, and override flags', async () => {
+    const ws = await createWorkspace('Audit tomb');
+    const v1 = await postFact(ws, { area: 'a', statement: 'erased content' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    await tombstone(ws, v1.body.id as string, { reason: 'final erasure' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const row = substrate.db.handle
+      .prepare(`SELECT seq FROM audit_events WHERE workspace_id = ? AND action = 'fact.tombstone'`)
+      .get(ws) as { seq: number };
+    const eventResp = await handle.app.inject({
+      method: 'GET',
+      url: `/api/v1/workspaces/${ws}/audit/${row.seq}`,
+      headers: { host: '127.0.0.1' },
+    });
+    const payload = (eventResp.json() as Record<string, unknown>).payload as Record<
+      string,
+      unknown
+    >;
+    expect(payload.fact_id).toBe(v1.body.id);
+    expect(payload.reason).toBe('final erasure');
+    expect(payload.previous_tier).toBe('T0');
+    expect(payload.previous_statement_hash).toBe(v1.body.statement_hash);
+    expect(payload.was_contested).toBe(true);
+    expect(payload.was_superseded).toBe(false);
+    expect(typeof payload.tombstoned_at).toBe('string');
+  });
+
+  it('audit event sequence captures contest → tombstone in order', async () => {
+    const ws = await createWorkspace('Audit tomb order');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    await tombstone(ws, v1.body.id as string, { reason: 'erase' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const events = substrate.db.handle
+      .prepare(
+        `SELECT seq, action FROM audit_events
+         WHERE workspace_id = ? AND action LIKE 'fact.%' ORDER BY seq ASC`,
+      )
+      .all(ws) as Array<{ seq: number; action: string }>;
+    expect(events.map((e) => e.action)).toEqual(['fact.create', 'fact.contest', 'fact.tombstone']);
+  });
+
+  it('tombstoning a superseded version flags was_superseded=true in the audit payload', async () => {
+    const ws = await createWorkspace('Audit tomb superseded');
+    const v1 = await postFact(ws, { area: 'a', statement: 's1' });
+    await revise(ws, v1.body.id as string, { statement: 's2' });
+    await tombstone(ws, v1.body.id as string, {
+      reason: 'erase historical',
+      allow_superseded: true,
+    });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const row = substrate.db.handle
+      .prepare(`SELECT seq FROM audit_events WHERE workspace_id = ? AND action = 'fact.tombstone'`)
+      .get(ws) as { seq: number };
+    const eventResp = await handle.app.inject({
+      method: 'GET',
+      url: `/api/v1/workspaces/${ws}/audit/${row.seq}`,
+      headers: { host: '127.0.0.1' },
+    });
+    const payload = (eventResp.json() as Record<string, unknown>).payload as Record<
+      string,
+      unknown
+    >;
+    expect(payload.was_superseded).toBe(true);
+    expect(payload.was_contested).toBe(false);
+  });
+});
+
+// ────────── 19. history includes tombstone state ──────────
+
+describe('19 — history includes tombstone state', () => {
+  it('history of a tombstoned singleton fact shows the sentinel + is_tombstoned=true', async () => {
+    const ws = await createWorkspace('History tomb solo');
+    const v1 = await postFact(ws, { area: 'a', statement: 'original' });
+    await tombstone(ws, v1.body.id as string, { reason: 'erase' });
+    const h = await history(ws, v1.body.id as string);
+    expect(h.status).toBe(200);
+    expect(h.body.total_versions).toBe(1);
+    const versions = h.body.versions as Array<{ fact: Record<string, unknown> }>;
+    expect(versions[0]?.fact.is_tombstoned).toBe(true);
+    expect(versions[0]?.fact.statement).toBe('[tombstoned]');
+    expect(versions[0]?.fact.tombstone_reason).toBe('erase');
+  });
+
+  it('history of a chain with a tombstoned intermediate version surfaces it at the right position', async () => {
+    const ws = await createWorkspace('History tomb mid');
+    const v1 = await postFact(ws, { area: 'a', statement: 's1' });
+    const r1 = await revise(ws, v1.body.id as string, { statement: 's2' });
+    const v2id = (r1.body.fact as Record<string, unknown>).id as string;
+    const r2 = await revise(ws, v2id, { statement: 's3' });
+    const v3id = (r2.body.fact as Record<string, unknown>).id as string;
+    await tombstone(ws, v2id, { reason: 'erase mid', allow_superseded: true });
+
+    const h = await history(ws, v3id);
+    expect(h.body.total_versions).toBe(3);
+    const versions = h.body.versions as Array<{
+      position: number;
+      fact: Record<string, unknown>;
+    }>;
+    expect(versions[0]?.fact.id).toBe(v1.body.id);
+    expect(versions[0]?.fact.is_tombstoned).toBe(false);
+    expect(versions[1]?.fact.id).toBe(v2id);
+    expect(versions[1]?.fact.is_tombstoned).toBe(true);
+    expect(versions[1]?.fact.statement).toBe('[tombstoned]');
+    expect(versions[2]?.fact.id).toBe(v3id);
+    expect(versions[2]?.fact.is_tombstoned).toBe(false);
   });
 });

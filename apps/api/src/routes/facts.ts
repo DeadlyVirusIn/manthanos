@@ -28,6 +28,7 @@ import {
   listFacts,
   promoteFact,
   reviseFact,
+  tombstoneFact,
   uncontestFact,
   updateFact,
 } from '../services/facts.js';
@@ -506,6 +507,59 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
     try {
       const result = await contestFact(rc.substrate.ctx, req.params.id, req.params.fact_id, {
         reason: body.reason,
+      });
+      await reply.send({ fact: result.fact });
+    } catch (err) {
+      if (err instanceof FactNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof FactValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  // POST .../tombstone — permanently retire a fact (terminal state)
+  app.post<{
+    Params: { id: string; fact_id: string };
+    Body: { reason?: unknown; allow_superseded?: unknown };
+  }>('/api/v1/workspaces/:id/facts/:fact_id/tombstone', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { reason?: unknown; allow_superseded?: unknown };
+    if (typeof body.reason !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'reason', details: 'reason must be a string' });
+      return;
+    }
+    if (body.allow_superseded !== undefined && typeof body.allow_superseded !== 'boolean') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'allow_superseded',
+        details: 'allow_superseded must be a boolean',
+      });
+      return;
+    }
+    try {
+      const result = await tombstoneFact(rc.substrate.ctx, req.params.id, req.params.fact_id, {
+        reason: body.reason,
+        allowSuperseded: body.allow_superseded === true,
       });
       await reply.send({ fact: result.fact });
     } catch (err) {

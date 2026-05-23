@@ -1135,3 +1135,102 @@ export async function uncontestFact(
   if (!view) throw new Error(`fact ${existing.id} disappeared mid-uncontest`);
   return { fact: view, audit };
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Task 5B — tombstone (terminal state)
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Sentinel that replaces the original `statement` text on a tombstoned
+ * row. The `statement_hash` is preserved (so audit-chain replay still
+ * resolves the original payload via the audit event), and the dedup
+ * query (`selectFactByHash`) excludes tombstoned rows, so a fresh fact
+ * with the same content can be created post-erasure.
+ */
+export const TOMBSTONE_STATEMENT_SENTINEL = '[tombstoned]';
+
+export interface TombstoneFactInput {
+  /** User-provided reason for tombstoning. Required, non-empty. */
+  readonly reason: string;
+  /**
+   * Default false. Tombstoning a superseded (non-head) fact requires
+   * an explicit opt-in because superseded rows are otherwise read-only.
+   * The override exists for forensic / compliance-driven content
+   * suppression of historical versions (e.g. GDPR erasure).
+   */
+  readonly allowSuperseded?: boolean;
+}
+
+export interface TombstoneFactResult {
+  readonly fact: FactView;
+  readonly audit: AuditedWriteResult;
+}
+
+/**
+ * Tombstone a fact. Terminal, irreversible state. The original
+ * `statement` is overwritten with `TOMBSTONE_STATEMENT_SENTINEL`; the
+ * `statement_hash` is preserved for audit linkage. All other mutations
+ * (revise, promote, demote, update, contest, uncontest, tombstone
+ * itself) are forbidden against a tombstoned fact.
+ *
+ * Rules:
+ *  - Double-tombstone → InvalidFactLifecycleError('tombstoned').
+ *  - Tombstoning a superseded fact without `allowSuperseded = true` →
+ *    InvalidFactLifecycleError('superseded').
+ *  - A tombstoned fact's contested flag (if any) is preserved so the
+ *    contest→tombstone forensic sequence remains reconstructible.
+ */
+export async function tombstoneFact(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  factId: string,
+  input: TombstoneFactInput,
+): Promise<TombstoneFactResult> {
+  const existing = selectFactById(ctx.db, workspaceId, factId);
+  if (!existing) {
+    throw new FactNotFoundError(factId);
+  }
+  assertNotTombstoned(existing);
+  if (existing.superseded_by_fact_id !== null && !input.allowSuperseded) {
+    throw new InvalidFactLifecycleError(
+      'superseded',
+      existing.id,
+      `fact ${existing.id} is superseded by ${existing.superseded_by_fact_id}; pass allow_superseded=true to tombstone a historical version`,
+    );
+  }
+
+  const reason = validateNonEmpty('reason', input.reason);
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.tombstone',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      fact_id: existing.id,
+      reason,
+      tombstoned_at: now,
+      previous_tier: existing.tier,
+      previous_statement_hash: existing.statement_hash,
+      was_superseded: existing.superseded_by_fact_id !== null,
+      was_contested: existing.contested_at !== null,
+    },
+    brainWrites: ({ seq }) => {
+      ctx.db
+        .prepare(
+          `UPDATE semantic_facts
+              SET statement = ?,
+                  tombstoned_at = ?, tombstone_reason = ?,
+                  last_administratively_touched = ?, audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(TOMBSTONE_STATEMENT_SENTINEL, now, reason, now, seq, workspaceId, existing.id);
+    },
+  });
+
+  const view = getFact(ctx.db, workspaceId, existing.id);
+  if (!view) throw new Error(`fact ${existing.id} disappeared mid-tombstone`);
+  return { fact: view, audit };
+}
