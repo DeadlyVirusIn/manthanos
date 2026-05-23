@@ -204,7 +204,11 @@ describe('audited-write paths must funnel through the lock', () => {
     callSites.sort();
     // The explicit allow-list. Adding a new call site requires updating
     // this list, which forces a code review of the new mutation path.
-    expect(callSites).toEqual(['services/facts.ts', 'services/workspace.ts']);
+    expect(callSites).toEqual([
+      'services/conversations.ts',
+      'services/facts.ts',
+      'services/workspace.ts',
+    ]);
   });
 });
 

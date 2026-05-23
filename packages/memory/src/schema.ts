@@ -375,4 +375,80 @@ export const MIGRATIONS: ReadonlyArray<{ readonly id: string; readonly sql: stri
         WHERE tombstoned_at IS NOT NULL;
     `,
   },
+  {
+    id: '0007_conversations_table',
+    sql: `
+      -- ============================================================
+      -- Sprint 1 Task 6A — Conversation API foundation.
+      --
+      -- Adds the two tables required by the conversation endpoints:
+      --
+      --   conversations                   one row per discovery interview
+      --                                   / customer conversation. Captures
+      --                                   the bookkeeping fields (who,
+      --                                   when, type, outcome) plus an
+      --                                   optional free-text summary.
+      --
+      --   conversation_verbatim_quotes    zero-or-more child rows per
+      --                                   conversation. Each row stores
+      --                                   one exact quote captured during
+      --                                   the interview; position keeps
+      --                                   call order stable across reads.
+      --
+      -- Enum vocabulary (enforced at the @manthanos/api service layer —
+      -- mirrors the semantic_facts.tier pattern, which is also TEXT-only
+      -- with app-layer validation):
+      --
+      --   audience_fit       target | adjacent | outside | unknown
+      --   conversation_type  discovery | validation | sales | support | other
+      --   outcome            validated | invalidated | inconclusive | follow_up
+      --
+      -- summary is nullable (optional input). verbatim quotes live in a
+      -- child table so each quote has a stable id (Task 6B's extraction
+      -- pipeline will link facts to specific quotes by id).
+      --
+      -- Foreign keys preserve workspace isolation. ON DELETE CASCADE on
+      -- the child table is a safety net; in this commit the API does
+      -- not yet delete conversations (tombstone deferred to Task 6B+).
+      -- ============================================================
+
+      CREATE TABLE conversations (
+        id TEXT PRIMARY KEY NOT NULL,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+        person_name TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        audience_fit TEXT NOT NULL,
+        conversation_type TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        summary TEXT,
+        created_at TEXT NOT NULL,
+        audit_seq INTEGER NOT NULL
+      );
+
+      -- List by recency within a workspace (the default sort order).
+      CREATE INDEX ix_conversations_workspace_occurred
+        ON conversations(workspace_id, occurred_at DESC);
+
+      -- Filter by audience fit. Not a partial index — all rows carry a
+      -- value (the 'unknown' sentinel covers "not classified yet").
+      CREATE INDEX ix_conversations_audience_fit
+        ON conversations(workspace_id, audience_fit);
+
+      -- Filter by conversation type (discovery vs validation vs ...).
+      CREATE INDEX ix_conversations_type
+        ON conversations(workspace_id, conversation_type);
+
+      CREATE TABLE conversation_verbatim_quotes (
+        id TEXT PRIMARY KEY NOT NULL,
+        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+        position INTEGER NOT NULL,
+        text TEXT NOT NULL
+      );
+
+      -- Bulk-read quotes for a conversation in stable position order.
+      CREATE INDEX ix_quotes_conversation
+        ON conversation_verbatim_quotes(conversation_id, position);
+    `,
+  },
 ];

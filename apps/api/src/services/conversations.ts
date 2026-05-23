@@ -1,0 +1,480 @@
+// SPDX-License-Identifier: BSL-1.1
+// Copyright (c) 2026 DeadlyVirusIn
+
+// Conversation CRUD foundation. Sprint 1 Task 6A.
+//
+// Every mutation flows through @manthanos/memory's auditedWrite. The
+// single audit action emitted in this commit is `conversation.create`.
+// Extraction, summarization, contestation, and tombstone are out of
+// scope (Task 6B+).
+
+import { randomUUID } from 'node:crypto';
+import {
+  type AuditedWriteContext,
+  type AuditedWriteResult,
+  type ManthanSqliteHandle,
+  auditedWrite,
+} from '@manthanos/memory';
+import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
+
+// ─────────────────────────────────────────────────────────────────
+// Enum vocabularies (mirrors migration 0007 documentation)
+// ─────────────────────────────────────────────────────────────────
+
+export type AudienceFit = 'target' | 'adjacent' | 'outside' | 'unknown';
+export type ConversationType = 'discovery' | 'validation' | 'sales' | 'support' | 'other';
+export type ConversationOutcome = 'validated' | 'invalidated' | 'inconclusive' | 'follow_up';
+
+const ALLOWED_AUDIENCE_FIT: readonly AudienceFit[] = ['target', 'adjacent', 'outside', 'unknown'];
+const ALLOWED_CONVERSATION_TYPES: readonly ConversationType[] = [
+  'discovery',
+  'validation',
+  'sales',
+  'support',
+  'other',
+];
+const ALLOWED_OUTCOMES: readonly ConversationOutcome[] = [
+  'validated',
+  'invalidated',
+  'inconclusive',
+  'follow_up',
+];
+
+export function isAudienceFit(v: unknown): v is AudienceFit {
+  return typeof v === 'string' && (ALLOWED_AUDIENCE_FIT as readonly string[]).includes(v);
+}
+export function isConversationType(v: unknown): v is ConversationType {
+  return typeof v === 'string' && (ALLOWED_CONVERSATION_TYPES as readonly string[]).includes(v);
+}
+export function isConversationOutcome(v: unknown): v is ConversationOutcome {
+  return typeof v === 'string' && (ALLOWED_OUTCOMES as readonly string[]).includes(v);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Views and errors
+// ─────────────────────────────────────────────────────────────────
+
+export interface ConversationQuoteView {
+  readonly id: string;
+  readonly position: number;
+  readonly text: string;
+}
+
+export interface ConversationView {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly person_name: string;
+  readonly occurred_at: string;
+  readonly audience_fit: AudienceFit;
+  readonly conversation_type: ConversationType;
+  readonly outcome: ConversationOutcome;
+  readonly summary: string | null;
+  readonly created_at: string;
+  readonly audit_seq: number;
+  readonly verbatim_quotes: readonly ConversationQuoteView[];
+}
+
+interface ConversationRow {
+  id: string;
+  workspace_id: string;
+  person_name: string;
+  occurred_at: string;
+  audience_fit: AudienceFit;
+  conversation_type: ConversationType;
+  outcome: ConversationOutcome;
+  summary: string | null;
+  created_at: string;
+  audit_seq: number;
+}
+
+interface QuoteRow {
+  id: string;
+  conversation_id: string;
+  position: number;
+  text: string;
+}
+
+export class ConversationValidationError extends Error {
+  readonly field: string;
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = 'ConversationValidationError';
+    this.field = field;
+  }
+}
+
+export class ConversationNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Conversation ${id} not found`);
+    this.name = 'ConversationNotFoundError';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Validation helpers
+// ─────────────────────────────────────────────────────────────────
+
+const MAX_PERSON_NAME_LEN = 200;
+const MAX_SUMMARY_LEN = 8000;
+const MAX_QUOTE_LEN = 4000;
+
+function validateNonEmptyString(field: string, value: unknown, maxLen: number): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new ConversationValidationError(field, `${field} must be a non-empty string`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length > maxLen) {
+    throw new ConversationValidationError(field, `${field} must be ${maxLen} characters or fewer`);
+  }
+  return trimmed;
+}
+
+/**
+ * Accepts any string that `new Date(...)` parses without yielding NaN.
+ * Stored canonical form is `toISOString()` so timezone-suffixed inputs
+ * (e.g. '+04:00') normalize to UTC for consistent ordering / equality.
+ */
+function validateIsoTimestamp(field: string, value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new ConversationValidationError(field, `${field} must be a non-empty ISO 8601 string`);
+  }
+  const trimmed = value.trim();
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) {
+    throw new ConversationValidationError(field, `${field} is not a valid ISO 8601 timestamp`);
+  }
+  return d.toISOString();
+}
+
+function generateConversationId(): string {
+  return `conv-${randomUUID().slice(0, 12)}`;
+}
+
+function generateQuoteId(): string {
+  return `quote-${randomUUID().slice(0, 12)}`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Row → view mappers
+// ─────────────────────────────────────────────────────────────────
+
+const CONVERSATION_COLUMNS = `
+  id, workspace_id, person_name, occurred_at, audience_fit,
+  conversation_type, outcome, summary, created_at, audit_seq
+`;
+
+function rowToView(
+  row: ConversationRow,
+  quotes: readonly ConversationQuoteView[],
+): ConversationView {
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    person_name: row.person_name,
+    occurred_at: row.occurred_at,
+    audience_fit: row.audience_fit,
+    conversation_type: row.conversation_type,
+    outcome: row.outcome,
+    summary: row.summary,
+    created_at: row.created_at,
+    audit_seq: row.audit_seq,
+    verbatim_quotes: quotes,
+  };
+}
+
+function loadQuotesGrouped(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  conversationIds: readonly string[],
+): Map<string, ConversationQuoteView[]> {
+  const out = new Map<string, ConversationQuoteView[]>();
+  if (conversationIds.length === 0) return out;
+  const placeholders = conversationIds.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `SELECT id, conversation_id, position, text
+       FROM conversation_verbatim_quotes
+       WHERE workspace_id = ? AND conversation_id IN (${placeholders})
+       ORDER BY conversation_id ASC, position ASC`,
+    )
+    .all(workspaceId, ...conversationIds) as QuoteRow[];
+
+  for (const r of rows) {
+    let bucket = out.get(r.conversation_id);
+    if (!bucket) {
+      bucket = [];
+      out.set(r.conversation_id, bucket);
+    }
+    bucket.push({ id: r.id, position: r.position, text: r.text });
+  }
+  return out;
+}
+
+function selectConversationById(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  conversationId: string,
+): ConversationRow | null {
+  const row = db
+    .prepare(
+      `SELECT ${CONVERSATION_COLUMNS}
+       FROM conversations
+       WHERE workspace_id = ? AND id = ?`,
+    )
+    .get(workspaceId, conversationId) as ConversationRow | undefined;
+  return row ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Read paths
+// ─────────────────────────────────────────────────────────────────
+
+export interface ListConversationsOptions {
+  readonly limit?: number;
+  readonly offset?: number;
+  readonly audienceFit?: AudienceFit;
+  readonly conversationType?: ConversationType;
+  readonly outcome?: ConversationOutcome;
+}
+
+export interface ListConversationsResult {
+  readonly conversations: readonly ConversationView[];
+  readonly total: number;
+  readonly returned: number;
+  readonly limit: number;
+  readonly offset: number;
+  readonly has_more: boolean;
+}
+
+const DEFAULT_CONVERSATIONS_LIMIT = 50;
+const MAX_CONVERSATIONS_LIMIT = 500;
+
+export function listConversations(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  opts: ListConversationsOptions = {},
+): ListConversationsResult {
+  const limit = Math.max(
+    1,
+    Math.min(opts.limit ?? DEFAULT_CONVERSATIONS_LIMIT, MAX_CONVERSATIONS_LIMIT),
+  );
+  const offset = Math.max(0, opts.offset ?? 0);
+
+  if (opts.audienceFit !== undefined && !isAudienceFit(opts.audienceFit)) {
+    throw new ConversationValidationError(
+      'audience_fit',
+      `audience_fit must be one of ${ALLOWED_AUDIENCE_FIT.join(', ')}`,
+    );
+  }
+  if (opts.conversationType !== undefined && !isConversationType(opts.conversationType)) {
+    throw new ConversationValidationError(
+      'conversation_type',
+      `conversation_type must be one of ${ALLOWED_CONVERSATION_TYPES.join(', ')}`,
+    );
+  }
+  if (opts.outcome !== undefined && !isConversationOutcome(opts.outcome)) {
+    throw new ConversationValidationError(
+      'outcome',
+      `outcome must be one of ${ALLOWED_OUTCOMES.join(', ')}`,
+    );
+  }
+
+  const clauses: string[] = ['workspace_id = ?'];
+  const params: unknown[] = [workspaceId];
+  if (opts.audienceFit !== undefined) {
+    clauses.push('audience_fit = ?');
+    params.push(opts.audienceFit);
+  }
+  if (opts.conversationType !== undefined) {
+    clauses.push('conversation_type = ?');
+    params.push(opts.conversationType);
+  }
+  if (opts.outcome !== undefined) {
+    clauses.push('outcome = ?');
+    params.push(opts.outcome);
+  }
+  const where = clauses.join(' AND ');
+
+  const totalRow = db
+    .prepare(`SELECT COUNT(*) AS n FROM conversations WHERE ${where}`)
+    .get(...params) as { n: number };
+
+  const rows = db
+    .prepare(
+      `SELECT ${CONVERSATION_COLUMNS}
+       FROM conversations
+       WHERE ${where}
+       ORDER BY occurred_at DESC, id ASC
+       LIMIT ? OFFSET ?`,
+    )
+    .all(...params, limit, offset) as ConversationRow[];
+
+  const quoteMap = loadQuotesGrouped(
+    db,
+    workspaceId,
+    rows.map((r) => r.id),
+  );
+
+  return {
+    conversations: rows.map((r) => rowToView(r, quoteMap.get(r.id) ?? [])),
+    total: totalRow.n,
+    returned: rows.length,
+    limit,
+    offset,
+    has_more: offset + rows.length < totalRow.n,
+  };
+}
+
+export function getConversation(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  conversationId: string,
+): ConversationView | null {
+  const row = selectConversationById(db, workspaceId, conversationId);
+  if (!row) return null;
+  const quoteMap = loadQuotesGrouped(db, workspaceId, [row.id]);
+  return rowToView(row, quoteMap.get(row.id) ?? []);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Create
+// ─────────────────────────────────────────────────────────────────
+
+export interface CreateConversationQuoteInput {
+  readonly text: string;
+}
+
+export interface CreateConversationInput {
+  readonly person_name: string;
+  readonly occurred_at: string;
+  readonly audience_fit: AudienceFit;
+  readonly conversation_type: ConversationType;
+  readonly outcome: ConversationOutcome;
+  readonly summary?: string | null;
+  readonly verbatim_quotes?: ReadonlyArray<CreateConversationQuoteInput> | null;
+}
+
+export interface CreateConversationResult {
+  readonly conversation: ConversationView;
+  readonly audit: AuditedWriteResult;
+}
+
+export async function createConversation(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  input: CreateConversationInput,
+): Promise<CreateConversationResult> {
+  const personName = validateNonEmptyString('person_name', input.person_name, MAX_PERSON_NAME_LEN);
+  const occurredAt = validateIsoTimestamp('occurred_at', input.occurred_at);
+
+  if (!isAudienceFit(input.audience_fit)) {
+    throw new ConversationValidationError(
+      'audience_fit',
+      `audience_fit must be one of ${ALLOWED_AUDIENCE_FIT.join(', ')}`,
+    );
+  }
+  if (!isConversationType(input.conversation_type)) {
+    throw new ConversationValidationError(
+      'conversation_type',
+      `conversation_type must be one of ${ALLOWED_CONVERSATION_TYPES.join(', ')}`,
+    );
+  }
+  if (!isConversationOutcome(input.outcome)) {
+    throw new ConversationValidationError(
+      'outcome',
+      `outcome must be one of ${ALLOWED_OUTCOMES.join(', ')}`,
+    );
+  }
+
+  let summary: string | null = null;
+  if (input.summary !== undefined && input.summary !== null) {
+    summary = validateNonEmptyString('summary', input.summary, MAX_SUMMARY_LEN);
+  }
+
+  const quotes: Array<{ id: string; position: number; text: string }> = [];
+  if (input.verbatim_quotes !== undefined && input.verbatim_quotes !== null) {
+    if (!Array.isArray(input.verbatim_quotes)) {
+      throw new ConversationValidationError(
+        'verbatim_quotes',
+        'verbatim_quotes must be an array of { text } objects',
+      );
+    }
+    for (let i = 0; i < input.verbatim_quotes.length; i++) {
+      const raw = input.verbatim_quotes[i];
+      if (!raw || typeof raw !== 'object') {
+        throw new ConversationValidationError(
+          `verbatim_quotes[${i}]`,
+          `verbatim_quotes[${i}] must be an object`,
+        );
+      }
+      const text = validateNonEmptyString(
+        `verbatim_quotes[${i}].text`,
+        (raw as { text?: unknown }).text,
+        MAX_QUOTE_LEN,
+      );
+      quotes.push({ id: generateQuoteId(), position: i, text });
+    }
+  }
+
+  const id = generateConversationId();
+  const createdAt = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'conversation.create',
+    kind: 'conversation',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      conversation_id: id,
+      workspace_id: workspaceId,
+      person_name: personName,
+      occurred_at: occurredAt,
+      audience_fit: input.audience_fit,
+      conversation_type: input.conversation_type,
+      outcome: input.outcome,
+      summary,
+      created_at: createdAt,
+      verbatim_quotes: quotes,
+      quote_count: quotes.length,
+    },
+    brainWrites: ({ seq }) => {
+      ctx.db
+        .prepare(
+          `INSERT INTO conversations (
+             id, workspace_id, person_name, occurred_at, audience_fit,
+             conversation_type, outcome, summary, created_at, audit_seq
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          workspaceId,
+          personName,
+          occurredAt,
+          input.audience_fit,
+          input.conversation_type,
+          input.outcome,
+          summary,
+          createdAt,
+          seq,
+        );
+
+      if (quotes.length > 0) {
+        const insertQuote = ctx.db.prepare(
+          `INSERT INTO conversation_verbatim_quotes (
+             id, conversation_id, workspace_id, position, text
+           ) VALUES (?, ?, ?, ?, ?)`,
+        );
+        for (const q of quotes) {
+          insertQuote.run(q.id, id, workspaceId, q.position, q.text);
+        }
+      }
+    },
+  });
+
+  const view = getConversation(ctx.db, workspaceId, id);
+  if (!view) {
+    throw new Error(`conversation ${id} disappeared immediately after creation`);
+  }
+  return { conversation: view, audit };
+}
