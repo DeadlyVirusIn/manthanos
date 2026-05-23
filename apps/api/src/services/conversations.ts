@@ -1013,3 +1013,195 @@ async function createFactFromExtraction(
   }
   return { fact, was_created: true, audit };
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Sprint 2 M1 — Conversation PATCH (update editable metadata)
+// ─────────────────────────────────────────────────────────────────
+
+export interface UpdateConversationInput {
+  readonly person_name?: string;
+  readonly occurred_at?: string;
+  readonly audience_fit?: AudienceFit;
+  readonly conversation_type?: ConversationType;
+  readonly outcome?: ConversationOutcome;
+  /** A non-empty string sets the summary; `null` explicitly clears it;
+   *  `undefined` (omitted) leaves it unchanged. */
+  readonly summary?: string | null;
+}
+
+export interface UpdateConversationResult {
+  readonly conversation: ConversationView;
+  /** `null` when the PATCH was a no-op (no values actually changed). */
+  readonly audit: AuditedWriteResult | null;
+}
+
+/**
+ * Update a conversation's editable metadata.
+ *
+ * Editable: person_name, occurred_at, audience_fit, conversation_type,
+ *           outcome, summary.
+ * Not editable here (intentional): id, workspace_id, created_at,
+ *           audit_seq, tombstoned_at, tombstone_reason,
+ *           fact_extraction_status, last_extracted_at, verbatim_quotes.
+ *           These are managed by their own dedicated routes / services
+ *           or are immutable substrate fields.
+ *
+ * Lifecycle guard: PATCH on a tombstoned conversation raises
+ * ConversationLifecycleError('tombstoned').
+ *
+ * No-op behavior: if the PATCH supplies values that all match the
+ * existing state, no audit event is emitted and the response carries
+ * `audit: null`. The conversation view is returned regardless.
+ *
+ * Audit event: `conversation.update` with payload
+ * `{ conversation_id, changes: [{field, from, to}], updated_at }`.
+ */
+export async function updateConversation(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  input: UpdateConversationInput,
+): Promise<UpdateConversationResult> {
+  const existing = selectConversationById(ctx.db, workspaceId, conversationId);
+  if (!existing) {
+    throw new ConversationNotFoundError(conversationId);
+  }
+  assertConversationNotTombstoned(existing);
+
+  const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
+
+  let newPersonName = existing.person_name;
+  if (input.person_name !== undefined) {
+    const trimmed = validateNonEmptyString('person_name', input.person_name, MAX_PERSON_NAME_LEN);
+    if (trimmed !== existing.person_name) {
+      changes.push({ field: 'person_name', from: existing.person_name, to: trimmed });
+      newPersonName = trimmed;
+    }
+  }
+
+  let newOccurredAt = existing.occurred_at;
+  if (input.occurred_at !== undefined) {
+    const normalized = validateIsoTimestamp('occurred_at', input.occurred_at);
+    if (normalized !== existing.occurred_at) {
+      changes.push({ field: 'occurred_at', from: existing.occurred_at, to: normalized });
+      newOccurredAt = normalized;
+    }
+  }
+
+  let newAudienceFit = existing.audience_fit;
+  if (input.audience_fit !== undefined) {
+    if (!isAudienceFit(input.audience_fit)) {
+      throw new ConversationValidationError(
+        'audience_fit',
+        `audience_fit must be one of ${ALLOWED_AUDIENCE_FIT.join(', ')}`,
+      );
+    }
+    if (input.audience_fit !== existing.audience_fit) {
+      changes.push({
+        field: 'audience_fit',
+        from: existing.audience_fit,
+        to: input.audience_fit,
+      });
+      newAudienceFit = input.audience_fit;
+    }
+  }
+
+  let newConversationType = existing.conversation_type;
+  if (input.conversation_type !== undefined) {
+    if (!isConversationType(input.conversation_type)) {
+      throw new ConversationValidationError(
+        'conversation_type',
+        `conversation_type must be one of ${ALLOWED_CONVERSATION_TYPES.join(', ')}`,
+      );
+    }
+    if (input.conversation_type !== existing.conversation_type) {
+      changes.push({
+        field: 'conversation_type',
+        from: existing.conversation_type,
+        to: input.conversation_type,
+      });
+      newConversationType = input.conversation_type;
+    }
+  }
+
+  let newOutcome = existing.outcome;
+  if (input.outcome !== undefined) {
+    if (!isConversationOutcome(input.outcome)) {
+      throw new ConversationValidationError(
+        'outcome',
+        `outcome must be one of ${ALLOWED_OUTCOMES.join(', ')}`,
+      );
+    }
+    if (input.outcome !== existing.outcome) {
+      changes.push({ field: 'outcome', from: existing.outcome, to: input.outcome });
+      newOutcome = input.outcome;
+    }
+  }
+
+  let newSummary: string | null = existing.summary;
+  if (input.summary !== undefined) {
+    if (input.summary === null) {
+      if (existing.summary !== null) {
+        changes.push({ field: 'summary', from: existing.summary, to: null });
+        newSummary = null;
+      }
+    } else {
+      const trimmed = validateNonEmptyString('summary', input.summary, MAX_SUMMARY_LEN);
+      if (trimmed !== existing.summary) {
+        changes.push({ field: 'summary', from: existing.summary, to: trimmed });
+        newSummary = trimmed;
+      }
+    }
+  }
+
+  // No-op: nothing actually changed. Return current view, no audit.
+  if (changes.length === 0) {
+    const view = getConversation(ctx.db, workspaceId, conversationId);
+    if (!view) {
+      throw new Error(`conversation ${conversationId} disappeared mid-update`);
+    }
+    return { conversation: view, audit: null };
+  }
+
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'conversation.update',
+    kind: 'conversation',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      conversation_id: existing.id,
+      changes,
+      updated_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      ctx.db
+        .prepare(
+          `UPDATE conversations
+              SET person_name = ?, occurred_at = ?, audience_fit = ?,
+                  conversation_type = ?, outcome = ?, summary = ?,
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(
+          newPersonName,
+          newOccurredAt,
+          newAudienceFit,
+          newConversationType,
+          newOutcome,
+          newSummary,
+          seq,
+          workspaceId,
+          existing.id,
+        );
+    },
+  });
+
+  const view = getConversation(ctx.db, workspaceId, existing.id);
+  if (!view) {
+    throw new Error(`conversation ${existing.id} disappeared mid-update`);
+  }
+  return { conversation: view, audit };
+}

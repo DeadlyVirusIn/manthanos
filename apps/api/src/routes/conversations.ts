@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-// Conversation API routes. Sprint 1 Task 6A.
+// Conversation API routes. Sprint 1 Task 6A + Sprint 2 M1.
 //
-//   POST /api/v1/workspaces/:id/conversations
-//   GET  /api/v1/workspaces/:id/conversations
-//   GET  /api/v1/workspaces/:id/conversations/:conversation_id
+//   POST   /api/v1/workspaces/:id/conversations
+//   GET    /api/v1/workspaces/:id/conversations
+//   GET    /api/v1/workspaces/:id/conversations/:conversation_id
+//   PATCH  /api/v1/workspaces/:id/conversations/:conversation_id   (M1 C1.1)
+//   POST   /api/v1/workspaces/:id/conversations/:conversation_id/tombstone
+//   POST   /api/v1/workspaces/:id/conversations/:conversation_id/extract
+//   GET    /api/v1/workspaces/:id/conversations/:conversation_id/facts
 
 import type { FastifyInstance } from 'fastify';
 import { workspaceExists } from '../services/audit.js';
@@ -24,6 +28,7 @@ import {
   isConversationType,
   listConversations,
   tombstoneConversation,
+  updateConversation,
 } from '../services/conversations.js';
 import {
   type FactTier,
@@ -46,6 +51,20 @@ interface PostConversationBody {
   summary?: unknown;
   verbatim_quotes?: unknown;
 }
+
+/** Fields that PATCH /api/v1/workspaces/:id/conversations/:cid accepts.
+ *  Any other key in the body returns 400 — substrate-managed fields
+ *  (tombstoned_at, fact_extraction_status, last_extracted_at, audit_seq,
+ *  id, workspace_id, created_at) and child-table fields (verbatim_quotes)
+ *  are deliberately rejected rather than silently ignored. */
+const PATCH_CONVERSATION_ALLOWED_FIELDS: ReadonlySet<string> = new Set([
+  'person_name',
+  'occurred_at',
+  'audience_fit',
+  'conversation_type',
+  'outcome',
+  'summary',
+]);
 
 interface ListQuery {
   audience_fit?: string;
@@ -206,6 +225,122 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       await reply.send(conversation);
     },
   );
+
+  // PATCH .../conversations/:cid — edit conversation metadata (M1 C1.1).
+  // Editable fields are restricted to the PATCH_CONVERSATION_ALLOWED_FIELDS
+  // set; any other key in the body returns 400 with field='body'.
+  app.patch<{
+    Params: { id: string; conversation_id: string };
+    Body: Record<string, unknown>;
+  }>('/api/v1/workspaces/:id/conversations/:conversation_id', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    // Reject unknown fields up-front (per Sprint 2 M1 decision: do not
+    // silently ignore — surface the typo so the caller can fix it).
+    for (const key of Object.keys(body)) {
+      if (!PATCH_CONVERSATION_ALLOWED_FIELDS.has(key)) {
+        await reply.code(400).send({
+          error: 'validation',
+          field: 'body',
+          details: `unknown field: ${key}`,
+        });
+        return;
+      }
+    }
+
+    // Surface-level type checks so the service layer can assume narrowed
+    // shapes. Deeper validation (non-empty, enum values, ISO parseability)
+    // lives in updateConversation itself.
+    if (body.person_name !== undefined && typeof body.person_name !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'person_name',
+        details: 'person_name must be a string',
+      });
+      return;
+    }
+    if (body.occurred_at !== undefined && typeof body.occurred_at !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'occurred_at',
+        details: 'occurred_at must be a string',
+      });
+      return;
+    }
+    if (body.audience_fit !== undefined && typeof body.audience_fit !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'audience_fit',
+        details: 'audience_fit must be a string',
+      });
+      return;
+    }
+    if (body.conversation_type !== undefined && typeof body.conversation_type !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'conversation_type',
+        details: 'conversation_type must be a string',
+      });
+      return;
+    }
+    if (body.outcome !== undefined && typeof body.outcome !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'outcome',
+        details: 'outcome must be a string',
+      });
+      return;
+    }
+    if (body.summary !== undefined && body.summary !== null && typeof body.summary !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'summary',
+        details: 'summary must be a string or null',
+      });
+      return;
+    }
+
+    try {
+      const result = await updateConversation(
+        rc.substrate.ctx,
+        req.params.id,
+        req.params.conversation_id,
+        {
+          person_name: body.person_name as string | undefined,
+          occurred_at: body.occurred_at as string | undefined,
+          audience_fit: body.audience_fit as AudienceFit | undefined,
+          conversation_type: body.conversation_type as ConversationType | undefined,
+          outcome: body.outcome as ConversationOutcome | undefined,
+          summary: body.summary as string | null | undefined,
+        },
+      );
+      await reply.send(result.conversation);
+    } catch (err) {
+      if (err instanceof ConversationNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof ConversationValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof ConversationLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          conversation_id: err.conversationId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
 
   // POST .../tombstone — permanently retire a conversation (Task 6B).
   app.post<{

@@ -511,3 +511,256 @@ describe('7 — audit-chain participation', () => {
     expect(quotes.map((q) => q.position)).toEqual([0, 1]);
   });
 });
+
+// ────────── 8. PATCH conversation (M1 C1.1) ──────────
+
+async function patchConversation(
+  workspaceId: string,
+  conversationId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'PATCH',
+    url: `/api/v1/workspaces/${workspaceId}/conversations/${conversationId}`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function tombstoneConversationRoute(
+  workspaceId: string,
+  conversationId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/conversations/${conversationId}/tombstone`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+describe('8 — PATCH conversation (M1 C1.1)', () => {
+  it('updates a single field (person_name)', async () => {
+    const ws = await createWorkspace('Patch single');
+    const created = await postConversation(ws, validBody({ person_name: 'Old Name' }));
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(ws, cid, { person_name: 'New Name' });
+    expect(r.status).toBe(200);
+    expect(r.body.person_name).toBe('New Name');
+    // Other fields preserved.
+    expect(r.body.audience_fit).toBe('target');
+  });
+
+  it('updates multiple fields in a single call', async () => {
+    const ws = await createWorkspace('Patch multi');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(ws, cid, {
+      person_name: 'Renamed',
+      audience_fit: 'adjacent',
+      outcome: 'changed my mind' as never, // wrong on purpose — see below
+    });
+    // The 'outcome' string is the UI label, not the enum. This test
+    // verifies the route rejects it as an invalid outcome.
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('outcome');
+
+    // Now do a real multi-field PATCH.
+    const r2 = await patchConversation(ws, cid, {
+      person_name: 'Renamed',
+      audience_fit: 'adjacent',
+      outcome: 'follow_up',
+    });
+    expect(r2.status).toBe(200);
+    expect(r2.body.person_name).toBe('Renamed');
+    expect(r2.body.audience_fit).toBe('adjacent');
+    expect(r2.body.outcome).toBe('follow_up');
+  });
+
+  it('returns 200 without emitting an audit event when no values actually change', async () => {
+    const ws = await createWorkspace('Patch noop');
+    const created = await postConversation(ws, validBody({ person_name: 'Stable' }));
+    const cid = created.body.id as string;
+
+    // Pre-count fact.* / conversation.* events.
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const before = substrate.db.handle
+      .prepare('SELECT COUNT(*) AS n FROM audit_events WHERE workspace_id = ?')
+      .get(ws) as { n: number };
+
+    const r = await patchConversation(ws, cid, { person_name: 'Stable' });
+    expect(r.status).toBe(200);
+
+    const after = substrate.db.handle
+      .prepare('SELECT COUNT(*) AS n FROM audit_events WHERE workspace_id = ?')
+      .get(ws) as { n: number };
+    expect(after.n).toBe(before.n); // No new audit event for a no-op.
+  });
+
+  it('returns 409 invalid_lifecycle when the conversation is tombstoned', async () => {
+    const ws = await createWorkspace('Patch tombstoned');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+    await tombstoneConversationRoute(ws, cid, { reason: 'erase' });
+
+    const r = await patchConversation(ws, cid, { person_name: 'Too late' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('invalid_lifecycle');
+    expect(r.body.state).toBe('tombstoned');
+  });
+
+  it('rejects an invalid audience_fit value with 400', async () => {
+    const ws = await createWorkspace('Patch bad af');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(ws, cid, { audience_fit: 'maybe' });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('audience_fit');
+  });
+
+  it('rejects an unparseable occurred_at with 400', async () => {
+    const ws = await createWorkspace('Patch bad iso');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(ws, cid, { occurred_at: 'not-a-date' });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('occurred_at');
+  });
+
+  it('rejects an empty or whitespace person_name with 400', async () => {
+    const ws = await createWorkspace('Patch empty name');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+
+    expect((await patchConversation(ws, cid, { person_name: '' })).status).toBe(400);
+    expect((await patchConversation(ws, cid, { person_name: '   ' })).status).toBe(400);
+  });
+
+  it('clears summary when explicitly set to null', async () => {
+    const ws = await createWorkspace('Patch summary null');
+    const created = await postConversation(ws, validBody({ summary: 'initial' }));
+    const cid = created.body.id as string;
+    expect(created.body.summary).toBe('initial');
+
+    const r = await patchConversation(ws, cid, { summary: null });
+    expect(r.status).toBe(200);
+    expect(r.body.summary).toBeNull();
+  });
+
+  it('updates summary to a new non-empty string', async () => {
+    const ws = await createWorkspace('Patch summary update');
+    const created = await postConversation(ws, validBody({ summary: 'first take' }));
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(ws, cid, { summary: 'better take' });
+    expect(r.status).toBe(200);
+    expect(r.body.summary).toBe('better take');
+  });
+
+  it('rejects unknown fields with 400 (does not silently ignore)', async () => {
+    const ws = await createWorkspace('Patch unknown');
+    const created = await postConversation(ws, validBody());
+    const cid = created.body.id as string;
+
+    // Try to PATCH an immutable / substrate-managed field.
+    const r1 = await patchConversation(ws, cid, { tombstoned_at: '2026-06-01T00:00:00Z' });
+    expect(r1.status).toBe(400);
+    expect(r1.body.field).toBe('body');
+    expect((r1.body.details as string).includes('unknown field')).toBe(true);
+
+    // Try to PATCH a typo / non-existent field.
+    const r2 = await patchConversation(ws, cid, { persn_name: 'typo' });
+    expect(r2.status).toBe(400);
+    expect(r2.body.field).toBe('body');
+
+    // Try the child-table field (verbatim_quotes).
+    const r3 = await patchConversation(ws, cid, { verbatim_quotes: [{ text: 'late add' }] });
+    expect(r3.status).toBe(400);
+    expect(r3.body.field).toBe('body');
+  });
+
+  it('respects workspace isolation: PATCH from wsB targeting wsA returns 404', async () => {
+    const wsA = await createWorkspace('Patch isoA');
+    const wsB = await createWorkspace('Patch isoB');
+    const created = await postConversation(wsA, validBody());
+    const cid = created.body.id as string;
+
+    const r = await patchConversation(wsB, cid, { person_name: 'Cross' });
+    expect(r.status).toBe(404);
+    // Original conversation in wsA is unchanged.
+    const original = await getConversation(wsA, cid);
+    expect(original.body.person_name).toBe('Alex Smith');
+  });
+
+  it('audit payload contains only the fields that actually changed', async () => {
+    const ws = await createWorkspace('Patch audit shape');
+    const created = await postConversation(
+      ws,
+      validBody({ person_name: 'Audited', audience_fit: 'target', outcome: 'validated' }),
+    );
+    const cid = created.body.id as string;
+
+    // Change two fields; supply a third unchanged.
+    await patchConversation(ws, cid, {
+      person_name: 'Audited Renamed',
+      audience_fit: 'target', // unchanged
+      outcome: 'inconclusive',
+    });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const row = substrate.db.handle
+      .prepare(
+        `SELECT seq FROM audit_events
+          WHERE workspace_id = ? AND action = 'conversation.update'`,
+      )
+      .get(ws) as { seq: number };
+    const eventResp = await handle.app.inject({
+      method: 'GET',
+      url: `/api/v1/workspaces/${ws}/audit/${row.seq}`,
+      headers: { host: '127.0.0.1' },
+    });
+    const payload = (eventResp.json() as Record<string, unknown>).payload as Record<
+      string,
+      unknown
+    >;
+    expect(payload.conversation_id).toBe(cid);
+    expect(typeof payload.updated_at).toBe('string');
+    const changes = payload.changes as Array<{ field: string; from: unknown; to: unknown }>;
+    expect(changes.map((c) => c.field).sort()).toEqual(['outcome', 'person_name']);
+    const personChange = changes.find((c) => c.field === 'person_name');
+    expect(personChange?.from).toBe('Audited');
+    expect(personChange?.to).toBe('Audited Renamed');
+    const outcomeChange = changes.find((c) => c.field === 'outcome');
+    expect(outcomeChange?.from).toBe('validated');
+    expect(outcomeChange?.to).toBe('inconclusive');
+  });
+
+  it('emits conversation.update audit action with the right kind and ordering', async () => {
+    const ws = await createWorkspace('Patch audit order');
+    const created = await postConversation(ws, validBody({ person_name: 'Order' }));
+    const cid = created.body.id as string;
+
+    await patchConversation(ws, cid, { person_name: 'Order 2' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const events = substrate.db.handle
+      .prepare(
+        `SELECT action, kind FROM audit_events
+          WHERE workspace_id = ? AND action LIKE 'conversation.%'
+          ORDER BY seq ASC`,
+      )
+      .all(ws) as Array<{ action: string; kind: string }>;
+    expect(events.map((e) => e.action)).toEqual(['conversation.create', 'conversation.update']);
+    expect(events.every((e) => e.kind === 'conversation')).toBe(true);
+  });
+});
