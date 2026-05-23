@@ -75,6 +75,9 @@ export function isConversationType(v: unknown): v is ConversationType {
 export function isConversationOutcome(v: unknown): v is ConversationOutcome {
   return typeof v === 'string' && (ALLOWED_OUTCOMES as readonly string[]).includes(v);
 }
+export function isFactExtractionStatus(v: unknown): v is FactExtractionStatus {
+  return typeof v === 'string' && (ALLOWED_EXTRACTION_STATUSES as readonly string[]).includes(v);
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Views and errors
@@ -254,10 +257,6 @@ function rowToView(
   };
 }
 
-// Silence unused-warning until 6C consumes this list (extraction-status
-// validation lives in extractFactFromConversation).
-void ALLOWED_EXTRACTION_STATUSES;
-
 function loadQuotesGrouped(
   db: ManthanSqliteHandle,
   workspaceId: string,
@@ -315,6 +314,10 @@ export interface ListConversationsOptions {
    *  default list (matches the facts pattern). Callers walking the
    *  audit trail or showing a "deleted" view pass true. */
   readonly includeTombstoned?: boolean;
+  /** Sprint 2 M1 C1.4: filter by extraction lifecycle. When set, only
+   *  conversations whose `fact_extraction_status` matches this value
+   *  are returned. Combines with the other filters via AND. */
+  readonly factExtractionStatus?: FactExtractionStatus;
 }
 
 export interface ListConversationsResult {
@@ -358,6 +361,15 @@ export function listConversations(
       `outcome must be one of ${ALLOWED_OUTCOMES.join(', ')}`,
     );
   }
+  if (
+    opts.factExtractionStatus !== undefined &&
+    !isFactExtractionStatus(opts.factExtractionStatus)
+  ) {
+    throw new ConversationValidationError(
+      'fact_extraction_status',
+      `fact_extraction_status must be one of ${ALLOWED_EXTRACTION_STATUSES.join(', ')}`,
+    );
+  }
 
   const clauses: string[] = ['workspace_id = ?'];
   const params: unknown[] = [workspaceId];
@@ -372,6 +384,10 @@ export function listConversations(
   if (opts.outcome !== undefined) {
     clauses.push('outcome = ?');
     params.push(opts.outcome);
+  }
+  if (opts.factExtractionStatus !== undefined) {
+    clauses.push('fact_extraction_status = ?');
+    params.push(opts.factExtractionStatus);
   }
   if (!opts.includeTombstoned) {
     clauses.push('tombstoned_at IS NULL');

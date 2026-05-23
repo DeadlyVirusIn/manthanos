@@ -764,3 +764,270 @@ describe('8 — PATCH conversation (M1 C1.1)', () => {
     expect(events.every((e) => e.kind === 'conversation')).toBe(true);
   });
 });
+
+// ────────── 9. fact_extraction_status filter (M1 C1.4) ──────────
+
+async function skipExtraction(
+  workspaceId: string,
+  conversationId: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/conversations/${conversationId}/skip-extraction`,
+    headers: { host: '127.0.0.1' },
+    payload: {},
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function extract(
+  workspaceId: string,
+  conversationId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/conversations/${conversationId}/extract`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+/** Seed a workspace with conversations in all three extraction states.
+ *  Returns the ids of pending / extracted / skipped conversations. */
+async function seedMixedStatuses(ws: string): Promise<{
+  pendingIds: string[];
+  extractedIds: string[];
+  skippedIds: string[];
+}> {
+  const pendingIds: string[] = [];
+  const extractedIds: string[] = [];
+  const skippedIds: string[] = [];
+
+  // 3 pending — fresh, untouched.
+  for (let i = 0; i < 3; i++) {
+    const c = await postConversation(ws, validBody({ person_name: `Pending-${i}` }));
+    pendingIds.push(c.body.id as string);
+  }
+  // 2 extracted — capture + pull a fact.
+  for (let i = 0; i < 2; i++) {
+    const c = await postConversation(
+      ws,
+      validBody({
+        person_name: `Extracted-${i}`,
+        verbatim_quotes: [{ text: `quote-${i}` }],
+      }),
+    );
+    const cid = c.body.id as string;
+    await extract(ws, cid, { area: `topic-${i}`, statement: `statement-${i}` });
+    extractedIds.push(cid);
+  }
+  // 2 skipped — capture + skip.
+  for (let i = 0; i < 2; i++) {
+    const c = await postConversation(ws, validBody({ person_name: `Skipped-${i}` }));
+    const cid = c.body.id as string;
+    await skipExtraction(ws, cid);
+    skippedIds.push(cid);
+  }
+
+  return { pendingIds, extractedIds, skippedIds };
+}
+
+describe('9 — fact_extraction_status filter (M1 C1.4)', () => {
+  it('?fact_extraction_status=pending returns only pending conversations', async () => {
+    const ws = await createWorkspace('Filter pending');
+    const { pendingIds } = await seedMixedStatuses(ws);
+
+    const r = await listConversations(ws, '?fact_extraction_status=pending');
+    expect(r.status).toBe(200);
+    expect(r.body.total).toBe(3);
+    const ids = (r.body.conversations as Array<{ id: string }>).map((c) => c.id).sort();
+    expect(ids).toEqual([...pendingIds].sort());
+    // All returned rows actually have status=pending.
+    expect(
+      (r.body.conversations as Array<{ fact_extraction_status: string }>).every(
+        (c) => c.fact_extraction_status === 'pending',
+      ),
+    ).toBe(true);
+  });
+
+  it('?fact_extraction_status=extracted returns only extracted conversations', async () => {
+    const ws = await createWorkspace('Filter extracted');
+    const { extractedIds } = await seedMixedStatuses(ws);
+
+    const r = await listConversations(ws, '?fact_extraction_status=extracted');
+    expect(r.body.total).toBe(2);
+    const ids = (r.body.conversations as Array<{ id: string }>).map((c) => c.id).sort();
+    expect(ids).toEqual([...extractedIds].sort());
+    expect(
+      (r.body.conversations as Array<{ fact_extraction_status: string }>).every(
+        (c) => c.fact_extraction_status === 'extracted',
+      ),
+    ).toBe(true);
+  });
+
+  it('?fact_extraction_status=skipped returns only skipped conversations', async () => {
+    const ws = await createWorkspace('Filter skipped');
+    const { skippedIds } = await seedMixedStatuses(ws);
+
+    const r = await listConversations(ws, '?fact_extraction_status=skipped');
+    expect(r.body.total).toBe(2);
+    const ids = (r.body.conversations as Array<{ id: string }>).map((c) => c.id).sort();
+    expect(ids).toEqual([...skippedIds].sort());
+    expect(
+      (r.body.conversations as Array<{ fact_extraction_status: string }>).every(
+        (c) => c.fact_extraction_status === 'skipped',
+      ),
+    ).toBe(true);
+  });
+
+  it('mixed workspace isolation — filter does not leak across workspaces', async () => {
+    const wsA = await createWorkspace('IsoA');
+    const wsB = await createWorkspace('IsoB');
+    await seedMixedStatuses(wsA);
+    await seedMixedStatuses(wsB);
+
+    // Each workspace independently sees its own 3 pending.
+    const rA = await listConversations(wsA, '?fact_extraction_status=pending');
+    const rB = await listConversations(wsB, '?fact_extraction_status=pending');
+    expect(rA.body.total).toBe(3);
+    expect(rB.body.total).toBe(3);
+    // No overlap in ids.
+    const idsA = new Set((rA.body.conversations as Array<{ id: string }>).map((c) => c.id));
+    const idsB = new Set((rB.body.conversations as Array<{ id: string }>).map((c) => c.id));
+    for (const id of idsA) expect(idsB.has(id)).toBe(false);
+  });
+
+  it('invalid status returns 400 with field=fact_extraction_status', async () => {
+    const ws = await createWorkspace('Bad status');
+    await postConversation(ws, validBody());
+
+    expect((await listConversations(ws, '?fact_extraction_status=banana')).status).toBe(400);
+    expect((await listConversations(ws, '?fact_extraction_status=')).status).toBe(400);
+    expect((await listConversations(ws, '?fact_extraction_status=PENDING')).status).toBe(400);
+
+    const r = await listConversations(ws, '?fact_extraction_status=banana');
+    expect(r.body.field).toBe('fact_extraction_status');
+  });
+
+  it('combines correctly with audience_fit and conversation_type filters', async () => {
+    const ws = await createWorkspace('Combined filters');
+    // Seed 4 conversations with varied tags and statuses.
+    // (a) target + discovery + pending
+    const a = await postConversation(
+      ws,
+      validBody({
+        person_name: 'A',
+        audience_fit: 'target',
+        conversation_type: 'discovery',
+      }),
+    );
+    // (b) target + discovery + skipped
+    const b = await postConversation(
+      ws,
+      validBody({
+        person_name: 'B',
+        audience_fit: 'target',
+        conversation_type: 'discovery',
+      }),
+    );
+    await skipExtraction(ws, b.body.id as string);
+    // (c) adjacent + discovery + pending — should NOT match audience_fit=target
+    await postConversation(
+      ws,
+      validBody({
+        person_name: 'C',
+        audience_fit: 'adjacent',
+        conversation_type: 'discovery',
+      }),
+    );
+    // (d) target + validation + pending — should NOT match conversation_type=discovery
+    await postConversation(
+      ws,
+      validBody({
+        person_name: 'D',
+        audience_fit: 'target',
+        conversation_type: 'validation',
+      }),
+    );
+
+    // audience_fit=target AND conversation_type=discovery AND fact_extraction_status=pending
+    // should match only (a).
+    const r = await listConversations(
+      ws,
+      '?audience_fit=target&conversation_type=discovery&fact_extraction_status=pending',
+    );
+    expect(r.body.total).toBe(1);
+    expect((r.body.conversations as Array<{ id: string }>)[0]?.id).toBe(a.body.id);
+  });
+
+  it('returns an empty result set when no conversation matches the filter', async () => {
+    const ws = await createWorkspace('Empty filter');
+    // Only pending conversations exist.
+    await postConversation(ws, validBody({ person_name: 'OnlyPending' }));
+
+    const r = await listConversations(ws, '?fact_extraction_status=extracted');
+    expect(r.status).toBe(200);
+    expect(r.body.total).toBe(0);
+    expect(r.body.conversations).toEqual([]);
+    expect(r.body.has_more).toBe(false);
+  });
+
+  it('preserves the default ordering (occurred_at DESC, id ASC) and pagination semantics', async () => {
+    const ws = await createWorkspace('Ordering preserved');
+    // 4 pending conversations with explicit increasing occurred_at.
+    const c1 = await postConversation(
+      ws,
+      validBody({ person_name: 'C1', occurred_at: '2026-01-01T10:00:00Z' }),
+    );
+    const c2 = await postConversation(
+      ws,
+      validBody({ person_name: 'C2', occurred_at: '2026-02-01T10:00:00Z' }),
+    );
+    const c3 = await postConversation(
+      ws,
+      validBody({ person_name: 'C3', occurred_at: '2026-03-01T10:00:00Z' }),
+    );
+    const c4 = await postConversation(
+      ws,
+      validBody({ person_name: 'C4', occurred_at: '2026-04-01T10:00:00Z' }),
+    );
+
+    // Skip c2 so the pending-filter result excludes it.
+    await skipExtraction(ws, c2.body.id as string);
+
+    const r = await listConversations(ws, '?fact_extraction_status=pending&limit=2&offset=0');
+    expect(r.body.total).toBe(3); // c1, c3, c4 are pending
+    expect(r.body.returned).toBe(2);
+    expect(r.body.has_more).toBe(true);
+    const firstPageIds = (r.body.conversations as Array<{ id: string }>).map((c) => c.id);
+    // Order is occurred_at DESC, so first page is c4, c3.
+    expect(firstPageIds).toEqual([c4.body.id, c3.body.id]);
+
+    // Next page returns c1.
+    const r2 = await listConversations(ws, '?fact_extraction_status=pending&limit=2&offset=2');
+    expect(r2.body.returned).toBe(1);
+    expect(r2.body.has_more).toBe(false);
+    expect((r2.body.conversations as Array<{ id: string }>)[0]?.id).toBe(c1.body.id);
+  });
+
+  it('hides tombstoned conversations from the filtered result by default', async () => {
+    const ws = await createWorkspace('Tomb hidden');
+    const a = await postConversation(ws, validBody({ person_name: 'A' }));
+    await postConversation(ws, validBody({ person_name: 'B' }));
+    // Tombstone A. It's still 'pending' as an extraction status but
+    // tombstoned. Default list filter should hide it.
+    await handle.app.inject({
+      method: 'POST',
+      url: `/api/v1/workspaces/${ws}/conversations/${a.body.id}/tombstone`,
+      headers: { host: '127.0.0.1' },
+      payload: { reason: 'erase' },
+    });
+
+    const r = await listConversations(ws, '?fact_extraction_status=pending');
+    expect(r.body.total).toBe(1);
+    // Only B is visible.
+    expect((r.body.conversations as Array<{ person_name: string }>)[0]?.person_name).toBe('B');
+  });
+});

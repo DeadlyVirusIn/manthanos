@@ -21,12 +21,14 @@ import {
   type ConversationOutcome,
   type ConversationType,
   ConversationValidationError,
+  type FactExtractionStatus,
   createConversation,
   extractFactFromConversation,
   getConversation,
   isAudienceFit,
   isConversationOutcome,
   isConversationType,
+  isFactExtractionStatus,
   listConversations,
   skipConversationExtraction,
   tombstoneConversation,
@@ -75,6 +77,7 @@ interface ListQuery {
   limit?: string;
   offset?: string;
   include_tombstoned?: string;
+  fact_extraction_status?: string;
 }
 
 function parseIntOrUndefined(value: string | undefined, field: string): number | undefined {
@@ -189,11 +192,23 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
           });
           return;
         }
+        if (
+          q.fact_extraction_status !== undefined &&
+          !isFactExtractionStatus(q.fact_extraction_status)
+        ) {
+          await reply.code(400).send({
+            error: 'validation',
+            field: 'fact_extraction_status',
+            details: 'fact_extraction_status must be one of pending, extracted, skipped',
+          });
+          return;
+        }
 
         const result = listConversations(db, req.params.id, {
           audienceFit: q.audience_fit as AudienceFit | undefined,
           conversationType: q.conversation_type as ConversationType | undefined,
           outcome: q.outcome as ConversationOutcome | undefined,
+          factExtractionStatus: q.fact_extraction_status as FactExtractionStatus | undefined,
           limit,
           offset,
           includeTombstoned: parseBool(q.include_tombstoned),
