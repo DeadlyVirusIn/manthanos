@@ -19,6 +19,7 @@ import {
   FactValidationError,
   InvalidFactLifecycleError,
   InvalidTierTransitionError,
+  contestFact,
   createFact,
   demoteFact,
   getFact,
@@ -27,6 +28,7 @@ import {
   listFacts,
   promoteFact,
   reviseFact,
+  uncontestFact,
   updateFact,
 } from '../services/facts.js';
 import type { SubstrateHandle } from '../services/substrate.js';
@@ -483,4 +485,94 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
       await reply.send(history);
     },
   );
+
+  // POST .../contest — flag a fact as disputed
+  app.post<{
+    Params: { id: string; fact_id: string };
+    Body: { reason?: unknown };
+  }>('/api/v1/workspaces/:id/facts/:fact_id/contest', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { reason?: unknown };
+    if (typeof body.reason !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'reason', details: 'reason must be a string' });
+      return;
+    }
+    try {
+      const result = await contestFact(rc.substrate.ctx, req.params.id, req.params.fact_id, {
+        reason: body.reason,
+      });
+      await reply.send({ fact: result.fact });
+    } catch (err) {
+      if (err instanceof FactNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof FactValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  // POST .../uncontest — clear the contested flag
+  app.post<{
+    Params: { id: string; fact_id: string };
+    Body: { resolution?: unknown };
+  }>('/api/v1/workspaces/:id/facts/:fact_id/uncontest', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { resolution?: unknown };
+    if (typeof body.resolution !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'resolution',
+        details: 'resolution must be a string',
+      });
+      return;
+    }
+    try {
+      const result = await uncontestFact(rc.substrate.ctx, req.params.id, req.params.fact_id, {
+        resolution: body.resolution,
+      });
+      await reply.send({ fact: result.fact });
+    } catch (err) {
+      if (err instanceof FactNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof FactValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
 }

@@ -986,3 +986,152 @@ export function getFactHistory(
     })),
   };
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Task 5B — contest / uncontest
+// ─────────────────────────────────────────────────────────────────
+
+export interface ContestFactInput {
+  /** User-provided explanation for why the fact is being contested. */
+  readonly reason: string;
+}
+
+export interface ContestFactResult {
+  readonly fact: FactView;
+  readonly audit: AuditedWriteResult;
+}
+
+/**
+ * Mark a fact as contested. Contestation is a soft flag — the fact
+ * remains live and listable by default. Callers can hide contested
+ * rows from listings with `excludeContested = true`.
+ *
+ * Forbidden against tombstoned facts (terminal state) and superseded
+ * facts (mutate the head instead). Double-contesting raises
+ * InvalidFactLifecycleError('contested').
+ */
+export async function contestFact(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  factId: string,
+  input: ContestFactInput,
+): Promise<ContestFactResult> {
+  const existing = selectFactById(ctx.db, workspaceId, factId);
+  if (!existing) {
+    throw new FactNotFoundError(factId);
+  }
+  assertNotTombstoned(existing);
+  assertNotSuperseded(existing);
+
+  if (existing.contested_at !== null) {
+    throw new InvalidFactLifecycleError(
+      'contested',
+      existing.id,
+      `fact ${existing.id} is already contested (since ${existing.contested_at})`,
+    );
+  }
+
+  const reason = validateNonEmpty('reason', input.reason);
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.contest',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      fact_id: existing.id,
+      reason,
+      contested_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      // Contestation is administrative; last_corroborated is NOT advanced
+      // (the underlying claim has not been re-affirmed — its trustworthiness
+      // is in fact being questioned).
+      ctx.db
+        .prepare(
+          `UPDATE semantic_facts
+              SET contested_at = ?, contested_reason = ?,
+                  last_administratively_touched = ?, audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(now, reason, now, seq, workspaceId, existing.id);
+    },
+  });
+
+  const view = getFact(ctx.db, workspaceId, existing.id);
+  if (!view) throw new Error(`fact ${existing.id} disappeared mid-contest`);
+  return { fact: view, audit };
+}
+
+export interface UncontestFactInput {
+  /** User-provided note explaining how the contestation was resolved. */
+  readonly resolution: string;
+}
+
+export interface UncontestFactResult {
+  readonly fact: FactView;
+  readonly audit: AuditedWriteResult;
+}
+
+/**
+ * Clear the contested flag on a fact. The fact must currently be
+ * contested; clearing a clean fact raises
+ * InvalidFactLifecycleError('not_contested'). The previous
+ * contested_at / contested_reason are preserved in the audit payload
+ * so the contestation episode remains reconstructible.
+ */
+export async function uncontestFact(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  factId: string,
+  input: UncontestFactInput,
+): Promise<UncontestFactResult> {
+  const existing = selectFactById(ctx.db, workspaceId, factId);
+  if (!existing) {
+    throw new FactNotFoundError(factId);
+  }
+  assertNotTombstoned(existing);
+  assertNotSuperseded(existing);
+
+  if (existing.contested_at === null) {
+    throw new InvalidFactLifecycleError(
+      'not_contested',
+      existing.id,
+      `fact ${existing.id} is not contested; nothing to clear`,
+    );
+  }
+
+  const resolution = validateNonEmpty('resolution', input.resolution);
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.uncontest',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      fact_id: existing.id,
+      resolution,
+      previous_contested_at: existing.contested_at,
+      previous_contested_reason: existing.contested_reason,
+      uncontested_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      ctx.db
+        .prepare(
+          `UPDATE semantic_facts
+              SET contested_at = NULL, contested_reason = NULL,
+                  last_administratively_touched = ?, audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(now, seq, workspaceId, existing.id);
+    },
+  });
+
+  const view = getFact(ctx.db, workspaceId, existing.id);
+  if (!view) throw new Error(`fact ${existing.id} disappeared mid-uncontest`);
+  return { fact: view, audit };
+}

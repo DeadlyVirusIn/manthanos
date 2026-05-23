@@ -3,13 +3,18 @@
 
 // Fact lifecycle tests for Task 5B.
 // Scenarios:
-//   1. version-chain creation
-//   2. multi-version lineage traversal
-//   3. history endpoint
-//   4. invalid transitions on superseded / tombstoned (added incrementally)
-//   5. workspace isolation
-//   6. audit-chain participation
-// Contest / uncontest / tombstone tests are added in commits 3 + 4.
+//   1.  version-chain creation
+//   2.  multi-version lineage traversal
+//   3.  history endpoint
+//   4.  invalid transitions on superseded
+//   5.  workspace isolation (revise / history)
+//   6.  audit-chain participation (revise)
+//   7.  contest lifecycle
+//   8.  uncontest lifecycle
+//   9.  contest/uncontest workspace isolation
+//   10. contest/uncontest audit-chain participation
+//   11. exclude_contested list filter
+// Tombstone tests are added in commit 4.
 
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -135,6 +140,34 @@ async function listFacts(
     method: 'GET',
     url: `/api/v1/workspaces/${workspaceId}/facts${query}`,
     headers: { host: '127.0.0.1' },
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function contest(
+  workspaceId: string,
+  factId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/facts/${factId}/contest`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
+  });
+  return { status: r.statusCode, body: r.json() as Record<string, unknown> };
+}
+
+async function uncontest(
+  workspaceId: string,
+  factId: string,
+  body: object,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = await handle.app.inject({
+    method: 'POST',
+    url: `/api/v1/workspaces/${workspaceId}/facts/${factId}/uncontest`,
+    headers: { host: '127.0.0.1' },
+    payload: body,
   });
   return { status: r.statusCode, body: r.json() as Record<string, unknown> };
 }
@@ -424,5 +457,257 @@ describe('6 — audit-chain participation', () => {
     expect(payload.new_statement_hash).toBe(
       (rev.body.fact as Record<string, unknown>).statement_hash,
     );
+  });
+});
+
+// ────────── 7. contest lifecycle ──────────
+
+describe('7 — contest lifecycle', () => {
+  it('contesting stamps contested_at and contested_reason and sets is_contested', async () => {
+    const ws = await createWorkspace('Contest happy');
+    const v1 = await postFact(ws, { area: 'x', statement: 'disputed claim' });
+    expect(v1.body.is_contested).toBe(false);
+
+    const r = await contest(ws, v1.body.id as string, { reason: 'conflicting evidence' });
+    expect(r.status).toBe(200);
+    const fact = r.body.fact as Record<string, unknown>;
+    expect(typeof fact.contested_at).toBe('string');
+    expect(fact.contested_reason).toBe('conflicting evidence');
+    expect(fact.is_contested).toBe(true);
+    expect(fact.is_head).toBe(true);
+    expect(fact.tier).toBe('T0');
+  });
+
+  it('contesting an already-contested fact returns 409', async () => {
+    const ws = await createWorkspace('Double contest');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'first' });
+    const r = await contest(ws, v1.body.id as string, { reason: 'second' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('invalid_lifecycle');
+    expect(r.body.state).toBe('contested');
+  });
+
+  it('contest requires a string reason', async () => {
+    const ws = await createWorkspace('Missing reason');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    const r = await contest(ws, v1.body.id as string, {});
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('reason');
+  });
+
+  it('contest rejects empty or whitespace-only reason', async () => {
+    const ws = await createWorkspace('Empty reason');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    expect((await contest(ws, v1.body.id as string, { reason: '' })).status).toBe(400);
+    expect((await contest(ws, v1.body.id as string, { reason: '   ' })).status).toBe(400);
+  });
+
+  it('contest on a superseded fact returns 409 invalid_lifecycle', async () => {
+    const ws = await createWorkspace('Contest superseded');
+    const v1 = await postFact(ws, { area: 'x', statement: 's1' });
+    await revise(ws, v1.body.id as string, { statement: 's2' });
+    const r = await contest(ws, v1.body.id as string, { reason: 'too late' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('superseded');
+  });
+
+  it('a contested fact is still listable by default', async () => {
+    const ws = await createWorkspace('Contested listable');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    const list = await listFacts(ws);
+    expect(list.body.total).toBe(1);
+  });
+});
+
+// ────────── 8. uncontest lifecycle ──────────
+
+describe('8 — uncontest lifecycle', () => {
+  it('uncontesting clears contested_at and contested_reason', async () => {
+    const ws = await createWorkspace('Uncontest happy');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    const r = await uncontest(ws, v1.body.id as string, { resolution: 'evidence verified' });
+    expect(r.status).toBe(200);
+    const fact = r.body.fact as Record<string, unknown>;
+    expect(fact.contested_at).toBeNull();
+    expect(fact.contested_reason).toBeNull();
+    expect(fact.is_contested).toBe(false);
+  });
+
+  it('uncontesting a non-contested fact returns 409', async () => {
+    const ws = await createWorkspace('Uncontest clean');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    const r = await uncontest(ws, v1.body.id as string, { resolution: 'nothing to clear' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('invalid_lifecycle');
+    expect(r.body.state).toBe('not_contested');
+  });
+
+  it('uncontest requires a string resolution', async () => {
+    const ws = await createWorkspace('Missing resolution');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    const r = await uncontest(ws, v1.body.id as string, {});
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('resolution');
+  });
+
+  it('uncontest rejects empty or whitespace-only resolution', async () => {
+    const ws = await createWorkspace('Empty resolution');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    expect((await uncontest(ws, v1.body.id as string, { resolution: '' })).status).toBe(400);
+    expect((await uncontest(ws, v1.body.id as string, { resolution: '  ' })).status).toBe(400);
+  });
+
+  it('uncontest on a superseded fact returns 409', async () => {
+    const ws = await createWorkspace('Uncontest superseded');
+    const v1 = await postFact(ws, { area: 'x', statement: 's1' });
+    await contest(ws, v1.body.id as string, { reason: 'flag' });
+    await revise(ws, v1.body.id as string, { statement: 's2' });
+    const r = await uncontest(ws, v1.body.id as string, { resolution: 'resolved' });
+    expect(r.status).toBe(409);
+    expect(r.body.state).toBe('superseded');
+  });
+
+  it('round-trip: contest → uncontest → contest is allowed', async () => {
+    const ws = await createWorkspace('Round trip');
+    const v1 = await postFact(ws, { area: 'x', statement: 'y' });
+    await contest(ws, v1.body.id as string, { reason: 'r1' });
+    await uncontest(ws, v1.body.id as string, { resolution: 'cleared' });
+    const r = await contest(ws, v1.body.id as string, { reason: 'r2' });
+    expect(r.status).toBe(200);
+    expect((r.body.fact as Record<string, unknown>).contested_reason).toBe('r2');
+  });
+});
+
+// ────────── 9. contest/uncontest workspace isolation ──────────
+
+describe('9 — contest/uncontest workspace isolation', () => {
+  it('contest against another workspace returns 404', async () => {
+    const wsA = await createWorkspace('IsoContestA');
+    const wsB = await createWorkspace('IsoContestB');
+    const f = await postFact(wsA, { area: 'x', statement: 'y' });
+    expect((await contest(wsB, f.body.id as string, { reason: 'cross' })).status).toBe(404);
+  });
+
+  it('uncontest against another workspace returns 404', async () => {
+    const wsA = await createWorkspace('IsoUncontestA');
+    const wsB = await createWorkspace('IsoUncontestB');
+    const f = await postFact(wsA, { area: 'x', statement: 'y' });
+    await contest(wsA, f.body.id as string, { reason: 'flag' });
+    expect((await uncontest(wsB, f.body.id as string, { resolution: 'cross' })).status).toBe(404);
+  });
+});
+
+// ────────── 10. contest/uncontest audit-chain participation ──────────
+
+describe('10 — contest/uncontest audit-chain participation', () => {
+  it('contest emits a fact.contest event whose payload carries the reason', async () => {
+    const ws = await createWorkspace('Audit contest');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await contest(ws, v1.body.id as string, { reason: 'audit me' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const row = substrate.db.handle
+      .prepare(`SELECT seq FROM audit_events WHERE workspace_id = ? AND action = 'fact.contest'`)
+      .get(ws) as { seq: number };
+    const eventResp = await handle.app.inject({
+      method: 'GET',
+      url: `/api/v1/workspaces/${ws}/audit/${row.seq}`,
+      headers: { host: '127.0.0.1' },
+    });
+    const payload = (eventResp.json() as Record<string, unknown>).payload as Record<
+      string,
+      unknown
+    >;
+    expect(payload.fact_id).toBe(v1.body.id);
+    expect(payload.reason).toBe('audit me');
+    expect(typeof payload.contested_at).toBe('string');
+  });
+
+  it('uncontest emits a fact.uncontest event that preserves the previous contestation', async () => {
+    const ws = await createWorkspace('Audit uncontest');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await contest(ws, v1.body.id as string, { reason: 'initial flag' });
+    await uncontest(ws, v1.body.id as string, { resolution: 'all clear' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const row = substrate.db.handle
+      .prepare(`SELECT seq FROM audit_events WHERE workspace_id = ? AND action = 'fact.uncontest'`)
+      .get(ws) as { seq: number };
+    const eventResp = await handle.app.inject({
+      method: 'GET',
+      url: `/api/v1/workspaces/${ws}/audit/${row.seq}`,
+      headers: { host: '127.0.0.1' },
+    });
+    const payload = (eventResp.json() as Record<string, unknown>).payload as Record<
+      string,
+      unknown
+    >;
+    expect(payload.fact_id).toBe(v1.body.id);
+    expect(payload.resolution).toBe('all clear');
+    expect(payload.previous_contested_reason).toBe('initial flag');
+    expect(typeof payload.previous_contested_at).toBe('string');
+  });
+
+  it('events appear in the correct chronological order', async () => {
+    const ws = await createWorkspace('Audit order');
+    const v1 = await postFact(ws, { area: 'a', statement: 's' });
+    await contest(ws, v1.body.id as string, { reason: 'r1' });
+    await uncontest(ws, v1.body.id as string, { resolution: 'cleared' });
+    await contest(ws, v1.body.id as string, { reason: 'r2' });
+
+    const substrate = handle.substrate;
+    if (!substrate) throw new Error('substrate not initialised');
+    const events = substrate.db.handle
+      .prepare(
+        `SELECT seq, action FROM audit_events
+         WHERE workspace_id = ? AND action LIKE 'fact.%' ORDER BY seq ASC`,
+      )
+      .all(ws) as Array<{ seq: number; action: string }>;
+    expect(events.map((e) => e.action)).toEqual([
+      'fact.create',
+      'fact.contest',
+      'fact.uncontest',
+      'fact.contest',
+    ]);
+  });
+});
+
+// ────────── 11. exclude_contested list filter ──────────
+
+describe('11 — exclude_contested list filter', () => {
+  it('default list includes contested facts', async () => {
+    const ws = await createWorkspace('Default contested');
+    await postFact(ws, { area: 'x', statement: 'clean' });
+    const b = await postFact(ws, { area: 'x', statement: 'flagged' });
+    await contest(ws, b.body.id as string, { reason: 'flag' });
+    const r = await listFacts(ws);
+    expect(r.body.total).toBe(2);
+  });
+
+  it('?exclude_contested=true hides contested facts', async () => {
+    const ws = await createWorkspace('Exclude contested');
+    const a = await postFact(ws, { area: 'x', statement: 'clean' });
+    const b = await postFact(ws, { area: 'x', statement: 'flagged' });
+    await contest(ws, b.body.id as string, { reason: 'flag' });
+    const r = await listFacts(ws, '?exclude_contested=true');
+    expect(r.body.total).toBe(1);
+    const facts = r.body.facts as Array<{ id: string }>;
+    expect(facts[0]?.id).toBe(a.body.id);
+  });
+
+  it('after uncontesting, the fact reappears under exclude_contested=true', async () => {
+    const ws = await createWorkspace('Reappear');
+    const a = await postFact(ws, { area: 'x', statement: 'flagged' });
+    await contest(ws, a.body.id as string, { reason: 'flag' });
+    expect((await listFacts(ws, '?exclude_contested=true')).body.total).toBe(0);
+    await uncontest(ws, a.body.id as string, { resolution: 'cleared' });
+    expect((await listFacts(ws, '?exclude_contested=true')).body.total).toBe(1);
   });
 });
