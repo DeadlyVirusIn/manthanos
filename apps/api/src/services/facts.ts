@@ -485,6 +485,119 @@ export function listFactsByConversation(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Sprint 2 M1 — Topic suggestions (GET .../facts/areas)
+// ─────────────────────────────────────────────────────────────────
+
+export interface AreaCount {
+  /** Display form: the most-frequent case variant of this area, trimmed. */
+  readonly area: string;
+  /** Aggregated count across all case variants of this area. */
+  readonly count: number;
+}
+
+export interface ListFactAreasOptions {
+  /** Max entries returned. Clamped to [1, MAX_FACT_AREAS_LIMIT]. Default
+   *  is DEFAULT_FACT_AREAS_LIMIT (20), tuned for the topic-suggestion
+   *  chips on the extract-fact modal which renders top 6. */
+  readonly limit?: number;
+}
+
+const DEFAULT_FACT_AREAS_LIMIT = 20;
+const MAX_FACT_AREAS_LIMIT = 500;
+
+/**
+ * Return normalized topic suggestions for the conversation-capture and
+ * fact-extraction surfaces (per Sprint 2 roadmap §4A + journey review §3.5).
+ *
+ * Normalization rules:
+ *   - Skip tombstoned facts (their area is preserved in the row but the
+ *     fact itself has been retired from active suggestions).
+ *   - Trim leading/trailing whitespace from each area value.
+ *   - Skip rows whose trimmed area is the empty string.
+ *   - Merge case variants of the same trimmed area (e.g. "Audience",
+ *     "audience", "AUDIENCE" all collapse to one bucket).
+ *   - For each bucket, pick the most-frequent case variant as the
+ *     display form. Ties broken alphabetically.
+ *
+ * Ordering: by aggregated count DESC, then display form ASC. Output is
+ * deterministic — two calls against the same workspace state return
+ * byte-identical lists.
+ *
+ * Performance: the SQL pre-aggregates by `TRIM(area)`, so the JS-side
+ * case-folding map sees at most one row per (case-sensitive, trimmed)
+ * area value — small bounded work.
+ */
+export function listFactAreas(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  opts: ListFactAreasOptions = {},
+): readonly AreaCount[] {
+  const requestedLimit = opts.limit ?? DEFAULT_FACT_AREAS_LIMIT;
+  const limit = Math.max(1, Math.min(requestedLimit, MAX_FACT_AREAS_LIMIT));
+
+  // SQL pre-aggregates by exact area text. Whitespace + empty-string
+  // normalization runs in JS because SQLite's TRIM() defaults to spaces
+  // only and would not strip tabs / newlines / CR. JavaScript's
+  // String#trim is Unicode-whitespace-aware, which is what we want.
+  const rows = db
+    .prepare(
+      `SELECT area, COUNT(*) AS cnt
+         FROM semantic_facts
+        WHERE workspace_id = ?
+          AND tombstoned_at IS NULL
+        GROUP BY area`,
+    )
+    .all(workspaceId) as Array<{ area: string; cnt: number }>;
+
+  // Bucket by lowercase trimmed key. Each bucket tracks per-variant
+  // counts so we can pick the most-frequent case variant (using the
+  // trimmed form as the variant) as the display form.
+  const buckets = new Map<string, { variants: Map<string, number>; total: number }>();
+  for (const row of rows) {
+    const trimmed = row.area.trim();
+    if (trimmed === '') continue;
+    const key = trimmed.toLowerCase();
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { variants: new Map(), total: 0 };
+      buckets.set(key, bucket);
+    }
+    bucket.variants.set(trimmed, (bucket.variants.get(trimmed) ?? 0) + row.cnt);
+    bucket.total += row.cnt;
+  }
+
+  // For each bucket, pick the most-frequent variant as display form.
+  // Ties broken alphabetically (lexicographic ASC).
+  const merged: AreaCount[] = [];
+  for (const bucket of buckets.values()) {
+    let displayForm: string | null = null;
+    let displayCount = -1;
+    for (const [variant, count] of bucket.variants) {
+      if (
+        count > displayCount ||
+        (count === displayCount && (displayForm === null || variant < displayForm))
+      ) {
+        displayForm = variant;
+        displayCount = count;
+      }
+    }
+    if (displayForm !== null) {
+      merged.push({ area: displayForm, count: bucket.total });
+    }
+  }
+
+  // Sort by aggregated count DESC, then display form ASC.
+  merged.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    if (a.area < b.area) return -1;
+    if (a.area > b.area) return 1;
+    return 0;
+  });
+
+  return merged.slice(0, limit);
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Create
 // ─────────────────────────────────────────────────────────────────
 

@@ -25,6 +25,7 @@ import {
   getFact,
   getFactHistory,
   isFactTier,
+  listFactAreas,
   listFacts,
   promoteFact,
   reviseFact,
@@ -178,6 +179,37 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
         }
         throw err;
       }
+    },
+  );
+
+  // GET .../facts/areas — normalized topic suggestions (M1 C1.3). MUST
+  // be registered before the parametric :fact_id GET so the static
+  // segment "areas" wins the route match.
+  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    '/api/v1/workspaces/:id/facts/areas',
+    async (req, reply) => {
+      const db = rc.substrate.db.handle;
+      if (!workspaceExists(db, req.params.id)) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const q = req.query ?? {};
+      let limit: number | undefined;
+      if (q.limit !== undefined) {
+        const trimmed = q.limit.trim();
+        const n = Number.parseInt(trimmed, 10);
+        if (!Number.isInteger(n) || String(n) !== trimmed || n < 1) {
+          await reply.code(400).send({
+            error: 'validation',
+            field: 'limit',
+            details: 'limit must be a positive integer (>= 1)',
+          });
+          return;
+        }
+        limit = n;
+      }
+      const areas = listFactAreas(db, req.params.id, { limit });
+      await reply.send({ areas });
     },
   );
 
