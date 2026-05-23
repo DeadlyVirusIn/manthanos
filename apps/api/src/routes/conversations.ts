@@ -11,6 +11,7 @@
 //   POST   /api/v1/workspaces/:id/conversations/:conversation_id/skip-extraction (M1 C1.2)
 //   POST   /api/v1/workspaces/:id/conversations/:conversation_id/extract
 //   GET    /api/v1/workspaces/:id/conversations/:conversation_id/facts
+//   GET    /api/v1/workspaces/:id/conversations/:conversation_id/export     (M1 C1.5)
 
 import type { FastifyInstance } from 'fastify';
 import { workspaceExists } from '../services/audit.js';
@@ -34,6 +35,7 @@ import {
   tombstoneConversation,
   updateConversation,
 } from '../services/conversations.js';
+import { exportConversationMarkdown } from '../services/export.js';
 import {
   type FactTier,
   FactValidationError,
@@ -591,4 +593,36 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       });
     },
   );
+
+  // GET .../export — Markdown export of a single conversation (M1 C1.5).
+  // Renders person, timestamps, tags, summary, quotes (in position
+  // order), and facts pulled from this conversation. Tombstoned
+  // conversations export with sentinel content (`[tombstoned]`) for
+  // all PII fields. Deterministic output: same workspace state →
+  // byte-identical Markdown.
+  app.get<{
+    Params: { id: string; conversation_id: string };
+    Querystring: { format?: string };
+  }>('/api/v1/workspaces/:id/conversations/:conversation_id/export', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const format = req.query?.format ?? 'markdown';
+    if (format !== 'markdown') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'format',
+        details: 'format must be "markdown"',
+      });
+      return;
+    }
+    const markdown = exportConversationMarkdown(db, req.params.id, req.params.conversation_id);
+    if (markdown === null) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    await reply.header('Content-Type', 'text/markdown; charset=utf-8').send(markdown);
+  });
 }
