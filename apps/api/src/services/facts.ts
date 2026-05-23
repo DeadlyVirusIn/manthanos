@@ -66,9 +66,39 @@ export interface FactView {
   readonly last_corroborated: string;
   readonly last_administratively_touched: string;
   readonly audit_seq: number;
+  // Task 5B lifecycle fields. NULL when not set.
+  readonly version_chain_root_id: string | null;
+  readonly superseded_by_fact_id: string | null;
+  readonly contested_at: string | null;
+  readonly contested_reason: string | null;
+  readonly tombstoned_at: string | null;
+  readonly tombstone_reason: string | null;
+  /** Derived: true when this fact is the live head of its chain. */
+  readonly is_head: boolean;
+  /** Derived: true when contested_at is set. */
+  readonly is_contested: boolean;
+  /** Derived: true when tombstoned_at is set. */
+  readonly is_tombstoned: boolean;
 }
 
-interface FactRow extends FactView {}
+interface FactRow {
+  id: string;
+  workspace_id: string;
+  area: string;
+  statement: string;
+  statement_hash: string;
+  tier: FactTier;
+  confidence: number;
+  last_corroborated: string;
+  last_administratively_touched: string;
+  audit_seq: number;
+  version_chain_root_id: string | null;
+  superseded_by_fact_id: string | null;
+  contested_at: string | null;
+  contested_reason: string | null;
+  tombstoned_at: string | null;
+  tombstone_reason: string | null;
+}
 
 export interface CreateFactInput {
   readonly area: string;
@@ -132,6 +162,48 @@ export class InvalidTierTransitionError extends Error {
   }
 }
 
+/**
+ * Raised when a caller tries to mutate a fact whose lifecycle forbids it:
+ * tombstoned (irreversible), superseded (write to the head instead), or
+ * mismatched contestation state (contest an already-contested fact, etc.)
+ */
+export class InvalidFactLifecycleError extends Error {
+  readonly state: 'tombstoned' | 'superseded' | 'contested' | 'not_contested';
+  readonly factId: string;
+  constructor(
+    state: 'tombstoned' | 'superseded' | 'contested' | 'not_contested',
+    factId: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'InvalidFactLifecycleError';
+    this.state = state;
+    this.factId = factId;
+  }
+}
+
+/** Guard: mutation must not target a tombstoned fact. */
+function assertNotTombstoned(row: FactRow): void {
+  if (row.tombstoned_at !== null) {
+    throw new InvalidFactLifecycleError(
+      'tombstoned',
+      row.id,
+      `fact ${row.id} is tombstoned; no further mutations are allowed`,
+    );
+  }
+}
+
+/** Guard: mutation must not target a superseded (non-head) fact. */
+function assertNotSuperseded(row: FactRow): void {
+  if (row.superseded_by_fact_id !== null) {
+    throw new InvalidFactLifecycleError(
+      'superseded',
+      row.id,
+      `fact ${row.id} has been superseded by ${row.superseded_by_fact_id}; mutate the head instead`,
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────
@@ -150,8 +222,36 @@ function generateFactId(): string {
 }
 
 function rowToView(row: FactRow): FactView {
-  return row;
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    area: row.area,
+    statement: row.statement,
+    statement_hash: row.statement_hash,
+    tier: row.tier,
+    confidence: row.confidence,
+    last_corroborated: row.last_corroborated,
+    last_administratively_touched: row.last_administratively_touched,
+    audit_seq: row.audit_seq,
+    version_chain_root_id: row.version_chain_root_id,
+    superseded_by_fact_id: row.superseded_by_fact_id,
+    contested_at: row.contested_at,
+    contested_reason: row.contested_reason,
+    tombstoned_at: row.tombstoned_at,
+    tombstone_reason: row.tombstone_reason,
+    is_head: row.superseded_by_fact_id === null,
+    is_contested: row.contested_at !== null,
+    is_tombstoned: row.tombstoned_at !== null,
+  };
 }
+
+const FACT_SELECT_COLUMNS = `
+  id, workspace_id, area, statement, statement_hash, tier,
+  confidence, last_corroborated, last_administratively_touched, audit_seq,
+  version_chain_root_id, superseded_by_fact_id,
+  contested_at, contested_reason,
+  tombstoned_at, tombstone_reason
+`;
 
 function selectFactById(
   db: ManthanSqliteHandle,
@@ -160,8 +260,7 @@ function selectFactById(
 ): FactRow | null {
   const row = db
     .prepare(
-      `SELECT id, workspace_id, area, statement, statement_hash, tier,
-              confidence, last_corroborated, last_administratively_touched, audit_seq
+      `SELECT ${FACT_SELECT_COLUMNS}
        FROM semantic_facts
        WHERE workspace_id = ? AND id = ?`,
     )
@@ -174,12 +273,17 @@ function selectFactByHash(
   workspaceId: string,
   statementHash: string,
 ): FactRow | null {
+  // Dedup must NOT match a tombstoned predecessor (its statement field is
+  // already a sentinel; a fresh fact with the same content should be a
+  // new, untombstoned record). Tombstoned rows keep their original
+  // statement_hash for audit linkage, but dedup excludes them.
   const row = db
     .prepare(
-      `SELECT id, workspace_id, area, statement, statement_hash, tier,
-              confidence, last_corroborated, last_administratively_touched, audit_seq
+      `SELECT ${FACT_SELECT_COLUMNS}
        FROM semantic_facts
-       WHERE workspace_id = ? AND statement_hash = ?`,
+       WHERE workspace_id = ? AND statement_hash = ?
+         AND tombstoned_at IS NULL
+       LIMIT 1`,
     )
     .get(workspaceId, statementHash) as FactRow | undefined;
   return row ?? null;
@@ -205,6 +309,14 @@ export interface ListFactsOptions {
   readonly area?: string;
   readonly limit?: number;
   readonly offset?: number;
+  /** Default false. Includes tombstoned rows (content is the sentinel). */
+  readonly includeTombstoned?: boolean;
+  /** Default false. Includes superseded (non-head) versions in chains. */
+  readonly includeSuperseded?: boolean;
+  /** Default false. Includes contested facts. (Contested rows are still
+   *  live by default — this flag exists only as a future affordance for
+   *  callers that want to exclude them.) */
+  readonly excludeContested?: boolean;
 }
 
 export interface ListFactsResult {
@@ -243,8 +355,20 @@ export function listFacts(
   }
   // Also exclude tiers above T+1 from listing — Task 5A's scope. Any
   // pre-existing T+2/T+3 facts in the DB remain invisible to this API
-  // until Task 5B / V1 enables their lifecycle.
+  // until V1 enables their lifecycle.
   clauses.push("tier IN ('T-2','T-1','T0','T+1')");
+
+  // Task 5B defaults: hide superseded (non-head) and tombstoned facts.
+  // Callers that want to walk lineage use the history endpoint instead.
+  if (!opts.includeSuperseded) {
+    clauses.push('superseded_by_fact_id IS NULL');
+  }
+  if (!opts.includeTombstoned) {
+    clauses.push('tombstoned_at IS NULL');
+  }
+  if (opts.excludeContested) {
+    clauses.push('contested_at IS NULL');
+  }
 
   const where = clauses.join(' AND ');
   const totalRow = db
@@ -253,8 +377,7 @@ export function listFacts(
 
   const rows = db
     .prepare(
-      `SELECT id, workspace_id, area, statement, statement_hash, tier,
-              confidence, last_corroborated, last_administratively_touched, audit_seq
+      `SELECT ${FACT_SELECT_COLUMNS}
        FROM semantic_facts
        WHERE ${where}
        ORDER BY audit_seq DESC, id ASC
@@ -378,6 +501,8 @@ export async function updateFact(
   if (!existing) {
     throw new FactNotFoundError(factId);
   }
+  assertNotTombstoned(existing);
+  assertNotSuperseded(existing);
 
   let newArea = existing.area;
   let newStatement = existing.statement;
@@ -486,6 +611,8 @@ export async function promoteFact(
   if (!existing) {
     throw new FactNotFoundError(factId);
   }
+  assertNotTombstoned(existing);
+  assertNotSuperseded(existing);
   const fromTier = existing.tier;
 
   if (input.targetTier !== undefined && !isFactTier(input.targetTier)) {
@@ -559,6 +686,8 @@ export async function demoteFact(
   if (!existing) {
     throw new FactNotFoundError(factId);
   }
+  assertNotTombstoned(existing);
+  assertNotSuperseded(existing);
   const fromTier = existing.tier;
 
   if (input.targetTier !== undefined && !isFactTier(input.targetTier)) {
@@ -620,4 +749,240 @@ export async function demoteFact(
 
 function noopAudit(): AuditedWriteResult {
   return { seq: -1, selfHash: '', payloadHash: null, blobReused: false };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Task 5B — revise (versioning) + history
+// ─────────────────────────────────────────────────────────────────
+
+export interface ReviseFactInput {
+  /** New area for the successor. If absent, inherits from predecessor. */
+  readonly area?: string;
+  /** New statement for the successor. If absent, inherits from predecessor. */
+  readonly statement?: string;
+  /** Optional explanation for the revision. */
+  readonly note?: string;
+}
+
+export interface ReviseFactResult {
+  readonly fact: FactView;
+  readonly previousFactId: string;
+  readonly versionChainRootId: string;
+  readonly audit: AuditedWriteResult;
+}
+
+export async function reviseFact(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  factId: string,
+  input: ReviseFactInput,
+): Promise<ReviseFactResult> {
+  const previous = selectFactById(ctx.db, workspaceId, factId);
+  if (!previous) {
+    throw new FactNotFoundError(factId);
+  }
+  assertNotTombstoned(previous);
+  assertNotSuperseded(previous);
+
+  const newArea = input.area === undefined ? previous.area : validateNonEmpty('area', input.area);
+  const newStatement =
+    input.statement === undefined
+      ? previous.statement
+      : validateNonEmpty('statement', input.statement);
+
+  // A revise that changes nothing is rejected — the user should either
+  // patch (in-place no-op returns 200) or omit the call.
+  if (newArea === previous.area && newStatement === previous.statement) {
+    throw new FactValidationError(
+      'body',
+      'revise must change at least one of area or statement; for in-place updates use PATCH',
+    );
+  }
+
+  const newHash = computeStatementHash(newArea, newStatement);
+  if (newHash !== previous.statement_hash) {
+    const collision = selectFactByHash(ctx.db, workspaceId, newHash);
+    if (collision && collision.id !== previous.id) {
+      throw new DuplicateFactError(collision.id, newHash);
+    }
+  }
+
+  const newId = generateFactId();
+  // Root identity: if the predecessor was already part of a chain, the
+  // root is whatever it pointed at. Otherwise, the predecessor itself
+  // becomes the root (and gets its version_chain_root_id stamped with
+  // its own id so future revisions inherit the same root).
+  const rootId = previous.version_chain_root_id ?? previous.id;
+  const now = new Date().toISOString();
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'fact.revise',
+    kind: 'fact',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      previous_fact_id: previous.id,
+      new_fact_id: newId,
+      version_chain_root_id: rootId,
+      changes: collectChanges(previous, { area: newArea, statement: newStatement }),
+      previous_statement_hash: previous.statement_hash,
+      new_statement_hash: newHash,
+      note: input.note ?? null,
+      revised_at: now,
+    },
+    brainWrites: ({ seq }) => {
+      // Insert the successor with the predecessor's current tier and
+      // confidence (revise is structural; it doesn't move the trust
+      // ladder). The successor inherits provenance_workflow_id = NULL;
+      // version_chain_root_id points at the chain's root.
+      ctx.db
+        .prepare(
+          `INSERT INTO semantic_facts (
+             id, workspace_id, area, statement, statement_hash,
+             provenance_workflow_id, tier, last_corroborated, confidence,
+             audit_seq, last_administratively_touched, version_chain_root_id
+           ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          newId,
+          workspaceId,
+          newArea,
+          newStatement,
+          newHash,
+          previous.tier,
+          now,
+          previous.confidence,
+          seq,
+          now,
+          rootId,
+        );
+
+      // Mark the predecessor as superseded by the new fact. Also stamp
+      // its version_chain_root_id (with its own id) if this is the first
+      // revision in the chain — keeps subsequent lookups uniform.
+      const predecessorRoot = previous.version_chain_root_id ?? previous.id;
+      ctx.db
+        .prepare(
+          `UPDATE semantic_facts
+             SET superseded_by_fact_id = ?, version_chain_root_id = ?,
+                 last_administratively_touched = ?, audit_seq = ?
+           WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(newId, predecessorRoot, now, seq, workspaceId, previous.id);
+    },
+  });
+
+  const view = getFact(ctx.db, workspaceId, newId);
+  if (!view) {
+    throw new Error(`fact ${newId} disappeared immediately after revise`);
+  }
+  return {
+    fact: view,
+    previousFactId: previous.id,
+    versionChainRootId: rootId,
+    audit,
+  };
+}
+
+function collectChanges(
+  previous: FactRow,
+  next: { area: string; statement: string },
+): Array<{ field: string; from: string; to: string }> {
+  const out: Array<{ field: string; from: string; to: string }> = [];
+  if (previous.area !== next.area) {
+    out.push({ field: 'area', from: previous.area, to: next.area });
+  }
+  if (previous.statement !== next.statement) {
+    out.push({ field: 'statement', from: previous.statement, to: next.statement });
+  }
+  return out;
+}
+
+export interface FactHistoryEntry {
+  readonly fact: FactView;
+  readonly position: number;
+}
+
+export interface FactHistoryResult {
+  readonly root_id: string;
+  readonly head_id: string;
+  readonly total_versions: number;
+  readonly versions: readonly FactHistoryEntry[];
+}
+
+/**
+ * Walk a fact's version chain in chronological order, root first.
+ * The input fact id can be any version in the chain (root, head, or
+ * intermediate); the result always starts at the root.
+ */
+export function getFactHistory(
+  db: ManthanSqliteHandle,
+  workspaceId: string,
+  factId: string,
+): FactHistoryResult | null {
+  const anchor = selectFactById(db, workspaceId, factId);
+  if (!anchor) {
+    return null;
+  }
+
+  // Identify the root id. For a never-revised fact the chain is trivial
+  // (just this fact); the root id is the fact's own id.
+  const rootId = anchor.version_chain_root_id ?? anchor.id;
+
+  // Pull every member of the chain. The chain is identified by either
+  // having version_chain_root_id = rootId OR by being the root itself.
+  const rows = db
+    .prepare(
+      `SELECT ${FACT_SELECT_COLUMNS}
+       FROM semantic_facts
+       WHERE workspace_id = ?
+         AND (id = ? OR version_chain_root_id = ?)`,
+    )
+    .all(workspaceId, rootId, rootId) as FactRow[];
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  // Order: walk forward via superseded_by_fact_id. The root has either
+  // version_chain_root_id = NULL (never revised — singleton chain) or
+  // version_chain_root_id = self.id (first revision marker).
+  const byId = new Map<string, FactRow>(rows.map((r) => [r.id, r]));
+  const ordered: FactRow[] = [];
+
+  // The root is the row with id = rootId.
+  let cur: FactRow | undefined = byId.get(rootId);
+  if (!cur) {
+    // Defensive: anchor's chain pointer is invalid — fall back to anchor.
+    cur = anchor;
+  }
+
+  // Walk forward bounded by chain size to defend against accidental
+  // cycles (would indicate a substrate corruption; an interruption
+  // test in Task 5B verifies this can't happen via the API).
+  const guard = rows.length + 1;
+  for (let i = 0; i < guard && cur; i++) {
+    ordered.push(cur);
+    const nextId = cur.superseded_by_fact_id;
+    if (nextId === null) break;
+    const nextRow = byId.get(nextId);
+    if (!nextRow) break;
+    cur = nextRow;
+  }
+
+  const head = ordered[ordered.length - 1];
+  if (!head) {
+    return null;
+  }
+
+  return {
+    root_id: rootId,
+    head_id: head.id,
+    total_versions: ordered.length,
+    versions: ordered.map((row, idx) => ({
+      fact: rowToView(row),
+      position: idx,
+    })),
+  };
 }

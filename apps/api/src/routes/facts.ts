@@ -17,13 +17,16 @@ import {
   FactNotFoundError,
   type FactTier,
   FactValidationError,
+  InvalidFactLifecycleError,
   InvalidTierTransitionError,
   createFact,
   demoteFact,
   getFact,
+  getFactHistory,
   isFactTier,
   listFacts,
   promoteFact,
+  reviseFact,
   updateFact,
 } from '../services/facts.js';
 import type { SubstrateHandle } from '../services/substrate.js';
@@ -54,6 +57,14 @@ interface ListQuery {
   area?: string;
   limit?: string;
   offset?: string;
+  include_tombstoned?: string;
+  include_superseded?: string;
+  exclude_contested?: string;
+}
+
+function parseBool(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  return value === 'true' || value === '1';
 }
 
 function parseIntOrUndefined(value: string | undefined, field: string): number | undefined {
@@ -149,6 +160,9 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
           area: q.area,
           limit,
           offset,
+          includeTombstoned: parseBool(q.include_tombstoned),
+          includeSuperseded: parseBool(q.include_superseded),
+          excludeContested: parseBool(q.exclude_contested),
         });
         await reply.send(result);
       } catch (err) {
@@ -226,6 +240,15 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
           });
           return;
         }
+        if (err instanceof InvalidFactLifecycleError) {
+          await reply.code(409).send({
+            error: 'invalid_lifecycle',
+            state: err.state,
+            fact_id: err.factId,
+            details: err.message,
+          });
+          return;
+        }
         throw err;
       }
     },
@@ -280,6 +303,15 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
           from: err.from,
           to: err.to,
           direction: err.direction,
+          details: err.message,
+        });
+        return;
+      }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
           details: err.message,
         });
         return;
@@ -341,7 +373,114 @@ export function registerFactRoutes(app: FastifyInstance, rc: RouteContext): void
         });
         return;
       }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
+          details: err.message,
+        });
+        return;
+      }
       throw err;
     }
   });
+
+  // ────────── Task 5B ──────────
+  // POST .../revise — create a successor fact version
+  app.post<{
+    Params: { id: string; fact_id: string };
+    Body: { area?: unknown; statement?: unknown; note?: unknown };
+  }>('/api/v1/workspaces/:id/facts/:fact_id/revise', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { area?: unknown; statement?: unknown; note?: unknown };
+    if (body.area !== undefined && typeof body.area !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'area', details: 'area must be a string' });
+      return;
+    }
+    if (body.statement !== undefined && typeof body.statement !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'statement', details: 'statement must be a string' });
+      return;
+    }
+    if (body.note !== undefined && typeof body.note !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'note', details: 'note must be a string' });
+      return;
+    }
+    if (body.area === undefined && body.statement === undefined) {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'body',
+        details: 'revise requires at least area or statement',
+      });
+      return;
+    }
+
+    try {
+      const result = await reviseFact(rc.substrate.ctx, req.params.id, req.params.fact_id, {
+        area: body.area as string | undefined,
+        statement: body.statement as string | undefined,
+        note: body.note as string | undefined,
+      });
+      await reply.code(201).send({
+        fact: result.fact,
+        previous_fact_id: result.previousFactId,
+        version_chain_root_id: result.versionChainRootId,
+      });
+    } catch (err) {
+      if (err instanceof FactNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof FactValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof DuplicateFactError) {
+        await reply.code(409).send({
+          error: 'duplicate_fact',
+          existing_fact_id: err.existingFactId,
+          details: err.message,
+        });
+        return;
+      }
+      if (err instanceof InvalidFactLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          fact_id: err.factId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  // GET .../history — walk the version chain root → head
+  app.get<{ Params: { id: string; fact_id: string } }>(
+    '/api/v1/workspaces/:id/facts/:fact_id/history',
+    async (req, reply) => {
+      const db = rc.substrate.db.handle;
+      if (!workspaceExists(db, req.params.id)) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      const history = getFactHistory(db, req.params.id, req.params.fact_id);
+      if (!history) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      await reply.send(history);
+    },
+  );
 }
