@@ -294,4 +294,85 @@ export const MIGRATIONS: ReadonlyArray<{ readonly id: string; readonly sql: stri
       CREATE INDEX ix_workspaces_status ON workspaces(status);
     `,
   },
+  {
+    id: '0006_semantic_facts_versioning_tombstone_contested',
+    sql: `
+      -- ============================================================
+      -- Sprint 1 Task 5B — fact versioning, contestation, tombstones.
+      --
+      -- Adds the six columns required by the fact lifecycle routes:
+      --
+      --   version_chain_root_id  TEXT  — id of the oldest ancestor in
+      --                                   this fact's version chain.
+      --                                   NULL means the fact has never
+      --                                   been revised (it's its own
+      --                                   trivial root). Set during the
+      --                                   first revise() so both the
+      --                                   original and the successor
+      --                                   inherit the same root id.
+      --
+      --   superseded_by_fact_id  TEXT  — id of the fact that replaces
+      --                                   this one in the chain. NULL
+      --                                   for the head (live) version.
+      --                                   Acts as the chain's forward
+      --                                   pointer; walk from root via
+      --                                   this field to enumerate
+      --                                   history in temporal order.
+      --
+      --   contested_at           TEXT  — ISO 8601 when the user flagged
+      --                                   this fact as contested. NULL
+      --                                   when not currently contested.
+      --                                   Contestation is recoverable
+      --                                   (uncontest clears both
+      --                                   columns).
+      --
+      --   contested_reason       TEXT  — user-provided reason text.
+      --
+      --   tombstoned_at          TEXT  — ISO 8601 when the user removed
+      --                                   the fact's content for
+      --                                   privacy. Irreversible: once
+      --                                   set, the fact is read-only
+      --                                   forever and its statement
+      --                                   field carries a sentinel
+      --                                   value '[tombstoned]'.
+      --
+      --   tombstone_reason       TEXT  — user-provided reason text.
+      --
+      -- All columns default to NULL. Pre-existing facts are unchanged.
+      -- The runner wraps these ALTERs in a single transaction; partial
+      -- application is impossible.
+      -- ============================================================
+
+      ALTER TABLE semantic_facts ADD COLUMN version_chain_root_id TEXT;
+      ALTER TABLE semantic_facts ADD COLUMN superseded_by_fact_id TEXT;
+      ALTER TABLE semantic_facts ADD COLUMN contested_at TEXT;
+      ALTER TABLE semantic_facts ADD COLUMN contested_reason TEXT;
+      ALTER TABLE semantic_facts ADD COLUMN tombstoned_at TEXT;
+      ALTER TABLE semantic_facts ADD COLUMN tombstone_reason TEXT;
+
+      -- Walk a version chain from any descendant. Partial index — only
+      -- facts that have been revised carry this pointer.
+      CREATE INDEX ix_facts_chain_root
+        ON semantic_facts(workspace_id, version_chain_root_id)
+        WHERE version_chain_root_id IS NOT NULL;
+
+      -- Find the head of a chain: where superseded_by_fact_id IS NULL.
+      -- (List + read endpoints filter on this to show only live facts
+      --  by default.)
+      CREATE INDEX ix_facts_head
+        ON semantic_facts(workspace_id, id)
+        WHERE superseded_by_fact_id IS NULL;
+
+      -- Locate contested facts quickly (small partial index).
+      CREATE INDEX ix_facts_contested
+        ON semantic_facts(workspace_id, contested_at)
+        WHERE contested_at IS NOT NULL;
+
+      -- Locate tombstoned facts (small partial index; tombstones are
+      -- typically rare per Memory Engine §14).
+      CREATE INDEX ix_facts_tombstoned
+        ON semantic_facts(workspace_id, tombstoned_at)
+        WHERE tombstoned_at IS NOT NULL;
+    `,
+  },
 ];
