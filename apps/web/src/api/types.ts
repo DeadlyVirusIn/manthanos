@@ -28,36 +28,86 @@
 //   eliminate the drift risk.
 
 // ─────────────────────────────────────────────────────────────────
-// Branded enum types
+// Allowed-value tables + raw value unions
+// ─────────────────────────────────────────────────────────────────
+//
+// The ALLOWED_X tuples below are the single source of truth for which
+// values each enum permits. Both the branded types and the raw value
+// unions derive from them. Adding a value here propagates to:
+//   - the branded type (e.g. AudienceFit)
+//   - the raw value union (e.g. AudienceFitValue)
+//   - the runtime guard / brander (via makeGuard / makeBrander)
+//   - the C1.8 translation map (via Record<XValue, string>)
+// The C1.8 map relies on this derivation: adding an ALLOWED_X entry
+// causes a TypeScript compile error in labels.ts until a label is added.
+
+export const ALLOWED_AUDIENCE_FIT = ['target', 'adjacent', 'outside', 'unknown'] as const;
+export const ALLOWED_CONVERSATION_TYPE = [
+  'discovery',
+  'validation',
+  'sales',
+  'support',
+  'other',
+] as const;
+export const ALLOWED_CONVERSATION_OUTCOME = [
+  'validated',
+  'invalidated',
+  'inconclusive',
+  'follow_up',
+] as const;
+export const ALLOWED_FACT_EXTRACTION_STATUS = ['pending', 'extracted', 'skipped'] as const;
+export const ALLOWED_FACT_TIER = ['T-2', 'T-1', 'T0', 'T+1'] as const;
+export const ALLOWED_WORKSPACE_STATUS = ['active', 'paused', 'killed'] as const;
+export const ALLOWED_LIFECYCLE_STATE = [
+  'tombstoned',
+  'superseded',
+  'contested',
+  'not_contested',
+  'already_skipped',
+] as const;
+export const ALLOWED_PROVENANCE_KIND = ['quote', 'conversation'] as const;
+export const ALLOWED_EXTRACTOR = ['manual'] as const;
+
+// Raw value unions (unbranded). Used by the translation map for
+// Record-based exhaustiveness checks where the brand symbol would
+// otherwise reject string-literal keys.
+export type AudienceFitValue = (typeof ALLOWED_AUDIENCE_FIT)[number];
+export type ConversationTypeValue = (typeof ALLOWED_CONVERSATION_TYPE)[number];
+export type ConversationOutcomeValue = (typeof ALLOWED_CONVERSATION_OUTCOME)[number];
+export type FactExtractionStatusValue = (typeof ALLOWED_FACT_EXTRACTION_STATUS)[number];
+export type FactTierValue = (typeof ALLOWED_FACT_TIER)[number];
+export type WorkspaceStatusValue = (typeof ALLOWED_WORKSPACE_STATUS)[number];
+export type LifecycleStateValue = (typeof ALLOWED_LIFECYCLE_STATE)[number];
+export type ProvenanceKindValue = (typeof ALLOWED_PROVENANCE_KIND)[number];
+export type ExtractorValue = (typeof ALLOWED_EXTRACTOR)[number];
+
+// ─────────────────────────────────────────────────────────────────
+// Branded enum types — derived from the raw value unions
 // ─────────────────────────────────────────────────────────────────
 
 declare const AudienceFitBrand: unique symbol;
-export type AudienceFit = ('target' | 'adjacent' | 'outside' | 'unknown') & {
-  readonly [AudienceFitBrand]: 'AudienceFit';
-};
+export type AudienceFit = AudienceFitValue & { readonly [AudienceFitBrand]: 'AudienceFit' };
 
 declare const ConversationTypeBrand: unique symbol;
-export type ConversationType = ('discovery' | 'validation' | 'sales' | 'support' | 'other') & {
+export type ConversationType = ConversationTypeValue & {
   readonly [ConversationTypeBrand]: 'ConversationType';
 };
 
 declare const ConversationOutcomeBrand: unique symbol;
-export type ConversationOutcome = ('validated' | 'invalidated' | 'inconclusive' | 'follow_up') & {
+export type ConversationOutcome = ConversationOutcomeValue & {
   readonly [ConversationOutcomeBrand]: 'ConversationOutcome';
 };
 
 declare const FactExtractionStatusBrand: unique symbol;
-export type FactExtractionStatus = ('pending' | 'extracted' | 'skipped') & {
+export type FactExtractionStatus = FactExtractionStatusValue & {
   readonly [FactExtractionStatusBrand]: 'FactExtractionStatus';
 };
 
 declare const FactTierBrand: unique symbol;
-export type FactTier = ('T-2' | 'T-1' | 'T0' | 'T+1') & {
-  readonly [FactTierBrand]: 'FactTier';
-};
+export type FactTier = FactTierValue & { readonly [FactTierBrand]: 'FactTier' };
 
 declare const WorkspaceStatusBrand: unique symbol;
-export type WorkspaceStatus = ('active' | 'paused' | 'killed') & {
+export type WorkspaceStatus = WorkspaceStatusValue & {
   readonly [WorkspaceStatusBrand]: 'WorkspaceStatus';
 };
 
@@ -65,49 +115,22 @@ declare const LifecycleStateBrand: unique symbol;
 /** Returned in the body of 409 invalid_lifecycle errors. The union spans
  *  fact lifecycle states + conversation lifecycle states + the
  *  skip-extraction state. */
-export type LifecycleState = (
-  | 'tombstoned'
-  | 'superseded'
-  | 'contested'
-  | 'not_contested'
-  | 'already_skipped'
-) & {
+export type LifecycleState = LifecycleStateValue & {
   readonly [LifecycleStateBrand]: 'LifecycleState';
 };
 
 declare const ProvenanceKindBrand: unique symbol;
-export type ProvenanceKind = ('quote' | 'conversation') & {
+export type ProvenanceKind = ProvenanceKindValue & {
   readonly [ProvenanceKindBrand]: 'ProvenanceKind';
 };
 
 declare const ExtractorBrand: unique symbol;
 /** Currently always 'manual' in Sprint 2 (AI extractor lands in Sprint 3). */
-export type Extractor = 'manual' & { readonly [ExtractorBrand]: 'Extractor' };
+export type Extractor = ExtractorValue & { readonly [ExtractorBrand]: 'Extractor' };
 
 // ─────────────────────────────────────────────────────────────────
-// Allowed-value tables + guards + branders
+// Guards + branders
 // ─────────────────────────────────────────────────────────────────
-
-const ALLOWED_AUDIENCE_FIT = ['target', 'adjacent', 'outside', 'unknown'] as const;
-const ALLOWED_CONVERSATION_TYPE = ['discovery', 'validation', 'sales', 'support', 'other'] as const;
-const ALLOWED_CONVERSATION_OUTCOME = [
-  'validated',
-  'invalidated',
-  'inconclusive',
-  'follow_up',
-] as const;
-const ALLOWED_FACT_EXTRACTION_STATUS = ['pending', 'extracted', 'skipped'] as const;
-const ALLOWED_FACT_TIER = ['T-2', 'T-1', 'T0', 'T+1'] as const;
-const ALLOWED_WORKSPACE_STATUS = ['active', 'paused', 'killed'] as const;
-const ALLOWED_LIFECYCLE_STATE = [
-  'tombstoned',
-  'superseded',
-  'contested',
-  'not_contested',
-  'already_skipped',
-] as const;
-const ALLOWED_PROVENANCE_KIND = ['quote', 'conversation'] as const;
-const ALLOWED_EXTRACTOR = ['manual'] as const;
 
 function makeGuard<T extends string>(values: readonly T[]): (v: unknown) => v is T {
   return (v: unknown): v is T => typeof v === 'string' && (values as readonly string[]).includes(v);
