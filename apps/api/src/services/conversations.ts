@@ -16,6 +16,10 @@ import {
   auditedWrite,
 } from '@manthanos/memory';
 import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
+import {
+  DEGRADATION_REASON_CONVERSATION_TOMBSTONED,
+  markProvenanceDegradedByConversation,
+} from './provenance.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Enum vocabularies (mirrors migration 0007 documentation)
@@ -24,6 +28,15 @@ import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
 export type AudienceFit = 'target' | 'adjacent' | 'outside' | 'unknown';
 export type ConversationType = 'discovery' | 'validation' | 'sales' | 'support' | 'other';
 export type ConversationOutcome = 'validated' | 'invalidated' | 'inconclusive' | 'follow_up';
+export type FactExtractionStatus = 'pending' | 'extracted' | 'skipped';
+
+const ALLOWED_EXTRACTION_STATUSES: readonly FactExtractionStatus[] = [
+  'pending',
+  'extracted',
+  'skipped',
+];
+
+export const TOMBSTONE_CONVERSATION_SENTINEL = '[tombstoned]';
 
 const ALLOWED_AUDIENCE_FIT: readonly AudienceFit[] = ['target', 'adjacent', 'outside', 'unknown'];
 const ALLOWED_CONVERSATION_TYPES: readonly ConversationType[] = [
@@ -71,6 +84,13 @@ export interface ConversationView {
   readonly summary: string | null;
   readonly created_at: string;
   readonly audit_seq: number;
+  // Task 6B columns (migration 0008). NULL when not set.
+  readonly tombstoned_at: string | null;
+  readonly tombstone_reason: string | null;
+  readonly fact_extraction_status: FactExtractionStatus;
+  readonly last_extracted_at: string | null;
+  /** Derived: true when tombstoned_at is set. */
+  readonly is_tombstoned: boolean;
   readonly verbatim_quotes: readonly ConversationQuoteView[];
 }
 
@@ -85,6 +105,10 @@ interface ConversationRow {
   summary: string | null;
   created_at: string;
   audit_seq: number;
+  tombstoned_at: string | null;
+  tombstone_reason: string | null;
+  fact_extraction_status: FactExtractionStatus;
+  last_extracted_at: string | null;
 }
 
 interface QuoteRow {
@@ -107,6 +131,30 @@ export class ConversationNotFoundError extends Error {
   constructor(id: string) {
     super(`Conversation ${id} not found`);
     this.name = 'ConversationNotFoundError';
+  }
+}
+
+/** Raised when a caller tries to mutate a conversation whose lifecycle
+ *  forbids it: e.g. tombstoning an already-tombstoned conversation, or
+ *  extracting a fact from a tombstoned conversation (commit 3). */
+export class ConversationLifecycleError extends Error {
+  readonly state: 'tombstoned';
+  readonly conversationId: string;
+  constructor(state: 'tombstoned', conversationId: string, message: string) {
+    super(message);
+    this.name = 'ConversationLifecycleError';
+    this.state = state;
+    this.conversationId = conversationId;
+  }
+}
+
+function assertConversationNotTombstoned(row: ConversationRow): void {
+  if (row.tombstoned_at !== null) {
+    throw new ConversationLifecycleError(
+      'tombstoned',
+      row.id,
+      `conversation ${row.id} is tombstoned; no further mutations are allowed`,
+    );
   }
 }
 
@@ -160,7 +208,9 @@ function generateQuoteId(): string {
 
 const CONVERSATION_COLUMNS = `
   id, workspace_id, person_name, occurred_at, audience_fit,
-  conversation_type, outcome, summary, created_at, audit_seq
+  conversation_type, outcome, summary, created_at, audit_seq,
+  tombstoned_at, tombstone_reason,
+  fact_extraction_status, last_extracted_at
 `;
 
 function rowToView(
@@ -178,9 +228,18 @@ function rowToView(
     summary: row.summary,
     created_at: row.created_at,
     audit_seq: row.audit_seq,
+    tombstoned_at: row.tombstoned_at,
+    tombstone_reason: row.tombstone_reason,
+    fact_extraction_status: row.fact_extraction_status,
+    last_extracted_at: row.last_extracted_at,
+    is_tombstoned: row.tombstoned_at !== null,
     verbatim_quotes: quotes,
   };
 }
+
+// Silence unused-warning until 6C consumes this list (extraction-status
+// validation lives in extractFactFromConversation).
+void ALLOWED_EXTRACTION_STATUSES;
 
 function loadQuotesGrouped(
   db: ManthanSqliteHandle,
@@ -235,6 +294,10 @@ export interface ListConversationsOptions {
   readonly audienceFit?: AudienceFit;
   readonly conversationType?: ConversationType;
   readonly outcome?: ConversationOutcome;
+  /** Default false. Tombstoned conversations are hidden from the
+   *  default list (matches the facts pattern). Callers walking the
+   *  audit trail or showing a "deleted" view pass true. */
+  readonly includeTombstoned?: boolean;
 }
 
 export interface ListConversationsResult {
@@ -292,6 +355,9 @@ export function listConversations(
   if (opts.outcome !== undefined) {
     clauses.push('outcome = ?');
     params.push(opts.outcome);
+  }
+  if (!opts.includeTombstoned) {
+    clauses.push('tombstoned_at IS NULL');
   }
   const where = clauses.join(' AND ');
 
@@ -477,4 +543,179 @@ export async function createConversation(
     throw new Error(`conversation ${id} disappeared immediately after creation`);
   }
   return { conversation: view, audit };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Task 6B commit 2 — tombstone
+// ─────────────────────────────────────────────────────────────────
+
+const AFFECTED_FACT_IDS_SAMPLE_CAP = 20;
+
+export interface TombstoneConversationInput {
+  readonly reason: string;
+}
+
+export interface TombstoneConversationResult {
+  readonly conversation: ConversationView;
+  readonly audit: AuditedWriteResult;
+  readonly affected_quote_count: number;
+  readonly affected_provenance_count: number;
+  readonly affected_fact_ids_sample: readonly string[];
+}
+
+/**
+ * Permanently retire a conversation. Terminal, irreversible.
+ *
+ * Sentinel-replaces `person_name`, `summary`, and every child quote's
+ * `text` with `'[tombstoned]'`. Row identity (ids, positions,
+ * occurred_at, audit_seq linkage) is preserved so audit-chain replay
+ * still resolves the original payload from the `conversation.create`
+ * event's blob.
+ *
+ * Cascades to provenance: every `fact_provenance_sources` row whose
+ * conversation_id matches OR whose quote_id ∈ this conversation's
+ * quotes is marked degraded with reason
+ * `source_conversation_tombstoned`. Facts themselves are NOT
+ * tombstoned — they survive with their tier and confidence intact,
+ * but each affected fact's derived `provenance_degraded` flag flips
+ * to true (and `degraded_source_count` increments accordingly).
+ *
+ * Forbidden against an already-tombstoned conversation
+ * (ConversationLifecycleError 'tombstoned').
+ */
+export async function tombstoneConversation(
+  ctx: AuditedWriteContext,
+  workspaceId: string,
+  conversationId: string,
+  input: TombstoneConversationInput,
+): Promise<TombstoneConversationResult> {
+  const existing = selectConversationById(ctx.db, workspaceId, conversationId);
+  if (!existing) {
+    throw new ConversationNotFoundError(conversationId);
+  }
+  assertConversationNotTombstoned(existing);
+
+  const reason = validateNonEmptyString('reason', input.reason, 2000);
+  const now = new Date().toISOString();
+
+  // Pre-compute affected counts + sample BEFORE the auditedWrite so the
+  // payload is fully populated when the audit blob is hashed. The same
+  // WHERE clause is used by markProvenanceDegradedByConversation
+  // (which also filters `degraded_at IS NULL`), so the counts match
+  // the rows that the UPDATE will actually touch.
+  const affectedQuoteCount = (
+    ctx.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM conversation_verbatim_quotes
+          WHERE conversation_id = ?`,
+      )
+      .get(conversationId) as { n: number }
+  ).n;
+
+  const affectedProvenanceCount = (
+    ctx.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM fact_provenance_sources
+          WHERE workspace_id = ?
+            AND degraded_at IS NULL
+            AND (
+              conversation_id = ?
+              OR quote_id IN (
+                SELECT id FROM conversation_verbatim_quotes
+                 WHERE conversation_id = ?
+              )
+            )`,
+      )
+      .get(workspaceId, conversationId, conversationId) as { n: number }
+  ).n;
+
+  const affectedFactIdsSample = (
+    ctx.db
+      .prepare(
+        `SELECT DISTINCT fact_id FROM fact_provenance_sources
+          WHERE workspace_id = ?
+            AND degraded_at IS NULL
+            AND (
+              conversation_id = ?
+              OR quote_id IN (
+                SELECT id FROM conversation_verbatim_quotes
+                 WHERE conversation_id = ?
+              )
+            )
+          LIMIT ?`,
+      )
+      .all(workspaceId, conversationId, conversationId, AFFECTED_FACT_IDS_SAMPLE_CAP) as Array<{
+      fact_id: string;
+    }>
+  ).map((r) => r.fact_id);
+
+  const audit = await auditedWrite(ctx, {
+    workspaceId,
+    actor: 'user',
+    action: 'conversation.tombstone',
+    kind: 'conversation',
+    decision: AUDIT_DECISION_HUMAN_APPROVED,
+    payload: {
+      conversation_id: existing.id,
+      reason,
+      tombstoned_at: now,
+      was_extracted: existing.fact_extraction_status === 'extracted',
+      previous_person_name: existing.person_name,
+      affected_quote_count: affectedQuoteCount,
+      affected_provenance_count: affectedProvenanceCount,
+      affected_fact_ids_sample: affectedFactIdsSample,
+    },
+    brainWrites: ({ seq }) => {
+      // 1. Sentinel-replace the conversation's PII-bearing fields.
+      ctx.db
+        .prepare(
+          `UPDATE conversations
+              SET person_name = ?, summary = ?,
+                  tombstoned_at = ?, tombstone_reason = ?,
+                  audit_seq = ?
+            WHERE workspace_id = ? AND id = ?`,
+        )
+        .run(
+          TOMBSTONE_CONVERSATION_SENTINEL,
+          TOMBSTONE_CONVERSATION_SENTINEL,
+          now,
+          reason,
+          seq,
+          workspaceId,
+          existing.id,
+        );
+
+      // 2. Sentinel-replace every child quote's text. IDs and positions
+      //    are preserved so any provenance row keyed on quote_id still
+      //    resolves through audit-chain replay.
+      ctx.db
+        .prepare(
+          `UPDATE conversation_verbatim_quotes
+              SET text = ?
+            WHERE conversation_id = ?`,
+        )
+        .run(TOMBSTONE_CONVERSATION_SENTINEL, existing.id);
+
+      // 3. Degrade every linked provenance row in the same transaction.
+      markProvenanceDegradedByConversation(
+        ctx.db,
+        workspaceId,
+        existing.id,
+        DEGRADATION_REASON_CONVERSATION_TOMBSTONED,
+        now,
+      );
+    },
+  });
+
+  const view = getConversation(ctx.db, workspaceId, existing.id);
+  if (!view) {
+    throw new Error(`conversation ${existing.id} disappeared mid-tombstone`);
+  }
+  return {
+    conversation: view,
+    audit,
+    affected_quote_count: affectedQuoteCount,
+    affected_provenance_count: affectedProvenanceCount,
+    affected_fact_ids_sample: affectedFactIdsSample,
+  };
 }

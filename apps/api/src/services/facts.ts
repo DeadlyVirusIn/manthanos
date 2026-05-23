@@ -79,6 +79,13 @@ export interface FactView {
   readonly is_contested: boolean;
   /** Derived: true when tombstoned_at is set. */
   readonly is_tombstoned: boolean;
+  // Task 6B commit 2 — content-provenance counters (derived from
+  // fact_provenance_sources via correlated subqueries; not stored).
+  readonly active_source_count: number;
+  readonly degraded_source_count: number;
+  /** Derived: true when at least one provenance row is degraded
+   *  (i.e. its source conversation has been tombstoned). */
+  readonly provenance_degraded: boolean;
 }
 
 interface FactRow {
@@ -98,6 +105,8 @@ interface FactRow {
   contested_reason: string | null;
   tombstoned_at: string | null;
   tombstone_reason: string | null;
+  active_source_count: number;
+  degraded_source_count: number;
 }
 
 export interface CreateFactInput {
@@ -242,15 +251,30 @@ function rowToView(row: FactRow): FactView {
     is_head: row.superseded_by_fact_id === null,
     is_contested: row.contested_at !== null,
     is_tombstoned: row.tombstoned_at !== null,
+    active_source_count: row.active_source_count,
+    degraded_source_count: row.degraded_source_count,
+    provenance_degraded: row.degraded_source_count > 0,
   };
 }
 
+// `active_source_count` / `degraded_source_count` are computed via
+// correlated subqueries against `fact_provenance_sources`. The partial
+// index `ix_fact_provenance_degraded` and the full
+// `ix_fact_provenance_fact` index keep both subqueries O(log n).
 const FACT_SELECT_COLUMNS = `
   id, workspace_id, area, statement, statement_hash, tier,
   confidence, last_corroborated, last_administratively_touched, audit_seq,
   version_chain_root_id, superseded_by_fact_id,
   contested_at, contested_reason,
-  tombstoned_at, tombstone_reason
+  tombstoned_at, tombstone_reason,
+  (SELECT COUNT(*) FROM fact_provenance_sources p
+     WHERE p.workspace_id = semantic_facts.workspace_id
+       AND p.fact_id = semantic_facts.id
+       AND p.degraded_at IS NULL) AS active_source_count,
+  (SELECT COUNT(*) FROM fact_provenance_sources p
+     WHERE p.workspace_id = semantic_facts.workspace_id
+       AND p.fact_id = semantic_facts.id
+       AND p.degraded_at IS NOT NULL) AS degraded_source_count
 `;
 
 function selectFactById(

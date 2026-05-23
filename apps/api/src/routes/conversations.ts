@@ -11,6 +11,8 @@ import type { FastifyInstance } from 'fastify';
 import { workspaceExists } from '../services/audit.js';
 import {
   type AudienceFit,
+  ConversationLifecycleError,
+  ConversationNotFoundError,
   type ConversationOutcome,
   type ConversationType,
   ConversationValidationError,
@@ -20,6 +22,7 @@ import {
   isConversationOutcome,
   isConversationType,
   listConversations,
+  tombstoneConversation,
 } from '../services/conversations.js';
 import type { SubstrateHandle } from '../services/substrate.js';
 
@@ -43,6 +46,7 @@ interface ListQuery {
   outcome?: string;
   limit?: string;
   offset?: string;
+  include_tombstoned?: string;
 }
 
 function parseIntOrUndefined(value: string | undefined, field: string): number | undefined {
@@ -52,6 +56,11 @@ function parseIntOrUndefined(value: string | undefined, field: string): number |
     throw new ConversationValidationError(field, `${field} must be a non-negative integer`);
   }
   return n;
+}
+
+function parseBool(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  return value === 'true' || value === '1';
 }
 
 export function registerConversationRoutes(app: FastifyInstance, rc: RouteContext): void {
@@ -159,6 +168,7 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
           outcome: q.outcome as ConversationOutcome | undefined,
           limit,
           offset,
+          includeTombstoned: parseBool(q.include_tombstoned),
         });
         await reply.send(result);
       } catch (err) {
@@ -189,4 +199,56 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       await reply.send(conversation);
     },
   );
+
+  // POST .../tombstone — permanently retire a conversation (Task 6B).
+  app.post<{
+    Params: { id: string; conversation_id: string };
+    Body: { reason?: unknown };
+  }>('/api/v1/workspaces/:id/conversations/:conversation_id/tombstone', async (req, reply) => {
+    const db = rc.substrate.db.handle;
+    if (!workspaceExists(db, req.params.id)) {
+      await reply.code(404).send({ error: 'not_found' });
+      return;
+    }
+    const body = (req.body ?? {}) as { reason?: unknown };
+    if (typeof body.reason !== 'string') {
+      await reply
+        .code(400)
+        .send({ error: 'validation', field: 'reason', details: 'reason must be a string' });
+      return;
+    }
+    try {
+      const result = await tombstoneConversation(
+        rc.substrate.ctx,
+        req.params.id,
+        req.params.conversation_id,
+        { reason: body.reason },
+      );
+      await reply.send({
+        conversation: result.conversation,
+        affected_quote_count: result.affected_quote_count,
+        affected_provenance_count: result.affected_provenance_count,
+        affected_fact_ids_sample: result.affected_fact_ids_sample,
+      });
+    } catch (err) {
+      if (err instanceof ConversationNotFoundError) {
+        await reply.code(404).send({ error: 'not_found' });
+        return;
+      }
+      if (err instanceof ConversationValidationError) {
+        await reply.code(400).send({ error: 'validation', field: err.field, details: err.message });
+        return;
+      }
+      if (err instanceof ConversationLifecycleError) {
+        await reply.code(409).send({
+          error: 'invalid_lifecycle',
+          state: err.state,
+          conversation_id: err.conversationId,
+          details: err.message,
+        });
+        return;
+      }
+      throw err;
+    }
+  });
 }
