@@ -126,6 +126,11 @@ const FIELD_LABEL_KEYS = [
   'occurred_at',
   'tombstone_reason',
   'contested_reason',
+  // Added by Sprint 2 M2.5 C25.1 — enum-select field headings used by
+  // CaptureConversationDialog and (later) other mutation forms.
+  'audience_fit',
+  'conversation_type',
+  'outcome',
 ] as const;
 
 export type FieldLabelKey = (typeof FIELD_LABEL_KEYS)[number];
@@ -139,6 +144,9 @@ const FIELD_LABELS: Record<FieldLabelKey, string> = {
   occurred_at: 'When was it?',
   tombstone_reason: 'Why erased',
   contested_reason: 'Why flagged for follow-up',
+  audience_fit: 'How well do they match your target?',
+  conversation_type: 'What kind of conversation was this?',
+  outcome: 'How did it end?',
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -233,6 +241,51 @@ const AUDIT_ACTION_LABELS: Record<AuditActionKey, AuditActionLabelEntry> = {
 };
 
 // ─────────────────────────────────────────────────────────────────
+// Mutation-error labels — Sprint 2 M2.5 C25.1
+// ─────────────────────────────────────────────────────────────────
+//
+// MutationErrorBanner discriminates an ApiError envelope to a category
+// and routes the visible copy through this table. Categories cover the
+// five typed envelopes from api/types.ts plus a network catch-all and
+// an unknown fallback. Function-valued entries receive the envelope's
+// payload and produce the visible string — keeping all user-facing
+// error text inside this file.
+
+export const MUTATION_ERROR_CATEGORIES = [
+  'validation',
+  'not_found',
+  'invalid_lifecycle',
+  'duplicate_fact',
+  'invalid_tier_transition',
+  'network',
+  'unknown',
+] as const;
+export type MutationErrorCategory = (typeof MUTATION_ERROR_CATEGORIES)[number];
+
+const MUTATION_ERROR_LABELS: Record<MutationErrorCategory, AuditActionLabelEntry> = {
+  validation: (p) =>
+    coerce(p.details, "Something about that didn't work. Please check the fields above."),
+  not_found: 'This is no longer here. It may have been erased or moved.',
+  invalid_lifecycle: (p) => {
+    const state = typeof p.state === 'string' ? p.state : '';
+    if (state === '') return "Can't do that right now.";
+    const label = (LIFECYCLE_STATE_LABELS as Record<string, string>)[state] ?? state;
+    return `Can't do that — this is ${label.toLowerCase()}.`;
+  },
+  duplicate_fact: 'We already have this.',
+  invalid_tier_transition: (p) => {
+    const from = typeof p.from === 'string' ? p.from : '';
+    const to = typeof p.to === 'string' ? p.to : '';
+    const fromLabel = (FACT_TIER_LABELS as Record<string, string>)[from] ?? from;
+    const toLabel = (FACT_TIER_LABELS as Record<string, string>)[to] ?? to;
+    if (fromLabel === '' || toLabel === '') return "Can't change the trust level that way.";
+    return `Can't move from "${fromLabel}" to "${toLabel}".`;
+  },
+  network: "Couldn't reach the daemon. Check that it's running and try again.",
+  unknown: 'Something unexpected happened. Try again, or report this if it keeps happening.',
+};
+
+// ─────────────────────────────────────────────────────────────────
 // Master kind → map registry
 // ─────────────────────────────────────────────────────────────────
 
@@ -249,6 +302,7 @@ const LABEL_MAPS = {
   field_label: FIELD_LABELS,
   fact_action: FACT_ACTION_LABELS,
   audit_action: AUDIT_ACTION_LABELS,
+  mutation_error: MUTATION_ERROR_LABELS,
 } as const;
 
 export type LabelKind = keyof typeof LABEL_MAPS;
@@ -268,6 +322,7 @@ export const LABEL_KINDS = [
   'field_label',
   'fact_action',
   'audit_action',
+  'mutation_error',
 ] as const satisfies readonly LabelKind[];
 
 // ─────────────────────────────────────────────────────────────────

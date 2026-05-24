@@ -313,22 +313,32 @@ describe('Today — populated state', () => {
 // Disabled quick actions (J.5 invariant)
 // ─────────────────────────────────────────────────────────────────
 
-describe('Today — disabled quick actions', () => {
-  it('renders all three quick actions as aria-disabled (not buttons, not links)', () => {
+describe('Today — quick actions disabled / enabled posture', () => {
+  // Sprint 2 M2.5 C25.1 enabled Capture Conversation; the other two
+  // remain disabled until later commits.
+  it('renders extract-facts and review-evidence as aria-disabled (not buttons, not links)', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(1));
     seedFacts(client, makeFactResult(1));
     const html = render(client);
-    for (const id of [
-      'quick-action-capture-conversation',
-      'quick-action-extract-facts',
-      'quick-action-review-evidence',
-    ]) {
+    for (const id of ['quick-action-extract-facts', 'quick-action-review-evidence']) {
       expect(html).toMatch(new RegExp(`<div[^>]*aria-disabled="true"[^>]*data-testid="${id}"`));
       expect(html).not.toMatch(new RegExp(`<a[^>]*data-testid="${id}"`));
       expect(html).not.toMatch(new RegExp(`<button[^>]*data-testid="${id}"`));
     }
+  });
+
+  it('renders capture-conversation as an enabled button (M2.5 C25.1)', () => {
+    const client = makeClient();
+    seedAudit(client, makeAuditResult([makeEvent()]));
+    seedConvs(client, makeConvResult(1));
+    seedFacts(client, makeFactResult(1));
+    const html = render(client);
+    expect(html).toMatch(/<button[^>]*data-testid="quick-action-capture-conversation"/);
+    expect(html).not.toMatch(
+      /<div[^>]*aria-disabled="true"[^>]*data-testid="quick-action-capture-conversation"/,
+    );
   });
 
   it('includes explanatory copy that the actions arrive in the next milestone', () => {

@@ -1,32 +1,38 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-// Today page — Sprint 2 M2 C2.4 (read-only).
+// Today page — Sprint 2 M2 C2.4 (read-only) + M2.5 C25.1 (Capture
+// Conversation mutation wired into the quick-action card).
 //
 // "What happened recently and what's worth looking at next." This
-// page is intentionally a thin honest surface over the daemon's
-// existing endpoints — we do NOT compute or fabricate derived
-// metrics. Three real data sources:
+// page is a thin honest surface over the daemon's existing endpoints
+// — we do NOT compute or fabricate derived metrics.
 //
-//   1. Activity timeline   ← listAuditEvents (last 10)
-//   2. Conversation total  ← listConversations({ limit: 1 }).total
-//   3. Fact total          ← listFacts({ limit: 1 }).total
+// C25.1 enables one mutation: Capture Conversation. The other two
+// quick actions (Extract Facts, Review Evidence) stay
+// visible-but-disabled until their commits land. The Capture flow
+// uses the M2.5 mutation framework (MutationDialog +
+// MutationErrorBanner + MutationSuccessMessage + useMutationStatus
+// via useCaptureConversation).
 //
-// Quick actions (J.5): Capture Conversation, Extract Facts, Review
-// Evidence — all visible-but-disabled (mutations are M2.5/M3).
-//
-// Hidden-not-faked rule:
-//   - If a section's query failed but the page is otherwise OK, we
-//     still show the page (with that section's error inline).
-//   - If all three core queries fail, surface a single PageErrorBanner.
-//   - Loading state shows skeletons in place of the real sections.
-//   - Empty state: when audit chain has 0 events, render the empty
-//     copy + the disabled quick actions (so founders see the future
-//     composition without misleading numbers).
+// Hidden-not-faked rule (unchanged from M2):
+//   - Per-section errors render inline; page survives.
+//   - All three core queries failing → single PageErrorBanner.
+//   - Loading state shows skeletons.
+//   - Empty state when audit chain length is 0.
 
-import type { AuditEventSummary } from '../api/index.js';
-import { PageErrorBanner, TextSkeleton } from '../components/index.js';
+import { type Dispatch, type SetStateAction, useState } from 'react';
+
+import type { AuditEventSummary, CreateConversationInput } from '../api/index.js';
 import {
+  CaptureConversationDialog,
+  MutationSuccessMessage,
+  PageErrorBanner,
+  TextSkeleton,
+} from '../components/index.js';
+import {
+  type MutationStatus,
+  useCaptureConversation,
   useConversationTotal,
   useFactTotal,
   useRecentAuditEvents,
@@ -35,11 +41,18 @@ import {
 import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
 
+type CaptureStatus = MutationStatus<CreateConversationInput, unknown>;
+
 export function Today(): JSX.Element {
   const { projectId } = useWorkspaceContext();
   const auditQuery = useRecentAuditEvents(projectId);
   const conversationQuery = useConversationTotal(projectId);
   const factQuery = useFactTotal(projectId);
+
+  // M2.5 C25.1: mutation state lives at the page level so the success
+  // message survives the dialog closing.
+  const captureStatus = useCaptureConversation(projectId) as CaptureStatus;
+  const [isCaptureOpen, setIsCaptureOpen] = useState(false);
 
   if (projectId === undefined) {
     return (
@@ -54,9 +67,11 @@ export function Today(): JSX.Element {
 
   const anyPending = auditQuery.isPending || conversationQuery.isPending || factQuery.isPending;
   const allErrored = auditQuery.isError && conversationQuery.isError && factQuery.isError;
+  const openCapture = (): void => setIsCaptureOpen(true);
 
   if (anyPending && !allErrored) {
-    return (
+    return renderTodayShell(
+      projectId,
       <section data-testid="today-loading">
         <PageHeader />
         <div data-testid="today-counts-loading" style={{ marginTop: '1rem' }}>
@@ -66,14 +81,18 @@ export function Today(): JSX.Element {
           <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Recent activity</h2>
           <TextSkeleton lines={4} ariaLabel="Loading activity" />
         </div>
-        <QuickActions />
-      </section>
+        <QuickActions onCaptureClick={openCapture} />
+      </section>,
+      captureStatus,
+      isCaptureOpen,
+      setIsCaptureOpen,
     );
   }
 
   if (allErrored) {
     const err = auditQuery.error ?? conversationQuery.error ?? factQuery.error;
-    return (
+    return renderTodayShell(
+      projectId,
       <section data-testid="today-error">
         <PageHeader />
         <div style={{ marginTop: '1rem' }}>
@@ -87,7 +106,10 @@ export function Today(): JSX.Element {
             headline="Could not load Today"
           />
         </div>
-      </section>
+      </section>,
+      captureStatus,
+      isCaptureOpen,
+      setIsCaptureOpen,
     );
   }
 
@@ -96,7 +118,8 @@ export function Today(): JSX.Element {
   const events = auditQuery.data?.events ?? [];
   const hasAnyActivity = events.length > 0;
 
-  return (
+  return renderTodayShell(
+    projectId,
     <section data-testid={hasAnyActivity ? 'today-populated' : 'today-empty'}>
       <PageHeader />
 
@@ -176,8 +199,38 @@ export function Today(): JSX.Element {
         </div>
       ) : null}
 
-      <QuickActions />
-    </section>
+      <QuickActions onCaptureClick={openCapture} />
+    </section>,
+    captureStatus,
+    isCaptureOpen,
+    setIsCaptureOpen,
+  );
+}
+
+// Shared chrome wrapper: mounts the success message + dialog above the
+// page body so they survive across body-state transitions.
+function renderTodayShell(
+  projectId: string,
+  body: JSX.Element,
+  captureStatus: CaptureStatus,
+  isCaptureOpen: boolean,
+  setIsCaptureOpen: Dispatch<SetStateAction<boolean>>,
+): JSX.Element {
+  return (
+    <>
+      <MutationSuccessMessage
+        message={captureStatus.successMessage}
+        onDismiss={captureStatus.dismissSuccess}
+        testId="today-capture-success"
+      />
+      {body}
+      <CaptureConversationDialog
+        isOpen={isCaptureOpen}
+        onClose={() => setIsCaptureOpen(false)}
+        workspaceId={projectId}
+        status={captureStatus}
+      />
+    </>
   );
 }
 
@@ -226,12 +279,16 @@ function AuditEventRow({ event }: AuditEventRowProps): JSX.Element {
   );
 }
 
-function QuickActions(): JSX.Element {
+interface QuickActionsProps {
+  readonly onCaptureClick: () => void;
+}
+
+function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
   return (
     <section data-testid="today-quick-actions" style={{ marginTop: '1.5rem' }}>
       <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Quick actions</h2>
       <p style={{ color: '#999', marginTop: '0.25rem', fontSize: '0.875rem' }}>
-        These actions arrive in the next milestone.
+        Capture a conversation now. The other actions arrive in the next milestone.
       </p>
       <div
         style={{
@@ -241,17 +298,18 @@ function QuickActions(): JSX.Element {
           gap: '0.75rem',
         }}
       >
-        <QuickActionCard
+        <ActiveQuickActionCard
           testId="quick-action-capture-conversation"
           label="Capture Conversation"
           description="Record a chat with a person you talked to."
+          onClick={onCaptureClick}
         />
-        <QuickActionCard
+        <DisabledQuickActionCard
           testId="quick-action-extract-facts"
           label="Extract Facts"
           description="Pull facts from a conversation transcript."
         />
-        <QuickActionCard
+        <DisabledQuickActionCard
           testId="quick-action-review-evidence"
           label="Review Evidence"
           description="Walk the evidence behind a fact."
@@ -261,13 +319,52 @@ function QuickActions(): JSX.Element {
   );
 }
 
-interface QuickActionCardProps {
+interface ActiveQuickActionCardProps {
+  readonly testId: string;
+  readonly label: string;
+  readonly description: string;
+  readonly onClick: () => void;
+}
+
+function ActiveQuickActionCard({
+  testId,
+  label,
+  description,
+  onClick,
+}: ActiveQuickActionCardProps): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      style={{
+        textAlign: 'left',
+        padding: '1rem',
+        border: '1px solid #cfe1ff',
+        borderRadius: '0.5rem',
+        color: '#1a3a6e',
+        cursor: 'pointer',
+        backgroundColor: '#f6faff',
+        font: 'inherit',
+      }}
+    >
+      <strong style={{ fontSize: '1rem', display: 'block' }}>{label}</strong>
+      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>{description}</p>
+    </button>
+  );
+}
+
+interface DisabledQuickActionCardProps {
   readonly testId: string;
   readonly label: string;
   readonly description: string;
 }
 
-function QuickActionCard({ testId, label, description }: QuickActionCardProps): JSX.Element {
+function DisabledQuickActionCard({
+  testId,
+  label,
+  description,
+}: DisabledQuickActionCardProps): JSX.Element {
   return (
     <div
       aria-disabled="true"

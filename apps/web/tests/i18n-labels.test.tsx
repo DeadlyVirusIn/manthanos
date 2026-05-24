@@ -231,6 +231,7 @@ describe('Exhaustiveness (M1 C1.8)', () => {
       'field_label',
       'fact_action',
       'audit_action',
+      'mutation_error',
     ];
     expect([...LABEL_KINDS].sort()).toEqual([...expected].sort());
   });
