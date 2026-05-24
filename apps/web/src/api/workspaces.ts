@@ -6,6 +6,7 @@
 
 import type { ApiClient } from './client.js';
 import { defaultApiClient } from './client.js';
+import { parseWorkspaceList } from './schema.js';
 import type { WorkspaceStatus, WorkspaceView } from './types.js';
 
 // ─────────────────────────────────────────────────────────────────
@@ -42,8 +43,11 @@ export interface UpdateWorkspaceInput {
 export async function listWorkspaces(
   client: ApiClient = defaultApiClient,
 ): Promise<readonly WorkspaceView[]> {
-  const result = await client.get<{ workspaces: readonly WorkspaceView[] }>('/api/v1/workspaces');
-  return result.workspaces;
+  // DEFECT-001: parse, don't cast. The daemon returns `{ workspaces: [...] }`;
+  // validate structurally and fall back to an empty list on drift so the
+  // Projects page degrades gracefully instead of white-screening.
+  const raw = await client.get<unknown>('/api/v1/workspaces');
+  return parseWorkspaceList(raw);
 }
 
 export async function getWorkspace(

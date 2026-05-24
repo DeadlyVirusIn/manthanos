@@ -101,7 +101,10 @@ export function registerWorkspaceRoutes(app: FastifyInstance, rc: RouteContext):
     const workspaces = listWorkspaces(rc.substrate.db.handle, {
       status: statusQuery as WorkspaceStatus | undefined,
     });
-    await reply.send(workspaces);
+    // DEFECT-001: list endpoints return a wrapper object (the house
+    // convention used by conversations/facts/audit), not a bare array.
+    // The web client (listWorkspaces) reads `result.workspaces`.
+    await reply.send({ workspaces });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/workspaces/:id', async (req, reply) => {

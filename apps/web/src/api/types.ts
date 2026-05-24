@@ -355,17 +355,28 @@ export interface AuditEventDetail extends AuditEventSummary {
   readonly payload: Record<string, unknown> | null;
 }
 
+// DEFECT-002: aligned to the daemon's actual `GET .../audit` response
+// (services/audit.ts ListAuditResult). The previous shape declared a
+// `total` field the API never sends; the API paginates by seq cursor.
 export interface ListAuditEventsResult {
   readonly events: readonly AuditEventSummary[];
-  readonly total: number;
+  readonly head_seq: number | null;
+  readonly returned: number;
   readonly has_more: boolean;
+  /** Pass as the next request's `before_seq` to continue paging. */
+  readonly next_before_seq: number | null;
 }
 
+// DEFECT-003: aligned to the daemon's actual `GET .../audit/verify`
+// response (services/audit.ts VerifyAuditResult). Every field of the
+// previous shape was misnamed (verified/checked_events/latest_seq/issues).
 export interface AuditChainVerifyResult {
-  readonly verified: boolean;
-  readonly checked_events: number;
-  readonly latest_seq: number | null;
-  readonly issues?: readonly string[];
+  readonly valid: boolean;
+  readonly head_seq: number | null;
+  readonly total_events: number;
+  readonly broken_at_seq: number | null;
+  readonly expected_prev_hash?: string | null;
+  readonly actual_prev_hash?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────

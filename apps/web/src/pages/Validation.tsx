@@ -143,7 +143,10 @@ export function Validation(): JSX.Element {
       ? Math.max(0, totalFacts - totalFactsExcl)
       : undefined;
   const totalConversations = conversationTotal.data?.total;
-  const recentActivityCount = auditEvents.data?.total;
+  // DEFECT-002: the audit endpoint has no `total`; `head_seq` is the
+  // chain head and, since seqs are contiguous from 1, equals the total
+  // number of audit events. Treat a null head (empty chain) as 0.
+  const recentActivityCount = auditEvents.data ? (auditEvents.data.head_seq ?? 0) : undefined;
   // Build the counts map keyed by tier-literal sourced from
   // ALLOWED_FACT_TIER (api/types.ts — excluded from the C1.9 scan)
   // so this .tsx file never names a tier literal directly.

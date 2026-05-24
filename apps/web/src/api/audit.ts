@@ -6,6 +6,7 @@
 
 import type { ApiClient } from './client.js';
 import { defaultApiClient } from './client.js';
+import { parseAuditEventsResult, parseAuditVerifyResult } from './schema.js';
 import type { AuditChainVerifyResult, AuditEventDetail, ListAuditEventsResult } from './types.js';
 
 // ─────────────────────────────────────────────────────────────────
@@ -56,9 +57,12 @@ export async function listAuditEvents(
   params: ListAuditEventsParams = {},
   client: ApiClient = defaultApiClient,
 ): Promise<ListAuditEventsResult> {
-  return client.get<ListAuditEventsResult>(
+  // DEFECT-002: parse, don't cast — validate the daemon's response shape
+  // and fall back to an empty page on drift.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/audit${buildQuery(params)}`,
   );
+  return parseAuditEventsResult(raw);
 }
 
 export async function getAuditEvent(
@@ -75,7 +79,10 @@ export async function verifyAuditChain(
   workspaceId: string,
   client: ApiClient = defaultApiClient,
 ): Promise<AuditChainVerifyResult> {
-  return client.get<AuditChainVerifyResult>(
+  // DEFECT-003: parse, don't cast. `valid` is load-bearing — a malformed
+  // verify response must never read as valid:true (fallback is valid:false).
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/audit/verify`,
   );
+  return parseAuditVerifyResult(raw);
 }

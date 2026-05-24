@@ -53,7 +53,10 @@ async function getList(query = ''): Promise<{
     url: `/api/v1/workspaces${query}`,
     headers: { host: '127.0.0.1' },
   });
-  return { status: r.statusCode, body: r.json() as Array<Record<string, unknown>> };
+  // DEFECT-001: the list endpoint wraps results in a { workspaces } envelope.
+  // Unwrap here so the existing assertions keep operating on the array.
+  const json = r.json() as { workspaces?: Array<Record<string, unknown>> };
+  return { status: r.statusCode, body: (json.workspaces ?? []) as Array<Record<string, unknown>> };
 }
 
 async function getOne(id: string): Promise<{ status: number; body: Record<string, unknown> }> {
@@ -152,6 +155,20 @@ describe('GET /api/v1/workspaces', () => {
     const r = await getList();
     expect(r.status).toBe(200);
     expect(r.body).toEqual([]);
+  });
+
+  it('wraps the list in a { workspaces } envelope, not a bare array (DEFECT-001)', async () => {
+    await post({ name: 'Enveloped' });
+    const r = await handle.app.inject({
+      method: 'GET',
+      url: '/api/v1/workspaces',
+      headers: { host: '127.0.0.1' },
+    });
+    expect(r.statusCode).toBe(200);
+    const json = r.json() as Record<string, unknown>;
+    expect(Array.isArray(json)).toBe(false);
+    expect(Array.isArray(json.workspaces)).toBe(true);
+    expect((json.workspaces as unknown[]).length).toBe(1);
   });
 
   it('returns all created workspaces (newest first)', async () => {
