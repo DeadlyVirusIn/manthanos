@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-// Conversation detail — Sprint 2 M2 C2.5 (read-only).
+// Conversation detail — Sprint 2 M2 C2.5 (read-only) + M2.5 C25.2
+// (Extract Fact wired into the facts section).
 //
 // Reached via /projects/:projectId/conversations/:id. Shows the full
 // ConversationView the daemon returns, plus the facts that were
@@ -9,27 +10,56 @@
 //
 // Tombstoned conversations use sentinel-safe copy: the page renders a
 // banner explaining the conversation was erased and HIDES the
-// substrate fields (person_name, summary, quotes). The tombstone
-// reason is shown if present. Facts already extracted from this
-// conversation are still listed — they live on independently.
+// substrate fields (person_name, summary, quotes). Facts already
+// extracted from this conversation are still listed — they live on
+// independently. The extract button is NOT shown on tombstoned
+// conversations.
 //
-// No mutations. No Edit / Extract / Erase buttons.
+// C25.2: when the conversation is live, the facts section header
+// surfaces a "Pull a fact from this conversation" button that opens
+// ExtractFactDialog. Success messages survive across the dialog's
+// mount/unmount via the MutationSuccessMessage primitive.
 //
 // All enum values flow through getEnumLabel; every timestamp through
 // formatRelativeTime. No raw ISO or substrate vocabulary in the DOM.
 
+import { type Dispatch, type SetStateAction, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import type { ConversationQuoteView, ConversationView, FactView } from '../api/index.js';
-import { PageErrorBanner, TextSkeleton, TrustLevelIndicator } from '../components/index.js';
-import { useConversation, useConversationFacts } from '../hooks/index.js';
+import type {
+  ConversationQuoteView,
+  ConversationView,
+  ExtractFactInput,
+  ExtractFactResponse,
+  FactView,
+} from '../api/index.js';
+import {
+  ExtractFactDialog,
+  MutationSuccessMessage,
+  PageErrorBanner,
+  TextSkeleton,
+  TrustLevelIndicator,
+} from '../components/index.js';
+import {
+  type MutationStatus,
+  useConversation,
+  useConversationFacts,
+  useExtractFact,
+} from '../hooks/index.js';
 import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
+
+type ExtractStatus = MutationStatus<ExtractFactInput, ExtractFactResponse>;
 
 export function ConversationDetail(): JSX.Element {
   const { projectId, id: conversationId } = useParams<{ projectId: string; id: string }>();
   const conversationQuery = useConversation(projectId, conversationId);
   const factsQuery = useConversationFacts(projectId, conversationId);
+
+  // M2.5 C25.2: lift extract-mutation state to the page so the success
+  // message survives the dialog's mount/unmount lifecycle.
+  const extractStatus = useExtractFact(projectId, conversationId) as ExtractStatus;
+  const [isExtractOpen, setIsExtractOpen] = useState(false);
 
   if (projectId === undefined || conversationId === undefined) {
     return (
@@ -41,7 +71,10 @@ export function ConversationDetail(): JSX.Element {
   }
 
   if (conversationQuery.isPending) {
-    return (
+    return renderConversationShell(
+      projectId,
+      conversationId,
+      [],
       <section data-testid="conversation-detail-loading">
         <PageHeader />
         <div style={{ marginTop: '1rem' }}>
@@ -50,12 +83,18 @@ export function ConversationDetail(): JSX.Element {
         <div style={{ marginTop: '1.5rem' }}>
           <TextSkeleton lines={5} ariaLabel="Loading transcript" />
         </div>
-      </section>
+      </section>,
+      extractStatus,
+      isExtractOpen,
+      setIsExtractOpen,
     );
   }
 
   if (conversationQuery.isError) {
-    return (
+    return renderConversationShell(
+      projectId,
+      conversationId,
+      [],
       <section data-testid="conversation-detail-error">
         <PageHeader />
         <p style={{ color: '#666', marginTop: '0.5rem', fontSize: '0.875rem' }}>
@@ -68,23 +107,38 @@ export function ConversationDetail(): JSX.Element {
             headline="Could not load this conversation"
           />
         </div>
-      </section>
+      </section>,
+      extractStatus,
+      isExtractOpen,
+      setIsExtractOpen,
     );
   }
 
   const conversation = conversationQuery.data;
   if (conversation === undefined) {
-    // Defensive: should not happen once status is 'success'.
-    return (
+    return renderConversationShell(
+      projectId,
+      conversationId,
+      [],
       <section data-testid="conversation-detail-error">
         <PageHeader />
         <p>This conversation has no data.</p>
-      </section>
+      </section>,
+      extractStatus,
+      isExtractOpen,
+      setIsExtractOpen,
     );
   }
 
   if (conversation.is_tombstoned) {
-    return (
+    // Tombstoned conversations: NO extract button (you cannot pull
+    // facts from an erased transcript). The mutation state still lives
+    // here so any earlier success message stays visible while the
+    // user is on this page.
+    return renderConversationShell(
+      projectId,
+      conversationId,
+      [],
       <section data-testid="conversation-detail-tombstoned">
         <PageHeader />
         <TombstoneBanner conversation={conversation} />
@@ -92,11 +146,19 @@ export function ConversationDetail(): JSX.Element {
           projectId={projectId}
           factsQueryState={factsQueryStateOf(factsQuery)}
         />
-      </section>
+      </section>,
+      extractStatus,
+      isExtractOpen,
+      setIsExtractOpen,
     );
   }
 
-  return (
+  const openExtract = (): void => setIsExtractOpen(true);
+
+  return renderConversationShell(
+    projectId,
+    conversationId,
+    conversation.verbatim_quotes,
     <section data-testid="conversation-detail-populated">
       <PageHeader />
       <MetaSection conversation={conversation} />
@@ -105,8 +167,46 @@ export function ConversationDetail(): JSX.Element {
       <ExtractedFactsSection
         projectId={projectId}
         factsQueryState={factsQueryStateOf(factsQuery)}
+        onExtractClick={openExtract}
       />
-    </section>
+    </section>,
+    extractStatus,
+    isExtractOpen,
+    setIsExtractOpen,
+  );
+}
+
+// Shared chrome wrapper: mounts the success message + dialog above the
+// page body so they survive across body-state transitions. The
+// `quotes` param feeds the ExtractFactDialog's quote_id picker — only
+// the populated branch passes a non-empty list; loading / error /
+// tombstoned all pass [].
+function renderConversationShell(
+  projectId: string,
+  conversationId: string,
+  quotes: readonly ConversationQuoteView[],
+  body: JSX.Element,
+  extractStatus: ExtractStatus,
+  isExtractOpen: boolean,
+  setIsExtractOpen: Dispatch<SetStateAction<boolean>>,
+): JSX.Element {
+  return (
+    <>
+      <MutationSuccessMessage
+        message={extractStatus.successMessage}
+        onDismiss={extractStatus.dismissSuccess}
+        testId="conversation-extract-success"
+      />
+      {body}
+      <ExtractFactDialog
+        isOpen={isExtractOpen}
+        onClose={() => setIsExtractOpen(false)}
+        workspaceId={projectId}
+        conversationId={conversationId}
+        quotes={quotes}
+        status={extractStatus}
+      />
+    </>
   );
 }
 
@@ -293,6 +393,10 @@ function QuotesSection({ quotes }: QuotesSectionProps): JSX.Element {
 interface ExtractedFactsSectionProps {
   readonly projectId: string;
   readonly factsQueryState: FactsQueryState;
+  // C25.2: when provided, the section renders a "Pull a fact from
+  // this conversation" button next to the heading. Tombstoned and
+  // loading/error branches pass nothing here.
+  readonly onExtractClick?: () => void;
 }
 
 interface FactsQueryState {
@@ -318,10 +422,41 @@ function factsQueryStateOf(query: ReturnType<typeof useConversationFacts>): Fact
 function ExtractedFactsSection({
   projectId,
   factsQueryState,
+  onExtractClick,
 }: ExtractedFactsSectionProps): JSX.Element {
   return (
     <section data-testid="conversation-facts" style={{ marginTop: '1.5rem' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Facts from this conversation</h2>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: '0.75rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <h2 style={{ fontSize: '1rem', fontWeight: 500, margin: 0 }}>
+          Facts from this conversation
+        </h2>
+        {onExtractClick !== undefined ? (
+          <button
+            type="button"
+            onClick={onExtractClick}
+            data-testid="conversation-extract-button"
+            style={{
+              padding: '0.375rem 0.625rem',
+              borderRadius: '0.25rem',
+              border: '1px solid #0066cc',
+              backgroundColor: '#f6faff',
+              color: '#0066cc',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+            }}
+          >
+            Pull a fact from this conversation
+          </button>
+        ) : null}
+      </header>
       {factsQueryState.isPending ? (
         <div data-testid="conversation-facts-loading" style={{ marginTop: '0.5rem' }}>
           <TextSkeleton lines={2} ariaLabel="Loading facts" />

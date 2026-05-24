@@ -5,6 +5,7 @@
 
 export * from './useCaptureConversation.js';
 export * from './useConversationData.js';
+export * from './useExtractFact.js';
 export * from './useFactData.js';
 export * from './useMutationStatus.js';
 export * from './useProjects.js';

@@ -4,6 +4,7 @@
 // Barrel export for shared UI components. Sprint 2 M2 C2.1.
 
 export * from './CaptureConversationDialog.js';
+export * from './ExtractFactDialog.js';
 export * from './MutationDialog.js';
 export * from './MutationErrorBanner.js';
 export * from './MutationSuccessMessage.js';
