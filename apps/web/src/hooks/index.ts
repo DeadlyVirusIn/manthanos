@@ -5,10 +5,14 @@
 
 export * from './useCaptureConversation.js';
 export * from './useConversationData.js';
+export * from './useDemoteFact.js';
 export * from './useExtractFact.js';
 export * from './useFactData.js';
+export * from './useMarkFactForFollowUp.js';
 export * from './useMutationStatus.js';
 export * from './useProjects.js';
+export * from './usePromoteFact.js';
+export * from './useResolveFactFollowUp.js';
 export * from './useTodayData.js';
 export * from './useValidationData.js';
 export * from './useWorkspaceContext.js';
