@@ -20,6 +20,8 @@
 //   - auditKeys.lists(ws)
 //     — fact.revise event is appended
 
+import { useQueryClient } from '@tanstack/react-query';
+
 import {
   type ReviseFactInput,
   type ReviseFactResponse,
@@ -33,12 +35,22 @@ export function useReviseFact(
   workspaceId: string | undefined,
   factId: string | undefined,
 ): MutationStatus<ReviseFactInput, ReviseFactResponse> {
+  const client = useQueryClient();
   return useMutationStatus<ReviseFactInput, ReviseFactResponse>({
-    mutationFn: (input) => {
+    mutationFn: async (input) => {
       if (workspaceId === undefined || factId === undefined) {
         throw new Error('Cannot revise without project + fact ids.');
       }
-      return reviseFact(workspaceId, factId, input);
+      const result = await reviseFact(workspaceId, factId, input);
+      // P0 fix (post-M2.5 review): pre-seed the new fact's detail cache
+      // so the post-success navigation lands on a populated page instead
+      // of a loading skeleton. We seed here — inside the resolved
+      // mutationFn — so the cache is populated before useMutation's
+      // onSuccess fires invalidation on the predecessor's keys.
+      if (result.fact.id !== factId) {
+        client.setQueryData(factsKeys.detail(workspaceId, result.fact.id), result.fact);
+      }
+      return result;
     },
     invalidates: () => {
       if (workspaceId === undefined || factId === undefined) return [];

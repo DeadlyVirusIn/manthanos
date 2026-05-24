@@ -244,3 +244,85 @@ describe('useMutationStatus — successMessage builder function', () => {
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// P0 fix (post-M2.5 review): double-submit guard
+// ─────────────────────────────────────────────────────────────────
+
+describe('useMutationStatus — double-submit guard', () => {
+  it('drops a second synchronous mutate() while the first is in flight', async () => {
+    const client = newClient();
+    let resolveCall: ((v: { ok: true }) => void) | null = null;
+    const mutationFn = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveCall = resolve;
+        }),
+    );
+    render(
+      <Probe
+        mutationFn={mutationFn}
+        invalidates={() => []}
+        input={{ go: true }}
+        successMessage="ok"
+      />,
+      { wrapper: makeWrapper(client) },
+    );
+    // Two rapid synchronous clicks before React commits isSubmitting=true.
+    await act(async () => {
+      screen.getByTestId('probe-mutate').click();
+      screen.getByTestId('probe-mutate').click();
+    });
+    expect(mutationFn).toHaveBeenCalledTimes(1);
+    if (resolveCall === null) throw new Error('mutationFn never invoked');
+    (resolveCall as (v: { ok: true }) => void)({ ok: true });
+    await waitFor(() => expect(screen.getByTestId('probe-status').textContent).toBe('success'));
+  });
+
+  it('allows a fresh mutate() after the previous one settles', async () => {
+    const client = newClient();
+    const mutationFn = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <Probe mutationFn={mutationFn} invalidates={() => []} input={{ n: 1 }} successMessage="ok" />,
+      { wrapper: makeWrapper(client) },
+    );
+    await act(async () => {
+      screen.getByTestId('probe-mutate').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('probe-status').textContent).toBe('success'));
+    await act(async () => {
+      screen.getByTestId('probe-mutate').click();
+    });
+    await waitFor(() => expect(mutationFn).toHaveBeenCalledTimes(2));
+  });
+
+  it('reset() clears the in-flight latch so a new mutate() can fire even mid-flight', async () => {
+    const client = newClient();
+    let resolveCall: ((v: { ok: true }) => void) | null = null;
+    const mutationFn = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ ok: true }>((resolve) => {
+            resolveCall = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ ok: true });
+    render(
+      <Probe mutationFn={mutationFn} invalidates={() => []} input={{ n: 1 }} successMessage="ok" />,
+      { wrapper: makeWrapper(client) },
+    );
+    await act(async () => {
+      screen.getByTestId('probe-mutate').click();
+    });
+    expect(mutationFn).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      screen.getByTestId('probe-reset').click();
+    });
+    await act(async () => {
+      screen.getByTestId('probe-mutate').click();
+    });
+    expect(mutationFn).toHaveBeenCalledTimes(2);
+    if (resolveCall !== null) (resolveCall as (v: { ok: true }) => void)({ ok: true });
+  });
+});

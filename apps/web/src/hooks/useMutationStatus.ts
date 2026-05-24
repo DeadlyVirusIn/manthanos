@@ -19,7 +19,7 @@
 // fresh attempt starts with a fresh slate.
 
 import { type QueryKey, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { ApiError, type ApiErrorBody } from '../api/index.js';
 import type { MutationErrorCategory } from '../i18n/labels.js';
@@ -109,9 +109,40 @@ export function useMutationStatus<TInput, TResult>(
     },
   });
 
+  // P0 fix (post-M2.5 review): double-submit guard. The ref latches
+  // synchronously when a mutation starts, so a second click that
+  // arrives before React commits `isSubmitting = true` is dropped
+  // (or, for mutateAsync, deduplicated to the existing in-flight
+  // promise). Cleared synchronously on settle so retries after error
+  // and re-attempts after success both work.
+  const inFlightRef = useRef<Promise<TResult> | null>(null);
+
+  const guardedMutateAsync = useCallback(
+    (input: TInput): Promise<TResult> => {
+      if (inFlightRef.current !== null) return inFlightRef.current;
+      const p = mutation.mutateAsync(input).finally(() => {
+        inFlightRef.current = null;
+      });
+      inFlightRef.current = p;
+      return p;
+    },
+    [mutation],
+  );
+
+  const guardedMutate = useCallback(
+    (input: TInput): void => {
+      if (inFlightRef.current !== null) return;
+      // Promise rejection here is harmless — the error surfaces via
+      // mutation.error (TanStack records it on the useMutation state).
+      void guardedMutateAsync(input).catch(() => undefined);
+    },
+    [guardedMutateAsync],
+  );
+
   const reset = useCallback(() => {
     mutation.reset();
     setSuccessMessage(null);
+    inFlightRef.current = null;
   }, [mutation]);
 
   const dismissSuccess = useCallback(() => {
@@ -129,8 +160,8 @@ export function useMutationStatus<TInput, TResult>(
   const errorCategory = mutation.error === null ? null : categoriseError(mutation.error);
 
   return {
-    mutate: mutation.mutate,
-    mutateAsync: mutation.mutateAsync,
+    mutate: guardedMutate,
+    mutateAsync: guardedMutateAsync,
     reset,
     status,
     isSubmitting: mutation.status === 'pending',

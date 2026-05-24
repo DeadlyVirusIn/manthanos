@@ -269,6 +269,34 @@ describe('Revise Fact — submit gating (at least one changed field)', () => {
   });
 });
 
+describe('Revise Fact — cache pre-seed (P0 fix)', () => {
+  it('pre-seeds the new fact detail cache before navigation completes', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    seed(client, makeFact());
+    vi.spyOn(client, 'invalidateQueries').mockImplementation(async () => undefined);
+    const responseFact = makeFact({ id: NEW_FACT_ID, statement: 'New version body.' });
+    vi.spyOn(apiFacts, 'reviseFact').mockResolvedValue({
+      fact: responseFact,
+      previous_fact_id: FACT_ID,
+      version_chain_root_id: FACT_ID,
+    });
+    renderWith(client);
+    expect(client.getQueryData(factsKeys.detail(PROJECT_ID, NEW_FACT_ID))).toBeUndefined();
+    await act(async () => {
+      screen.getByTestId('fact-revise-button').click();
+    });
+    await user.clear(screen.getByTestId('revise-fact-input-statement'));
+    await user.type(screen.getByTestId('revise-fact-input-statement'), 'New version body.');
+    await act(async () => {
+      screen.getByTestId('mutation-dialog-submit').click();
+    });
+    await waitFor(() =>
+      expect(client.getQueryData(factsKeys.detail(PROJECT_ID, NEW_FACT_ID))).toEqual(responseFact),
+    );
+  });
+});
+
 describe('Revise Fact — happy path + navigation', () => {
   it('sends only changed fields, invalidates, navigates to new id', async () => {
     const user = userEvent.setup();
