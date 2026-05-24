@@ -119,15 +119,22 @@ describe('Parameter extraction (M2 C2.1)', () => {
     expect(html).toContain('data-testid="conversation-detail-loading"');
   });
 
-  it('extracts :id from /projects/:projectId/facts/:id', () => {
+  it('extracts :id from /projects/:projectId/facts/:id (loading shell)', () => {
+    // C2.6 made FactDetail query-driven. Same posture as the
+    // workspace and conversation cases: under the routing test's
+    // empty cache, the page enters loading state and exposes the
+    // id only in the error/populated branches — assert the route
+    // mounted by checking the loading testid.
     const html = renderAt(`/projects/${PROJ}/facts/fact-xyz-789`);
-    expect(html).toContain('fact-xyz-789');
-    expect(html).toContain('data-testid="fact-id"');
+    expect(html).toContain('data-testid="fact-detail-loading"');
   });
 
-  it('preserves URL-safe characters in :id', () => {
+  it('still mounts the FactDetail route for URL-safe characters in :id', () => {
+    // Same posture as above — verify the route matches a UUID-shaped
+    // segment by checking the loading testid (rather than the id
+    // echo that the C1.10 stub used to provide).
     const html = renderAt(`/projects/${PROJ}/facts/01970e5d-ddcc-7c5e-b7a7-d6e7f3f8a9b1`);
-    expect(html).toContain('01970e5d-ddcc-7c5e-b7a7-d6e7f3f8a9b1');
+    expect(html).toContain('data-testid="fact-detail-loading"');
   });
 });
 
