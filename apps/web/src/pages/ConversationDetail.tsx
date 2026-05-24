@@ -34,6 +34,8 @@ import type {
   FactView,
   SkipExtractionInput,
   SkipExtractionResponse,
+  TombstoneConversationInput,
+  TombstoneConversationResponse,
 } from '../api/index.js';
 import {
   ExtractFactDialog,
@@ -41,6 +43,7 @@ import {
   PageErrorBanner,
   SkipExtractionDialog,
   TextSkeleton,
+  TombstoneConversationDialog,
   TrustLevelIndicator,
 } from '../components/index.js';
 import {
@@ -49,12 +52,14 @@ import {
   useConversationFacts,
   useExtractFact,
   useSkipExtraction,
+  useTombstoneConversation,
 } from '../hooks/index.js';
 import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
 
 type ExtractStatus = MutationStatus<ExtractFactInput, ExtractFactResponse>;
 type SkipStatus = MutationStatus<SkipExtractionInput, SkipExtractionResponse>;
+type TombstoneStatus = MutationStatus<TombstoneConversationInput, TombstoneConversationResponse>;
 
 export function ConversationDetail(): JSX.Element {
   const { projectId, id: conversationId } = useParams<{ projectId: string; id: string }>();
@@ -69,6 +74,14 @@ export function ConversationDetail(): JSX.Element {
   // M2.5 C25.4: same pattern for the skip-extraction flow.
   const skipStatus = useSkipExtraction(projectId, conversationId) as SkipStatus;
   const [isSkipOpen, setIsSkipOpen] = useState(false);
+
+  // M2.5 C25.5: same pattern for the tombstone flow. The mutation
+  // success-message lifecycle is intentionally short — on success the
+  // page's conversation query refetches and renders the tombstoned
+  // shell, so the "Conversation erased." message rides the shell
+  // helper just like the others.
+  const tombstoneStatus = useTombstoneConversation(projectId, conversationId) as TombstoneStatus;
+  const [isTombstoneOpen, setIsTombstoneOpen] = useState(false);
 
   if (projectId === undefined || conversationId === undefined) {
     return (
@@ -100,6 +113,9 @@ export function ConversationDetail(): JSX.Element {
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
+        tombstoneStatus,
+        isTombstoneOpen,
+        setIsTombstoneOpen,
       },
     );
   }
@@ -129,6 +145,9 @@ export function ConversationDetail(): JSX.Element {
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
+        tombstoneStatus,
+        isTombstoneOpen,
+        setIsTombstoneOpen,
       },
     );
   }
@@ -150,6 +169,9 @@ export function ConversationDetail(): JSX.Element {
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
+        tombstoneStatus,
+        isTombstoneOpen,
+        setIsTombstoneOpen,
       },
     );
   }
@@ -178,12 +200,16 @@ export function ConversationDetail(): JSX.Element {
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
+        tombstoneStatus,
+        isTombstoneOpen,
+        setIsTombstoneOpen,
       },
     );
   }
 
   const openExtract = (): void => setIsExtractOpen(true);
   const openSkip = (): void => setIsSkipOpen(true);
+  const openTombstone = (): void => setIsTombstoneOpen(true);
 
   // C25.4: the "Mark as not useful" button is visible ONLY when the
   // conversation is in the pending extraction state. Extracted /
@@ -198,26 +224,49 @@ export function ConversationDetail(): JSX.Element {
     <section data-testid="conversation-detail-populated">
       <PageHeader />
       <MetaSection conversation={conversation} />
-      {showSkipButton ? (
-        <div data-testid="conversation-skip-row" style={{ marginTop: '0.5rem' }}>
+      <div
+        data-testid="conversation-action-row"
+        style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}
+      >
+        {showSkipButton ? (
+          <div data-testid="conversation-skip-row">
+            <button
+              type="button"
+              onClick={openSkip}
+              data-testid="conversation-skip-button"
+              style={{
+                padding: '0.375rem 0.625rem',
+                fontSize: '0.875rem',
+                borderRadius: '0.25rem',
+                border: '1px solid #ccc',
+                backgroundColor: 'transparent',
+                color: '#555',
+                cursor: 'pointer',
+              }}
+            >
+              Mark as not useful
+            </button>
+          </div>
+        ) : null}
+        <div data-testid="conversation-erase-row">
           <button
             type="button"
-            onClick={openSkip}
-            data-testid="conversation-skip-button"
+            onClick={openTombstone}
+            data-testid="conversation-erase-button"
             style={{
               padding: '0.375rem 0.625rem',
               fontSize: '0.875rem',
               borderRadius: '0.25rem',
-              border: '1px solid #ccc',
+              border: '1px solid #c66',
               backgroundColor: 'transparent',
-              color: '#555',
+              color: '#a33',
               cursor: 'pointer',
             }}
           >
-            Mark as not useful
+            Erase this conversation
           </button>
         </div>
-      ) : null}
+      </div>
       <SummarySection summary={conversation.summary} />
       <QuotesSection quotes={conversation.verbatim_quotes} />
       <ExtractedFactsSection
@@ -233,6 +282,9 @@ export function ConversationDetail(): JSX.Element {
       skipStatus,
       isSkipOpen,
       setIsSkipOpen,
+      tombstoneStatus,
+      isTombstoneOpen,
+      setIsTombstoneOpen,
     },
   );
 }
@@ -244,6 +296,9 @@ interface ConversationShellBundle {
   readonly skipStatus: SkipStatus;
   readonly isSkipOpen: boolean;
   readonly setIsSkipOpen: Dispatch<SetStateAction<boolean>>;
+  readonly tombstoneStatus: TombstoneStatus;
+  readonly isTombstoneOpen: boolean;
+  readonly setIsTombstoneOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 // Shared chrome wrapper: mounts the success message + both dialogs
@@ -259,13 +314,17 @@ function renderConversationShell(
   body: JSX.Element,
   bundle: ConversationShellBundle,
 ): JSX.Element {
-  // Combined success message — at most one of the two mutations is
-  // in its success window at any moment. Priority: extract > skip
-  // (extract is the more common success path).
-  const combinedSuccess = bundle.extractStatus.successMessage ?? bundle.skipStatus.successMessage;
+  // Combined success message — at most one of the three mutations is
+  // in its success window at any moment. Priority: extract > skip >
+  // tombstone (extract is the most common success path).
+  const combinedSuccess =
+    bundle.extractStatus.successMessage ??
+    bundle.skipStatus.successMessage ??
+    bundle.tombstoneStatus.successMessage;
   const dismissAllSuccess = (): void => {
     bundle.extractStatus.dismissSuccess();
     bundle.skipStatus.dismissSuccess();
+    bundle.tombstoneStatus.dismissSuccess();
   };
   return (
     <>
@@ -289,6 +348,13 @@ function renderConversationShell(
         workspaceId={projectId}
         conversationId={conversationId}
         status={bundle.skipStatus}
+      />
+      <TombstoneConversationDialog
+        isOpen={bundle.isTombstoneOpen}
+        onClose={() => bundle.setIsTombstoneOpen(false)}
+        workspaceId={projectId}
+        conversationId={conversationId}
+        status={bundle.tombstoneStatus}
       />
     </>
   );
