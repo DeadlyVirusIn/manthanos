@@ -7,4 +7,5 @@ export * from './useConversationData.js';
 export * from './useFactData.js';
 export * from './useProjects.js';
 export * from './useTodayData.js';
+export * from './useValidationData.js';
 export * from './useWorkspaceContext.js';
