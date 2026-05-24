@@ -346,7 +346,7 @@ describe('Extract Fact — happy path', () => {
 
     await waitFor(() => expect(screen.queryByTestId('mutation-dialog')).toBeNull());
     await waitFor(() =>
-      expect(screen.getByTestId('conversation-extract-success-text').textContent).toBe(
+      expect(screen.getByTestId('conversation-mutation-success-text').textContent).toBe(
         'Fact pulled.',
       ),
     );
@@ -383,7 +383,7 @@ describe('Extract Fact — happy path', () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByTestId('conversation-extract-success-text').textContent).toBe(
+      expect(screen.getByTestId('conversation-mutation-success-text').textContent).toBe(
         'Linked to an existing fact.',
       ),
     );

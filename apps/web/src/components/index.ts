@@ -9,5 +9,6 @@ export * from './MutationDialog.js';
 export * from './MutationErrorBanner.js';
 export * from './MutationSuccessMessage.js';
 export * from './PageErrorBanner.js';
+export * from './SkipExtractionDialog.js';
 export * from './TrustLevelIndicator.js';
 export * from './skeletons/index.js';

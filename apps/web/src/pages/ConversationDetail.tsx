@@ -32,11 +32,14 @@ import type {
   ExtractFactInput,
   ExtractFactResponse,
   FactView,
+  SkipExtractionInput,
+  SkipExtractionResponse,
 } from '../api/index.js';
 import {
   ExtractFactDialog,
   MutationSuccessMessage,
   PageErrorBanner,
+  SkipExtractionDialog,
   TextSkeleton,
   TrustLevelIndicator,
 } from '../components/index.js';
@@ -45,11 +48,13 @@ import {
   useConversation,
   useConversationFacts,
   useExtractFact,
+  useSkipExtraction,
 } from '../hooks/index.js';
 import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
 
 type ExtractStatus = MutationStatus<ExtractFactInput, ExtractFactResponse>;
+type SkipStatus = MutationStatus<SkipExtractionInput, SkipExtractionResponse>;
 
 export function ConversationDetail(): JSX.Element {
   const { projectId, id: conversationId } = useParams<{ projectId: string; id: string }>();
@@ -60,6 +65,10 @@ export function ConversationDetail(): JSX.Element {
   // message survives the dialog's mount/unmount lifecycle.
   const extractStatus = useExtractFact(projectId, conversationId) as ExtractStatus;
   const [isExtractOpen, setIsExtractOpen] = useState(false);
+
+  // M2.5 C25.4: same pattern for the skip-extraction flow.
+  const skipStatus = useSkipExtraction(projectId, conversationId) as SkipStatus;
+  const [isSkipOpen, setIsSkipOpen] = useState(false);
 
   if (projectId === undefined || conversationId === undefined) {
     return (
@@ -84,9 +93,14 @@ export function ConversationDetail(): JSX.Element {
           <TextSkeleton lines={5} ariaLabel="Loading transcript" />
         </div>
       </section>,
-      extractStatus,
-      isExtractOpen,
-      setIsExtractOpen,
+      {
+        extractStatus,
+        isExtractOpen,
+        setIsExtractOpen,
+        skipStatus,
+        isSkipOpen,
+        setIsSkipOpen,
+      },
     );
   }
 
@@ -108,9 +122,14 @@ export function ConversationDetail(): JSX.Element {
           />
         </div>
       </section>,
-      extractStatus,
-      isExtractOpen,
-      setIsExtractOpen,
+      {
+        extractStatus,
+        isExtractOpen,
+        setIsExtractOpen,
+        skipStatus,
+        isSkipOpen,
+        setIsSkipOpen,
+      },
     );
   }
 
@@ -124,9 +143,14 @@ export function ConversationDetail(): JSX.Element {
         <PageHeader />
         <p>This conversation has no data.</p>
       </section>,
-      extractStatus,
-      isExtractOpen,
-      setIsExtractOpen,
+      {
+        extractStatus,
+        isExtractOpen,
+        setIsExtractOpen,
+        skipStatus,
+        isSkipOpen,
+        setIsSkipOpen,
+      },
     );
   }
 
@@ -147,13 +171,25 @@ export function ConversationDetail(): JSX.Element {
           factsQueryState={factsQueryStateOf(factsQuery)}
         />
       </section>,
-      extractStatus,
-      isExtractOpen,
-      setIsExtractOpen,
+      {
+        extractStatus,
+        isExtractOpen,
+        setIsExtractOpen,
+        skipStatus,
+        isSkipOpen,
+        setIsSkipOpen,
+      },
     );
   }
 
   const openExtract = (): void => setIsExtractOpen(true);
+  const openSkip = (): void => setIsSkipOpen(true);
+
+  // C25.4: the "Mark as not useful" button is visible ONLY when the
+  // conversation is in the pending extraction state. Extracted /
+  // skipped conversations don't need it; tombstoned conversations
+  // never reach this branch.
+  const showSkipButton = conversation.fact_extraction_status === 'pending';
 
   return renderConversationShell(
     projectId,
@@ -162,6 +198,26 @@ export function ConversationDetail(): JSX.Element {
     <section data-testid="conversation-detail-populated">
       <PageHeader />
       <MetaSection conversation={conversation} />
+      {showSkipButton ? (
+        <div data-testid="conversation-skip-row" style={{ marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={openSkip}
+            data-testid="conversation-skip-button"
+            style={{
+              padding: '0.375rem 0.625rem',
+              fontSize: '0.875rem',
+              borderRadius: '0.25rem',
+              border: '1px solid #ccc',
+              backgroundColor: 'transparent',
+              color: '#555',
+              cursor: 'pointer',
+            }}
+          >
+            Mark as not useful
+          </button>
+        </div>
+      ) : null}
       <SummarySection summary={conversation.summary} />
       <QuotesSection quotes={conversation.verbatim_quotes} />
       <ExtractedFactsSection
@@ -170,41 +226,69 @@ export function ConversationDetail(): JSX.Element {
         onExtractClick={openExtract}
       />
     </section>,
-    extractStatus,
-    isExtractOpen,
-    setIsExtractOpen,
+    {
+      extractStatus,
+      isExtractOpen,
+      setIsExtractOpen,
+      skipStatus,
+      isSkipOpen,
+      setIsSkipOpen,
+    },
   );
 }
 
-// Shared chrome wrapper: mounts the success message + dialog above the
-// page body so they survive across body-state transitions. The
-// `quotes` param feeds the ExtractFactDialog's quote_id picker — only
-// the populated branch passes a non-empty list; loading / error /
-// tombstoned all pass [].
+interface ConversationShellBundle {
+  readonly extractStatus: ExtractStatus;
+  readonly isExtractOpen: boolean;
+  readonly setIsExtractOpen: Dispatch<SetStateAction<boolean>>;
+  readonly skipStatus: SkipStatus;
+  readonly isSkipOpen: boolean;
+  readonly setIsSkipOpen: Dispatch<SetStateAction<boolean>>;
+}
+
+// Shared chrome wrapper: mounts the success message + both dialogs
+// above the page body so they survive across body-state transitions.
+// The `quotes` param feeds ExtractFactDialog's quote_id picker —
+// only the populated branch passes a non-empty list; loading /
+// error / tombstoned all pass []. SkipExtractionDialog ignores the
+// quotes param.
 function renderConversationShell(
   projectId: string,
   conversationId: string,
   quotes: readonly ConversationQuoteView[],
   body: JSX.Element,
-  extractStatus: ExtractStatus,
-  isExtractOpen: boolean,
-  setIsExtractOpen: Dispatch<SetStateAction<boolean>>,
+  bundle: ConversationShellBundle,
 ): JSX.Element {
+  // Combined success message — at most one of the two mutations is
+  // in its success window at any moment. Priority: extract > skip
+  // (extract is the more common success path).
+  const combinedSuccess = bundle.extractStatus.successMessage ?? bundle.skipStatus.successMessage;
+  const dismissAllSuccess = (): void => {
+    bundle.extractStatus.dismissSuccess();
+    bundle.skipStatus.dismissSuccess();
+  };
   return (
     <>
       <MutationSuccessMessage
-        message={extractStatus.successMessage}
-        onDismiss={extractStatus.dismissSuccess}
-        testId="conversation-extract-success"
+        message={combinedSuccess}
+        onDismiss={dismissAllSuccess}
+        testId="conversation-mutation-success"
       />
       {body}
       <ExtractFactDialog
-        isOpen={isExtractOpen}
-        onClose={() => setIsExtractOpen(false)}
+        isOpen={bundle.isExtractOpen}
+        onClose={() => bundle.setIsExtractOpen(false)}
         workspaceId={projectId}
         conversationId={conversationId}
         quotes={quotes}
-        status={extractStatus}
+        status={bundle.extractStatus}
+      />
+      <SkipExtractionDialog
+        isOpen={bundle.isSkipOpen}
+        onClose={() => bundle.setIsSkipOpen(false)}
+        workspaceId={projectId}
+        conversationId={conversationId}
+        status={bundle.skipStatus}
       />
     </>
   );
