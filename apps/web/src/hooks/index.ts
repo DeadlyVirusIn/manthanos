@@ -13,6 +13,7 @@ export * from './useMutationStatus.js';
 export * from './useProjects.js';
 export * from './usePromoteFact.js';
 export * from './useResolveFactFollowUp.js';
+export * from './useReviseFact.js';
 export * from './useSkipExtraction.js';
 export * from './useTodayData.js';
 export * from './useTombstoneConversation.js';

@@ -9,6 +9,7 @@ export * from './MutationDialog.js';
 export * from './MutationErrorBanner.js';
 export * from './MutationSuccessMessage.js';
 export * from './PageErrorBanner.js';
+export * from './ReviseFactDialog.js';
 export * from './SkipExtractionDialog.js';
 export * from './TombstoneConversationDialog.js';
 export * from './TrustLevelIndicator.js';

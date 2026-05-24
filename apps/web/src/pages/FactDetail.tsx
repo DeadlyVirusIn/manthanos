@@ -26,7 +26,7 @@
 // vocabulary in the DOM.
 
 import { type FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import {
   ALLOWED_FACT_TIER,
@@ -35,11 +35,14 @@ import {
   type FactView,
   type LifecycleStateValue,
   type ProvenanceSourceView,
+  type ReviseFactInput,
+  type ReviseFactResponse,
 } from '../api/index.js';
 import {
   MutationErrorBanner,
   MutationSuccessMessage,
   PageErrorBanner,
+  ReviseFactDialog,
   TextSkeleton,
   TrustLevelIndicator,
 } from '../components/index.js';
@@ -52,6 +55,7 @@ import {
   useMarkFactForFollowUp,
   usePromoteFact,
   useResolveFactFollowUp,
+  useReviseFact,
 } from '../hooks/index.js';
 import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
@@ -84,24 +88,56 @@ export function FactDetail(): JSX.Element {
     resolve: resolveStatus as MutationStatus<{ resolution: string }, unknown>,
   } satisfies LifecycleMutationBundle;
 
+  // M2.5 C25.6: revise mutation lifted to the page so the success
+  // message survives the dialog's mount/unmount lifecycle and the
+  // post-success navigation.
+  const reviseStatus = useReviseFact(projectId, factId) as MutationStatus<
+    ReviseFactInput,
+    ReviseFactResponse
+  >;
+  const [isReviseOpen, setIsReviseOpen] = useState(false);
+  const navigate = useNavigate();
+
   // Picks the most-recent (or first non-null) success message. At most
   // one is typically non-null at a time; if two coexist, priority is
-  // promote > demote > mark > resolve.
+  // promote > demote > mark > resolve > revise.
   const combinedSuccess =
     promoteStatus.successMessage ??
     demoteStatus.successMessage ??
     markStatus.successMessage ??
-    resolveStatus.successMessage;
+    resolveStatus.successMessage ??
+    reviseStatus.successMessage;
   const dismissAllSuccess = (): void => {
     promoteStatus.dismissSuccess();
     demoteStatus.dismissSuccess();
     markStatus.dismissSuccess();
     resolveStatus.dismissSuccess();
+    reviseStatus.dismissSuccess();
   };
 
   // Shell wrapper used across every render branch so the success
   // message survives transient query refetches (e.g. when a mutation
-  // invalidates the fact query and the refetch is in flight).
+  // invalidates the fact query and the refetch is in flight). The
+  // revise dialog also lives here so its open state survives across
+  // body re-renders.
+  const fact = factQuery.data;
+  const reviseDialog =
+    projectId !== undefined && factId !== undefined ? (
+      <ReviseFactDialog
+        isOpen={isReviseOpen}
+        onClose={() => setIsReviseOpen(false)}
+        workspaceId={projectId}
+        factId={factId}
+        initialArea={fact?.area ?? ''}
+        initialStatement={fact?.statement ?? ''}
+        status={reviseStatus}
+        onSuccess={(newFactId) => {
+          if (newFactId !== factId) {
+            navigate(`/projects/${projectId}/facts/${newFactId}`);
+          }
+        }}
+      />
+    ) : null;
   const withShell = (body: JSX.Element): JSX.Element => (
     <>
       <MutationSuccessMessage
@@ -110,6 +146,7 @@ export function FactDetail(): JSX.Element {
         testId="fact-mutation-success"
       />
       {body}
+      {reviseDialog}
     </>
   );
 
@@ -154,7 +191,6 @@ export function FactDetail(): JSX.Element {
     );
   }
 
-  const fact = factQuery.data;
   if (fact === undefined) {
     return withShell(
       <section data-testid="fact-detail-error">
@@ -173,6 +209,11 @@ export function FactDetail(): JSX.Element {
     );
   }
 
+  // C25.6: "Make a new version" is rendered for any non-tombstoned
+  // head fact. The button is hidden when the fact has been superseded
+  // (open the current version to edit it).
+  const showReviseButton = !fact.is_tombstoned && fact.superseded_by_fact_id === null;
+
   return withShell(
     <section data-testid="fact-detail-populated">
       <PageHeader />
@@ -180,6 +221,26 @@ export function FactDetail(): JSX.Element {
       <StatementSection fact={fact} />
       <MetaSection fact={fact} />
       <FactLifecycleControls fact={fact} bundle={mutationBundle} />
+      {showReviseButton ? (
+        <div data-testid="fact-revise-row" style={{ marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setIsReviseOpen(true)}
+            data-testid="fact-revise-button"
+            style={{
+              padding: '0.375rem 0.625rem',
+              fontSize: '0.875rem',
+              borderRadius: '0.25rem',
+              border: '1px solid #ccc',
+              backgroundColor: 'transparent',
+              color: '#333',
+              cursor: 'pointer',
+            }}
+          >
+            Make a new version
+          </button>
+        </div>
+      ) : null}
       <TimestampsSection fact={fact} />
       <ProvenanceSection state={provenanceQueryState(provenanceQuery)} />
       <HistorySection state={historyQueryState(historyQuery)} />
