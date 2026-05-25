@@ -226,7 +226,8 @@ describe('Suggest facts — query states', () => {
     });
     await waitFor(() => expect(screen.getByTestId('candidate-card')).toBeTruthy());
     expect(screen.getByTestId('candidate-statement').textContent).toContain('Founders drop tools');
-    expect(screen.getByTestId('candidate-confidence').textContent).toBe('Solid');
+    // solid bucket → "Strong signal" (C4.1.1 3-level review copy).
+    expect(screen.getByTestId('candidate-confidence').textContent).toBe('Strong signal');
   });
 
   it('shows the empty state when the daemon suggests nothing', async () => {

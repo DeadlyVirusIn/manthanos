@@ -535,6 +535,9 @@ describe('Validation — follow-up queue rendering', () => {
       ),
     });
     const visible = visibleText(render(client));
+    // NOTE: this pill is hardcoded page copy in Validation.tsx, not the
+    // lifecycle_state label — it migrates to "double-check" in the C4.4-E0
+    // page-copy sweep (commit #4), together with this assertion.
     expect(visible).toContain('Flagged for follow-up');
     expect(visible).not.toContain('Contest');
     expect(visible).not.toContain('contest');
@@ -638,7 +641,7 @@ describe('Validation — audit translation rendering', () => {
     expect(visible).toContain('Started this project.');
     expect(visible).toContain('Raised confidence on');
     expect(visible).toContain('Marked');
-    expect(visible).toContain('for follow-up');
+    expect(visible).toContain('to double-check');
     expect(visible).not.toContain('workspace.create');
     expect(visible).not.toContain('fact.promote');
     expect(visible).not.toContain('fact.contest');

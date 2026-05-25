@@ -187,9 +187,10 @@ describe('Exhaustiveness (M1 C1.8)', () => {
       const label = getEnumLabel('fact_action', k);
       expect(label).toBeTruthy();
     }
-    // Per journey review §5.7 — "contest" / "uncontest" never appear in UI.
-    expect(getEnumLabel('fact_action', 'contest')).toBe('Mark for follow-up');
-    expect(getEnumLabel('fact_action', 'uncontest')).toBe('Done following up');
+    // C4.1.1 D9 — follow-up reframed as "double-check"; "contest" /
+    // "uncontest" never appear in UI.
+    expect(getEnumLabel('fact_action', 'contest')).toBe('Mark to double-check');
+    expect(getEnumLabel('fact_action', 'uncontest')).toBe('Mark as checked');
   });
 
   it('every audit_action key has a non-empty label (some are payload-parameterised)', () => {
@@ -367,21 +368,21 @@ describe('audit_action payload parameterisation (M1 C1.8)', () => {
       statement: 's',
       extraction_source: { conversation_id: 'conv-x' },
     });
-    expect(direct).toBe('Added a fact: "s".');
-    expect(fromExtraction).toBe('Pulled a fact from a conversation: "s".');
+    expect(direct).toBe('Added a finding: "s".');
+    expect(fromExtraction).toBe('Pulled a finding from a conversation: "s".');
   });
 
-  it('fact.contest renders the follow-up rename', () => {
+  it('fact.contest renders the double-check rename', () => {
     expect(
       getEnumLabel('audit_action', 'fact.contest', {
         statement: 'they use Toggl',
       }),
-    ).toBe('Marked "they use Toggl" for follow-up.');
+    ).toBe('Marked "they use Toggl" to double-check.');
   });
 
-  it('fact.uncontest renders the follow-up rename', () => {
+  it('fact.uncontest renders the double-check rename', () => {
     expect(getEnumLabel('audit_action', 'fact.uncontest', { statement: 'they use Toggl' })).toBe(
-      'Followed up on "they use Toggl".',
+      'Checked "they use Toggl".',
     );
   });
 
@@ -409,7 +410,7 @@ describe('<EnumLabel /> (M1 C1.8)', () => {
   });
 
   it('renders the tier visual-name (not the substrate letter)', () => {
-    expect(renderToString(<EnumLabel kind="tier" value="T+1" />)).toBe('Well-evidenced');
+    expect(renderToString(<EnumLabel kind="tier" value="T+1" />)).toBe('Well-supported');
     expect(renderToString(<EnumLabel kind="tier" value="T0" />)).toBe('Noted');
     expect(renderToString(<EnumLabel kind="tier" value="T-1" />)).toBe('Shaky');
     expect(renderToString(<EnumLabel kind="tier" value="T-2" />)).toBe('Doubted');

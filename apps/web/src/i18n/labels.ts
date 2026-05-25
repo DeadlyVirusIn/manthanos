@@ -81,7 +81,8 @@ const FACT_EXTRACTION_STATUS_LABELS: Record<FactExtractionStatusValue, string> =
 };
 
 const FACT_TIER_LABELS: Record<FactTierValue, string> = {
-  'T+1': 'Well-evidenced',
+  // C4.1.1 D4: "Well-evidenced" → the plainer "Well-supported".
+  'T+1': 'Well-supported',
   T0: 'Noted',
   'T-1': 'Shaky',
   'T-2': 'Doubted',
@@ -96,7 +97,8 @@ const WORKSPACE_STATUS_LABELS: Record<WorkspaceStatusValue, string> = {
 const LIFECYCLE_STATE_LABELS: Record<LifecycleStateValue, string> = {
   tombstoned: 'Erased',
   superseded: 'Older version',
-  contested: 'Flagged for follow-up',
+  // C4.1.1 D9: follow-up reframed as "to double-check".
+  contested: 'Flagged to double-check',
   not_contested: 'Not flagged',
   already_skipped: 'Already marked as not useful',
 };
@@ -120,16 +122,23 @@ const EXTRACTOR_LABELS: Record<ExtractorValue, string> = {
 // The suggest-extractions endpoint returns substrate-flavoured signals
 // (numeric confidence, reason-flag enum, duplicate kinds, source kind).
 // None of those raw tokens may reach the DOM — the review UI renders
-// only the friendly copy below. Confidence buckets get DISTINCT copy
-// from the fact-tier labels ("Noted"/"Well-evidenced"), resolving the
-// §7 copy-collision flag: extraction confidence and fact trust are
-// different axes and must not share words.
+// only the friendly copy below.
+//
+// C4.1.1 D1/D2: the four engine buckets collapse to THREE user-facing
+// review levels (the deterministic scorer rarely emits a true bottom
+// band, so a 4th level only invites confusion with the 4-level trust
+// ladder). These are "review prompt" words (clarity / should-I-look),
+// deliberately DISTINCT from the evidence words on fact trust
+// ("Well-supported"/"Shaky") so the two scales can never be conflated.
+//   strong, solid  → "Strong signal"
+//   tentative      → "Looks reasonable"
+//   needs_review   → "Needs your eyes"
 
 const CONFIDENCE_BUCKET_LABELS: Record<ConfidenceBucketValue, string> = {
-  needs_review: 'Needs review',
-  tentative: 'Tentative',
-  solid: 'Solid',
-  strong: 'Strong',
+  needs_review: 'Needs your eyes',
+  tentative: 'Looks reasonable',
+  solid: 'Strong signal',
+  strong: 'Strong signal',
 };
 
 /** Why a candidate looks the way it does — shown as advisory chips. The
@@ -188,13 +197,13 @@ export type FieldLabelKey = (typeof FIELD_LABEL_KEYS)[number];
 
 const FIELD_LABELS: Record<FieldLabelKey, string> = {
   area: "What's this about?", // journey review §3.5 — highest-leverage rename
-  statement: 'The fact',
+  statement: 'The finding', // C4.1.1 D7: fact → finding
   verbatim_quotes: 'Exact quotes',
   summary: 'Main takeaway',
   person_name: 'Who did you talk to?',
   occurred_at: 'When was it?',
   tombstone_reason: 'Why erased',
-  contested_reason: 'Why flagged for follow-up',
+  contested_reason: 'Why flagged to double-check', // C4.1.1 D9
   audience_fit: 'How well do they match your target?',
   conversation_type: 'What kind of conversation was this?',
   outcome: 'How did it end?',
@@ -219,8 +228,9 @@ const FACT_ACTION_LABELS: Record<FactActionKey, string> = {
   promote: 'Raise confidence',
   demote: 'Lower confidence',
   revise: 'Update wording',
-  contest: 'Mark for follow-up',
-  uncontest: 'Done following up',
+  // C4.1.1 D9: follow-up → double-check.
+  contest: 'Mark to double-check',
+  uncontest: 'Mark as checked',
   tombstone: 'Erase forever',
 };
 
@@ -270,25 +280,24 @@ const AUDIT_ACTION_LABELS: Record<AuditActionKey, AuditActionLabelEntry> = {
     `Erased the conversation with ${coerce(p.previous_person_name, 'that person')}.`,
   'conversation.skip_extraction': (p) =>
     `Marked the conversation with ${coerce(p.previous_person_name ?? p.person_name, 'that person')} as not useful.`,
+  // C4.1.1 D7/D9: user-facing noun is "finding"; follow-up → double-check.
   'fact.create': (p) => {
     const stmt = coerce(p.statement, 'a claim');
     const fromExtraction = p.extraction_source !== undefined && p.extraction_source !== null;
     return fromExtraction
-      ? `Pulled a fact from a conversation: "${stmt}".`
-      : `Added a fact: "${stmt}".`;
+      ? `Pulled a finding from a conversation: "${stmt}".`
+      : `Added a finding: "${stmt}".`;
   },
-  'fact.update': (p) => `Edited a fact: "${coerce(p.statement, 'a claim')}".`,
+  'fact.update': (p) => `Edited a finding: "${coerce(p.statement, 'a claim')}".`,
   'fact.revise': (p) =>
     `Made a new version of "${coerce(p.previous_statement ?? p.statement, 'a claim')}".`,
   'fact.promote': (p) => `Raised confidence on "${coerce(p.statement, 'a claim')}".`,
   'fact.demote': (p) => `Lowered confidence on "${coerce(p.statement, 'a claim')}".`,
-  // The contest / uncontest rename (journey review §5.7): user-facing
-  // vocabulary is "follow-up", not "flag" or "contest".
-  'fact.contest': (p) => `Marked "${coerce(p.statement, 'a claim')}" for follow-up.`,
-  'fact.uncontest': (p) => `Followed up on "${coerce(p.statement, 'a claim')}".`,
+  'fact.contest': (p) => `Marked "${coerce(p.statement, 'a claim')}" to double-check.`,
+  'fact.uncontest': (p) => `Checked "${coerce(p.statement, 'a claim')}".`,
   'fact.corroborate': (p) =>
     `Found new evidence for "${coerce(p.statement, 'a claim')}" in a conversation.`,
-  'fact.tombstone': (p) => `Erased the fact "${coerce(p.statement, 'a claim')}".`,
+  'fact.tombstone': (p) => `Erased the finding "${coerce(p.statement, 'a claim')}".`,
 };
 
 // ─────────────────────────────────────────────────────────────────

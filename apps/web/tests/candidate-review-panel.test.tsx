@@ -118,8 +118,8 @@ describe('CandidateReviewPanel — candidate rendering', () => {
     });
     expect(screen.getByTestId('candidate-statement').textContent).toContain('Founders abandon');
     expect(screen.getByTestId('candidate-area').textContent).toContain('discovery_pain');
-    // 0.82 → Solid bucket (friendly copy, not a number).
-    expect(screen.getByTestId('candidate-confidence').textContent).toBe('Solid');
+    // 0.82 → solid bucket → "Strong signal" (C4.1.1 3-level review copy).
+    expect(screen.getByTestId('candidate-confidence').textContent).toBe('Strong signal');
     const chips = screen.getAllByTestId('candidate-reason-chip').map((c) => c.textContent);
     expect(chips).toContain('Clear claim');
     expect(chips).toContain('Tied to a quote');
@@ -151,8 +151,10 @@ describe('CandidateReviewPanel — candidate rendering', () => {
         onRetry={vi.fn()}
       />,
     );
+    // C4.1.1 D1/D2: four engine buckets → three user-facing review levels.
+    // 0.1 → needs_review, 0.5 → tentative, 0.95 → strong.
     const labels = screen.getAllByTestId('candidate-confidence').map((n) => n.textContent);
-    expect(labels).toEqual(['Needs review', 'Tentative', 'Strong']);
+    expect(labels).toEqual(['Needs your eyes', 'Looks reasonable', 'Strong signal']);
   });
 
   it('omits the source quote block when the candidate is not tied to a quote', () => {
@@ -333,8 +335,9 @@ describe('CandidateReviewPanel — no raw substrate vocabulary leaks', () => {
     for (const bad of forbidden) {
       expect(text.includes(bad)).toBe(false);
     }
-    // …but the friendly bucket + chips DID render.
-    expect(text).toContain('Tentative');
+    // …but the friendly bucket + chips DID render (0.42 → tentative →
+    // "Looks reasonable" under the C4.1.1 3-level review copy).
+    expect(text).toContain('Looks reasonable');
     expect(text).toContain('Clear claim');
   });
 });

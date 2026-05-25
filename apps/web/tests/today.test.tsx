@@ -388,13 +388,13 @@ describe('Today — translation correctness', () => {
     expect(html).toContain('Raised confidence on');
   });
 
-  it('renders fact.contest as "Marked X for follow-up" (the rename, not "contest")', () => {
+  it('renders fact.contest as "Marked X to double-check" (the rename, not "contest")', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent({ seq: 1, action: 'fact.contest' })]));
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const visible = visibleText(render(client));
-    expect(visible).toContain('follow-up');
+    expect(visible).toContain('double-check');
     expect(visible).not.toContain('contest');
     expect(visible).not.toContain('Contest');
   });

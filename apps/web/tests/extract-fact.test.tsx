@@ -214,7 +214,7 @@ describe('Extract Fact — form rendering', () => {
     expect(screen.getByTestId('extract-field-statement')).toBeTruthy();
     expect(screen.getByTestId('extract-field-tier')).toBeTruthy();
     expect(visibleText(screen.getByTestId('extract-field-area'))).toContain("What's this about?");
-    expect(visibleText(screen.getByTestId('extract-field-statement'))).toContain('The fact');
+    expect(visibleText(screen.getByTestId('extract-field-statement'))).toContain('The finding');
   });
 
   it('renders the tier picker with translated options (no raw tier letters as visible text)', async () => {
