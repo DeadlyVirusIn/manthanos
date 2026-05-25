@@ -302,6 +302,29 @@ describe('Extract Fact — required-field gating', () => {
     await user.type(screen.getByTestId('extract-input-statement'), 'Day-3 dropoff is heavy.');
     expect(submit.disabled).toBe(false);
   });
+
+  it('surfaces a validation message for whitespace-only input (3B.6.5 F-05)', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    seedConversation(client, makeConv());
+    seedFacts(client, makeFactsResponse([]));
+    renderConversationWith(client);
+    await act(async () => {
+      screen.getByTestId('conversation-extract-button').click();
+    });
+    // No error before the user touches the fields.
+    expect(screen.queryByTestId('extract-area-error')).toBeNull();
+    // Typing only spaces is invalid — the message explains why, and the
+    // input is marked aria-invalid + linked via aria-describedby.
+    await user.type(screen.getByTestId('extract-input-area'), '   ');
+    const areaInput = screen.getByTestId('extract-input-area');
+    const err = screen.getByTestId('extract-area-error');
+    expect(err).toBeTruthy();
+    expect(err.getAttribute('role')).toBe('alert');
+    expect(areaInput.getAttribute('aria-invalid')).toBe('true');
+    expect(areaInput.getAttribute('aria-describedby')).toBe('extract-area-error');
+    expect((screen.getByTestId('mutation-dialog-submit') as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────

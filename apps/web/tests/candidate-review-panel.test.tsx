@@ -161,6 +161,20 @@ describe('CandidateReviewPanel — candidate rendering', () => {
   });
 });
 
+describe('CandidateReviewPanel — accessibility (3B.6.5)', () => {
+  it('gives each candidate action button a distinct accessible name', () => {
+    renderPanel({
+      candidates: [makeCandidate({ statement: 'Founders abandon discovery tools that nag them.' })],
+    });
+    const approve = screen.getByTestId('candidate-approve-button');
+    const dismiss = screen.getByTestId('candidate-dismiss-button');
+    expect(approve.getAttribute('aria-label')).toContain('Add this fact');
+    expect(approve.getAttribute('aria-label')).toContain('Founders abandon discovery tools');
+    expect(dismiss.getAttribute('aria-label')).toContain('Dismiss suggestion');
+    expect(dismiss.getAttribute('aria-label')).toContain('Founders abandon discovery tools');
+  });
+});
+
 describe('CandidateReviewPanel — duplicate warnings (advisory)', () => {
   it('renders exact-duplicate copy', () => {
     renderPanel({ candidates: [makeCandidate({ duplicate: { kind: 'exact', fact_id: 'f1' } })] });

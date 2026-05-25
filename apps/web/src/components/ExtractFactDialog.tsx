@@ -78,6 +78,9 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
   const [statement, setStatement] = useState('');
   const [tier, setTier] = useState<FactTierValue | ''>('');
   const [quoteId, setQuoteId] = useState('');
+  // 3B.6.5 (a11y F-05): tracks whether a submit has been attempted, so the
+  // validation messages can appear on submit as well as on input.
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // F.3: clear prior error / success when dialog opens, then seed the
   // form. For the blank flow the initial* props default to '' (a fresh
@@ -93,6 +96,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
     setStatement(initialStatement);
     setTier('');
     setQuoteId(initialQuoteId);
+    setSubmitAttempted(false);
   }, [isOpen]);
 
   // Close the dialog once the mutation succeeds.
@@ -104,9 +108,16 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
   const statementValid = statement.trim().length > 0;
   const isValid = areaValid && statementValid;
 
+  // 3B.6.5 (a11y F-05): surface WHY submit is blocked. An error shows once
+  // the user has typed into a field (catches whitespace-only input) or has
+  // attempted to submit. Submit itself still hard-blocks on !isValid.
+  const showAreaError = (submitAttempted || area.length > 0) && !areaValid;
+  const showStatementError = (submitAttempted || statement.length > 0) && !statementValid;
+
   const handleSubmit = useCallback(
     (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
+      setSubmitAttempted(true);
       if (!isValid) return;
       const input: ExtractFactInput = {
         area: area.trim(),
@@ -182,9 +193,16 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
           value={area}
           onChange={(e) => setArea(e.target.value)}
           required
+          aria-invalid={showAreaError}
+          aria-describedby={showAreaError ? 'extract-area-error' : undefined}
           data-testid="extract-input-area"
           style={inputStyle}
         />
+        {showAreaError ? (
+          <FieldError id="extract-area-error" testId="extract-area-error">
+            Add a short topic — it can’t be blank or only spaces.
+          </FieldError>
+        ) : null}
       </FormRow>
 
       <FormRow labelKey="statement" htmlFor="extract-statement" testId="extract-field-statement">
@@ -194,9 +212,16 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
           onChange={(e) => setStatement(e.target.value)}
           rows={3}
           required
+          aria-invalid={showStatementError}
+          aria-describedby={showStatementError ? 'extract-statement-error' : undefined}
           data-testid="extract-input-statement"
           style={{ ...inputStyle, resize: 'vertical' }}
         />
+        {showStatementError ? (
+          <FieldError id="extract-statement-error" testId="extract-statement-error">
+            Write the fact — it can’t be blank or only spaces.
+          </FieldError>
+        ) : null}
       </FormRow>
 
       <div data-testid="extract-field-tier" style={{ marginBottom: '0.75rem' }}>
@@ -253,6 +278,27 @@ function truncateForOption(text: string, max = 80): string {
   const collapsed = text.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= max) return collapsed;
   return `${collapsed.slice(0, max - 1)}…`;
+}
+
+interface FieldErrorProps {
+  readonly id: string;
+  readonly testId: string;
+  readonly children: ReactNode;
+}
+
+/** Inline validation message. role="alert" so assistive tech announces it
+ *  when it appears; linked to its input via aria-describedby (3B.6.5 F-05). */
+function FieldError({ id, testId, children }: FieldErrorProps): JSX.Element {
+  return (
+    <p
+      id={id}
+      role="alert"
+      data-testid={testId}
+      style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: '#a33' }}
+    >
+      {children}
+    </p>
+  );
 }
 
 const labelStyle = {
