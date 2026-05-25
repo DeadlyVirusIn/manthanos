@@ -132,7 +132,16 @@ function factsResult(
 }
 
 function auditResult(events: readonly AuditEventSummary[] = []): ListAuditEventsResult {
-  return { events, total: events.length, has_more: false };
+  // head_seq is the audit chain head; since seqs are contiguous from 1 it
+  // equals the total number of events. The Validation overview derives its
+  // "recent events" count from head_seq (DEFECT-002), so the mock must carry
+  // it — omitting it left the count at 0 and broke the singular-copy case.
+  return {
+    events,
+    total: events.length,
+    has_more: false,
+    head_seq: events.length === 0 ? null : events[events.length - 1].seq,
+  };
 }
 
 function makeClient(): QueryClient {
