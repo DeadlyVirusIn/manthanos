@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   parseAuditEventsResult,
   parseAuditVerifyResult,
+  parseSuggestExtractionsResponse,
   parseWorkspaceList,
 } from './schema.js';
 
@@ -128,5 +129,92 @@ describe('parseAuditVerifyResult (DEFECT-003)', () => {
   it('fails closed on null / non-object', () => {
     expect(parseAuditVerifyResult(null).valid).toBe(false);
     expect(parseAuditVerifyResult('x').valid).toBe(false);
+  });
+});
+
+describe('parseSuggestExtractionsResponse (3B.5)', () => {
+  const goodCandidate = {
+    area: 'pricing',
+    statement: 'pricing is the blocker',
+    source_quote_id: 'q1',
+    confidence_score: 0.82,
+    confidence_reasons: ['has_clear_claim', 'quote_backed'],
+    duplicate: { kind: 'exact', fact_id: 'f1', similarity: 1 },
+    provenance_preview: {
+      source: 'conversation',
+      conversation_id: 'conv-1',
+      source_quote_id: 'q1',
+      created_at: '2026-05-24T00:00:00.000Z',
+      extraction_confidence: 0.82,
+      reason_flags: ['quote_backed'],
+      extractor_version: 'det-1',
+      model_used: null,
+    },
+  };
+
+  it('accepts the daemon shape', () => {
+    const out = parseSuggestExtractionsResponse({ candidates: [goodCandidate] });
+    expect(out.candidates).toHaveLength(1);
+    expect(out.candidates[0]?.statement).toBe('pricing is the blocker');
+    expect(out.candidates[0]?.duplicate?.kind).toBe('exact');
+  });
+
+  it('falls back to { candidates: [] } on null / missing key / non-array', () => {
+    expect(parseSuggestExtractionsResponse(null)).toEqual({ candidates: [] });
+    expect(parseSuggestExtractionsResponse({})).toEqual({ candidates: [] });
+    expect(parseSuggestExtractionsResponse({ candidates: 'nope' })).toEqual({ candidates: [] });
+    expect(parseSuggestExtractionsResponse([goodCandidate])).toEqual({ candidates: [] });
+  });
+
+  it('drops candidates missing area or statement', () => {
+    const out = parseSuggestExtractionsResponse({
+      candidates: [{ statement: 'no area' }, { area: 'x' }, goodCandidate],
+    });
+    expect(out.candidates).toHaveLength(1);
+    expect(out.candidates[0]?.area).toBe('pricing');
+  });
+
+  it('clamps confidence_score and defaults non-numbers to 0', () => {
+    const out = parseSuggestExtractionsResponse({
+      candidates: [
+        { area: 'a', statement: 's one two', confidence_score: 1.9 },
+        { area: 'b', statement: 's three four', confidence_score: 'bad' },
+      ],
+    });
+    expect(out.candidates[0]?.confidence_score).toBe(1);
+    expect(out.candidates[1]?.confidence_score).toBe(0);
+  });
+
+  it('enum-drift: filters unknown reason flags and drops an unknown duplicate kind', () => {
+    const out = parseSuggestExtractionsResponse({
+      candidates: [
+        {
+          area: 'a',
+          statement: 'a clear claim here',
+          confidence_reasons: ['quote_backed', 'mystery_flag'],
+          duplicate: { kind: 'fuzzy', fact_id: 'f9' },
+        },
+      ],
+    });
+    expect(out.candidates[0]?.confidence_reasons).toEqual(['quote_backed']);
+    expect(out.candidates[0]?.duplicate).toBeUndefined(); // unknown kind dropped
+  });
+
+  it('synthesizes a safe provenance_preview when it is missing/malformed', () => {
+    const out = parseSuggestExtractionsResponse({
+      candidates: [{ area: 'a', statement: 'a clear claim here' }],
+    });
+    const prov = out.candidates[0]?.provenance_preview;
+    expect(prov?.source).toBe('conversation');
+    expect(prov?.model_used).toBeNull();
+    expect(prov?.reason_flags).toEqual([]);
+    expect(typeof prov?.extraction_confidence).toBe('number');
+  });
+
+  it('never throws on arbitrary garbage', () => {
+    expect(() => parseSuggestExtractionsResponse({ candidates: [1, 'x', null, {}] })).not.toThrow();
+    expect(parseSuggestExtractionsResponse({ candidates: [1, 'x', null, {}] })).toEqual({
+      candidates: [],
+    });
   });
 });

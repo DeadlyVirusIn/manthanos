@@ -385,6 +385,44 @@ export interface AuditChainVerifyResult {
 
 /** Backend error response shapes. The web client wraps these in
  *  ApiError (see client.ts) with the parsed body attached. */
+// ─────────────────────────────────────────────────────────────────
+// AI-assisted extraction suggestions (Sprint 3B.5) — read-only.
+// ─────────────────────────────────────────────────────────────────
+
+export type CandidateDuplicateKind = 'exact' | 'likely' | 'corroborates';
+
+export interface CandidateDuplicate {
+  readonly kind: CandidateDuplicateKind;
+  readonly fact_id?: string;
+  readonly similarity?: number;
+}
+
+export interface CandidateProvenancePreview {
+  readonly source: string;
+  readonly conversation_id: string;
+  readonly source_quote_id: string | null;
+  readonly created_at: string;
+  readonly extraction_confidence: number;
+  readonly reason_flags: readonly string[];
+  readonly extractor_version: string;
+  readonly model_used: string | null;
+}
+
+export interface CandidateFact {
+  readonly area: string;
+  readonly statement: string;
+  readonly source_quote_id?: string;
+  readonly confidence_score: number;
+  readonly confidence_reasons: readonly string[];
+  /** Present only when a duplicate relationship exists (advisory). */
+  readonly duplicate?: CandidateDuplicate;
+  readonly provenance_preview: CandidateProvenancePreview;
+}
+
+export interface SuggestExtractionsResult {
+  readonly candidates: readonly CandidateFact[];
+}
+
 export interface ValidationErrorBody {
   readonly error: 'validation';
   readonly field: string;

@@ -21,6 +21,7 @@ import { registerHealth } from './health.js';
 import { registerLoopbackGuard } from './loopback-guard.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerConversationRoutes } from './routes/conversations.js';
+import { registerExtractionRoutes } from './routes/extraction.js';
 import { registerFactRoutes } from './routes/facts.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
 import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
@@ -129,6 +130,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     });
     registerFactRoutes(app, { substrate });
     registerConversationRoutes(app, { substrate });
+    registerExtractionRoutes(app, { substrate });
     registerAuditRoutes(app, { substrate });
   }
 

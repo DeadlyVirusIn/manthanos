@@ -12,3 +12,4 @@ export * from './workspaces.js';
 export * from './conversations.js';
 export * from './facts.js';
 export * from './audit.js';
+export * from './extraction.js';

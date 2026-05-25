@@ -11,7 +11,11 @@
 import type {
   AuditChainVerifyResult,
   AuditEventSummary,
+  CandidateDuplicate,
+  CandidateFact,
+  CandidateProvenancePreview,
   ListAuditEventsResult,
+  SuggestExtractionsResult,
   WorkspaceStatus,
   WorkspaceView,
 } from './types.js';
@@ -159,5 +163,91 @@ export function parseAuditVerifyResult(raw: unknown): AuditChainVerifyResult {
       };
     },
     VERIFY_FALLBACK,
+  );
+}
+
+// ── suggest-extractions (3B.5) ────────────────────────────────────
+// Web-local allow-lists. NOTE: these mirror the API's enums; a shared
+// constants package is a documented future (single-source-of-truth)
+// improvement — for now they are validated defensively here.
+const ALLOWED_REASON_FLAGS: ReadonlySet<string> = new Set([
+  'has_clear_claim',
+  'has_subject',
+  'has_source_context',
+  'quote_backed',
+  'ambiguous',
+  'short_statement',
+  'possible_duplicate',
+  'needs_human_review',
+]);
+const ALLOWED_DUPLICATE_KINDS: ReadonlySet<string> = new Set(['exact', 'likely', 'corroborates']);
+
+const clamp01 = (v: unknown): number => (isNumber(v) ? Math.min(1, Math.max(0, v)) : 0);
+
+function parseReasonFlagList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((f): f is string => isString(f) && ALLOWED_REASON_FLAGS.has(f));
+}
+
+function parseDuplicate(value: unknown): CandidateDuplicate | undefined {
+  if (!isObject(value)) return undefined;
+  if (!isString(value.kind) || !ALLOWED_DUPLICATE_KINDS.has(value.kind)) return undefined; // enum-drift: drop
+  const dup: CandidateDuplicate = { kind: value.kind as CandidateDuplicate['kind'] };
+  const fact_id = stringOrNull(value.fact_id);
+  const similarity = isNumber(value.similarity) ? clamp01(value.similarity) : undefined;
+  return {
+    ...dup,
+    ...(fact_id !== null ? { fact_id } : {}),
+    ...(similarity !== undefined ? { similarity } : {}),
+  };
+}
+
+function parseProvenancePreview(value: unknown): CandidateProvenancePreview {
+  const v = isObject(value) ? value : {};
+  return {
+    source: isString(v.source) ? v.source : 'conversation',
+    conversation_id: isString(v.conversation_id) ? v.conversation_id : '',
+    source_quote_id: stringOrNull(v.source_quote_id),
+    created_at: isString(v.created_at) ? v.created_at : '',
+    extraction_confidence: clamp01(v.extraction_confidence),
+    reason_flags: parseReasonFlagList(v.reason_flags),
+    extractor_version: isString(v.extractor_version) ? v.extractor_version : '',
+    model_used: stringOrNull(v.model_used),
+  };
+}
+
+function toCandidateFact(row: Record<string, unknown>): CandidateFact | null {
+  if (!isString(row.area) || !isString(row.statement)) return null;
+  const base: CandidateFact = {
+    area: row.area,
+    statement: row.statement,
+    confidence_score: clamp01(row.confidence_score),
+    confidence_reasons: parseReasonFlagList(row.confidence_reasons),
+    provenance_preview: parseProvenancePreview(row.provenance_preview),
+  };
+  const withQuote = isString(row.source_quote_id)
+    ? { ...base, source_quote_id: row.source_quote_id }
+    : base;
+  const duplicate = parseDuplicate(row.duplicate);
+  return duplicate !== undefined ? { ...withQuote, duplicate } : withQuote;
+}
+
+const EMPTY_SUGGEST: SuggestExtractionsResult = { candidates: [] };
+
+export function parseSuggestExtractionsResponse(raw: unknown): SuggestExtractionsResult {
+  return parseWithFallback(
+    'POST /api/v1/workspaces/:id/conversations/:cid/suggest-extractions',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      if (!Array.isArray(raw.candidates)) throw new Error('`candidates` is not an array');
+      const candidates: CandidateFact[] = [];
+      for (const item of raw.candidates) {
+        if (!isObject(item)) continue;
+        const c = toCandidateFact(item);
+        if (c !== null) candidates.push(c);
+      }
+      return { candidates };
+    },
+    EMPTY_SUGGEST,
   );
 }
