@@ -14,8 +14,8 @@
 // existing extract mutation (wired in a later phase).
 
 import type { FastifyInstance } from 'fastify';
-import { workspaceExists } from '../services/audit.js';
 import { type AiCapabilityFlags, computeAiCapabilities } from '../services/ai/capabilities.js';
+import { workspaceExists } from '../services/audit.js';
 import { getConversation } from '../services/conversations.js';
 import { assembleSuggestedCandidates } from '../services/extraction/suggest.js';
 import {

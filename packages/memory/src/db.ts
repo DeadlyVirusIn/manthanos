@@ -168,17 +168,14 @@ export function assertSchemaConsistency(
   const missing = [...runtime].filter((id) => !applied.has(id)).sort();
   if (missing.length > 0) {
     throw new StaleBuildError(
-      `Migrations not fully applied after startup (${missing.join(', ')}). ` +
-        'Rebuild workspace packages (pnpm build) and restart.',
+      `Migrations not fully applied after startup (${missing.join(', ')}). Rebuild workspace packages (pnpm build) and restart.`,
     );
   }
 
   const unknown = [...applied].filter((id) => !runtime.has(id)).sort();
   if (unknown.length > 0) {
     throw new StaleBuildError(
-      `Database has migrations this build does not know about (${unknown.join(', ')}). ` +
-        'The running build is OLDER than the database — rebuild workspace packages ' +
-        '(pnpm build) before starting the daemon.',
+      `Database has migrations this build does not know about (${unknown.join(', ')}). The running build is OLDER than the database — rebuild workspace packages (pnpm build) before starting the daemon.`,
     );
   }
 }
