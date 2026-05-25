@@ -144,7 +144,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
       daemonWorkspaceRoot: config.workspaceRoot,
     });
     registerFactRoutes(app, { substrate });
-    registerConversationRoutes(app, { substrate });
+    registerConversationRoutes(app, { substrate, provider: aiProvider });
     // 3B.8D: build the single live validator client + cache ONLY when a
     // provider is configured. The API key is read here (never stored in
     // capabilities/provider detection) and stays in the client closure.

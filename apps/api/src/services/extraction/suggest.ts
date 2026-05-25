@@ -43,6 +43,10 @@ export interface SuggestedCandidate {
   /** Present only when a duplicate relationship exists (advisory). */
   readonly duplicate?: SuggestedCandidateDuplicate;
   readonly provenance_preview: ExtractionProvenance;
+  /** Follow-up 2: true only when the LLM validator adjusted this candidate.
+   *  Deterministic candidates omit it. The approval path uses it to decide
+   *  whether to stamp model_used (from server config, never the model). */
+  readonly validated_by_llm?: boolean;
 }
 
 /** Sprint 3B.6.5 input bound: at most this many candidates are returned

@@ -14,6 +14,7 @@
 //   GET    /api/v1/workspaces/:id/conversations/:conversation_id/export     (M1 C1.5)
 
 import type { FastifyInstance } from 'fastify';
+import type { ProviderDetection } from '../services/ai/provider.js';
 import { workspaceExists } from '../services/audit.js';
 import {
   type AudienceFit,
@@ -46,6 +47,9 @@ import type { SubstrateHandle } from '../services/substrate.js';
 
 interface RouteContext {
   readonly substrate: SubstrateHandle;
+  /** Detected single provider (3B.8). Supplies the model id stamped onto an
+   *  approved LLM-validated candidate's provenance. Never the API key. */
+  readonly provider?: ProviderDetection;
 }
 
 interface PostConversationBody {
@@ -495,6 +499,9 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       extraction_confidence?: unknown;
       extractor_version?: unknown;
       reason_flags?: unknown;
+      // 3B.8 follow-up 2: signals the candidate was LLM-validated. model_used
+      // is NEVER read from the body — it is stamped from server config below.
+      validated_by_llm?: unknown;
     };
     if (typeof body.area !== 'string') {
       await reply
@@ -559,6 +566,14 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       });
       return;
     }
+    // 3B.8 follow-up 2: stamp model_used from OUR server-configured provider
+    // when the approval indicates an LLM-validated candidate. model_used is
+    // never taken from the request body or from model output; if no provider
+    // is configured (or the candidate wasn't validated) it stays NULL.
+    const modelUsed =
+      body.validated_by_llm === true && rc.provider?.configured === true
+        ? rc.provider.model
+        : undefined;
     try {
       const result = await extractFactFromConversation(
         rc.substrate.ctx,
@@ -572,6 +587,7 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
           extraction_confidence: body.extraction_confidence as number | undefined,
           extractor_version: body.extractor_version as string | undefined,
           reason_flags: body.reason_flags as readonly string[] | undefined,
+          model_used: modelUsed,
         },
       );
       // 201 when a new fact was minted; 200 when an existing fact was

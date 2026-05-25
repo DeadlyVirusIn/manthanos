@@ -61,6 +61,8 @@ export interface ExtractFactDialogProps {
   readonly extractionConfidence?: number;
   readonly extractorVersion?: string;
   readonly reasonFlags?: readonly string[];
+  /** 3B.8 follow-up 2: candidate was LLM-validated → server stamps model_used. */
+  readonly validatedByLlm?: boolean;
   // Exposed for tests + the host page to read the success message.
   readonly status?: MutationStatus<ExtractFactInput, ExtractFactResponse>;
 }
@@ -133,6 +135,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
           ? { extractor_version: props.extractorVersion }
           : {}),
         ...(props.reasonFlags !== undefined ? { reason_flags: props.reasonFlags } : {}),
+        ...(props.validatedByLlm === true ? { validated_by_llm: true } : {}),
       };
       status.mutate(input);
     },
@@ -146,6 +149,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
       props.extractionConfidence,
       props.extractorVersion,
       props.reasonFlags,
+      props.validatedByLlm,
     ],
   );
 

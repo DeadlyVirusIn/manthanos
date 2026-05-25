@@ -92,6 +92,9 @@ export interface ExtractFactInput {
   readonly extraction_confidence?: number;
   readonly extractor_version?: string;
   readonly reason_flags?: readonly string[];
+  // 3B.8 follow-up 2: signals the candidate was LLM-validated so the server
+  // stamps model_used (from its own config). `model_used` is never sent.
+  readonly validated_by_llm?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -23,9 +23,13 @@ import {
   NEEDS_REVIEW_SCORE_THRESHOLD,
 } from './confidence.js';
 import { type UntrustedConversationInput, renderUntrustedConversation } from './untrustedText.js';
+import {
+  type ValidatorClient,
+  type ValidatorVerdict,
+  parseValidatorResponse,
+} from './validator.js';
 import { type ValidatorCache, makeValidatorCacheKey } from './validatorCache.js';
 import { type ValidatorTelemetryRecord, buildValidatorTelemetry } from './validatorCanary.js';
-import { type ValidatorClient, type ValidatorVerdict, parseValidatorResponse } from './validator.js';
 
 // ── Sprint 3B.8B token budgets / hard caps ──────────────────────────
 /** Max candidates sent to the model per request (canary value). Extra
@@ -54,6 +58,9 @@ export interface ValidatableCandidate {
   readonly area: string;
   readonly confidence_score: number;
   readonly confidence_reasons: readonly ConfidenceReasonFlag[];
+  /** Follow-up 2: set true when the LLM validator actually adjusted this
+   *  candidate, so the approval path can stamp model_used (server-derived). */
+  readonly validated_by_llm?: boolean;
 }
 
 export type ValidatorFallbackReason = 'gate_off' | 'timeout' | 'error' | 'malformed' | 'abstain';
@@ -169,7 +176,10 @@ function applyVerdict<T extends ValidatableCandidate>(
 ): ValidatorOutcome<T> {
   if (verdict.abstain) {
     return {
-      candidate: { ...candidate, confidence_reasons: withNeedsReview(candidate.confidence_reasons) },
+      candidate: {
+        ...candidate,
+        confidence_reasons: withNeedsReview(candidate.confidence_reasons),
+      },
       validated: false,
       fallback_reason: 'abstain',
     };
@@ -306,7 +316,10 @@ export async function validateCandidates<T extends ValidatableCandidate>(
     }
     validatedCount++;
     const outcome = await runValidator(candidate, untrusted, opts);
-    out.push(outcome.candidate);
+    // Mark genuinely LLM-validated candidates so approval can stamp model_used.
+    out.push(
+      outcome.validated ? { ...outcome.candidate, validated_by_llm: true } : outcome.candidate,
+    );
   }
   return out;
 }

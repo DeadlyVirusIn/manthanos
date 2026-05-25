@@ -223,6 +223,8 @@ function toCandidateFact(row: Record<string, unknown>): CandidateFact | null {
     confidence_score: clamp01(row.confidence_score),
     confidence_reasons: parseReasonFlagList(row.confidence_reasons),
     provenance_preview: parseProvenancePreview(row.provenance_preview),
+    // 3B.8 follow-up 2: boolean-only; anything else is treated as absent.
+    ...(row.validated_by_llm === true ? { validated_by_llm: true } : {}),
   };
   const withQuote = isString(row.source_quote_id)
     ? { ...base, source_quote_id: row.source_quote_id }

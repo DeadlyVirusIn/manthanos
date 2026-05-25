@@ -442,6 +442,10 @@ export interface CandidateFact {
   /** Present only when a duplicate relationship exists (advisory). */
   readonly duplicate?: CandidateDuplicate;
   readonly provenance_preview: CandidateProvenancePreview;
+  /** 3B.8 follow-up 2: true only when the LLM validator adjusted this
+   *  candidate. Carried into the approve path so the server stamps
+   *  model_used (from its own config — never from this value or the model). */
+  readonly validated_by_llm?: boolean;
 }
 
 export interface SuggestExtractionsResult {

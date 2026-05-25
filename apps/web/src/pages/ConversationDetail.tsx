@@ -75,6 +75,7 @@ interface ExtractInitial {
   readonly extractionConfidence?: number;
   readonly extractorVersion?: string;
   readonly reasonFlags?: readonly string[];
+  readonly validatedByLlm?: boolean;
 }
 const EMPTY_EXTRACT_INITIAL: ExtractInitial = { area: '', statement: '', quoteId: '' };
 
@@ -282,6 +283,7 @@ export function ConversationDetail(): JSX.Element {
       extractionConfidence: candidate.confidence_score,
       extractorVersion: candidate.provenance_preview.extractor_version,
       reasonFlags: candidate.confidence_reasons,
+      validatedByLlm: candidate.validated_by_llm === true,
     });
     setPendingApprovalKey(candidateKey(candidate));
     setIsExtractOpen(true);
@@ -439,6 +441,7 @@ function renderConversationShell(
         extractionConfidence={bundle.extractInitial.extractionConfidence}
         extractorVersion={bundle.extractInitial.extractorVersion}
         reasonFlags={bundle.extractInitial.reasonFlags}
+        validatedByLlm={bundle.extractInitial.validatedByLlm}
         status={bundle.extractStatus}
       />
       <SkipExtractionDialog
