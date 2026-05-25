@@ -24,6 +24,7 @@ import {
 } from './confidence.js';
 import { type UntrustedConversationInput, renderUntrustedConversation } from './untrustedText.js';
 import { type ValidatorCache, makeValidatorCacheKey } from './validatorCache.js';
+import { type ValidatorTelemetryRecord, buildValidatorTelemetry } from './validatorCanary.js';
 import { type ValidatorClient, type ValidatorVerdict, parseValidatorResponse } from './validator.js';
 
 // ── Sprint 3B.8B token budgets / hard caps ──────────────────────────
@@ -77,6 +78,16 @@ export interface RunValidatorOptions {
   readonly cache?: ValidatorCache;
   /** Resolved model id; part of the cache key and never sent from the model. */
   readonly model?: string;
+  // ── Follow-up 1: telemetry emission (PII-free) ──
+  /** Per-request id for correlating telemetry. */
+  readonly requestId?: string;
+  /** Workspace id; hashed into the candidate key (never logged plaintext). */
+  readonly workspaceId?: string;
+  /** Sink for the telemetry record. Emitted once per validation attempt
+   *  (never on gate-off). Requires requestId + workspaceId. */
+  readonly onTelemetry?: (record: ValidatorTelemetryRecord) => void;
+  /** Injectable clock for latency (default Date.now). */
+  readonly now?: () => number;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -185,8 +196,39 @@ export async function runValidator<T extends ValidatableCandidate>(
   opts: RunValidatorOptions,
 ): Promise<ValidatorOutcome<T>> {
   if (!opts.enabled) {
+    // Gate off is the deterministic no-op; not a validation attempt — no telemetry.
     return { candidate, validated: false, fallback_reason: 'gate_off' };
   }
+
+  const nowFn = opts.now ?? Date.now;
+  const startedAt = nowFn();
+  let retryCount = 0;
+  let cacheHit = false;
+
+  // Emit one PII-free telemetry record per validation attempt, then return.
+  const finish = (outcome: ValidatorOutcome<T>): ValidatorOutcome<T> => {
+    if (
+      opts.onTelemetry !== undefined &&
+      opts.requestId !== undefined &&
+      opts.workspaceId !== undefined
+    ) {
+      opts.onTelemetry(
+        buildValidatorTelemetry({
+          requestId: opts.requestId,
+          workspaceId: opts.workspaceId,
+          area: candidate.area,
+          statement: candidate.statement,
+          model: opts.model ?? null,
+          cacheHit,
+          validated: outcome.validated,
+          fallbackReason: outcome.fallback_reason,
+          latencyMs: nowFn() - startedAt,
+          retryCount,
+        }),
+      );
+    }
+    return outcome;
+  };
 
   const block = cappedBlock(untrusted);
   const cacheKey =
@@ -197,7 +239,10 @@ export async function runValidator<T extends ValidatableCandidate>(
   // Cache hit → apply the cached verdict without any client call.
   if (opts.cache !== undefined && cacheKey !== undefined) {
     const cached = opts.cache.get(cacheKey);
-    if (cached !== undefined) return applyVerdict(candidate, cached);
+    if (cached !== undefined) {
+      cacheHit = true;
+      return finish(applyVerdict(candidate, cached));
+    }
   }
 
   const prompt = buildPrompt(candidate, block);
@@ -211,22 +256,23 @@ export async function runValidator<T extends ValidatableCandidate>(
       break;
     } catch (err) {
       if (err instanceof ValidatorTimeoutError) {
-        return { candidate, validated: false, fallback_reason: 'timeout' };
+        return finish({ candidate, validated: false, fallback_reason: 'timeout' });
       }
       if (attempt === MAX_RETRIES) {
-        return { candidate, validated: false, fallback_reason: 'error' };
+        return finish({ candidate, validated: false, fallback_reason: 'error' });
       }
+      retryCount++;
       // else: retry once more
     }
   }
   // Defensive response cap: an over-long body is treated as malformed.
   if (raw === undefined || raw.length > MAX_RESPONSE_CHARS) {
-    return { candidate, validated: false, fallback_reason: 'malformed' };
+    return finish({ candidate, validated: false, fallback_reason: 'malformed' });
   }
 
   const verdict = parseValidatorResponse(raw);
   if (verdict === null) {
-    return { candidate, validated: false, fallback_reason: 'malformed' };
+    return finish({ candidate, validated: false, fallback_reason: 'malformed' });
   }
 
   // Cache only SUCCESSFUL parsed verdicts (incl. abstain) — never
@@ -235,7 +281,7 @@ export async function runValidator<T extends ValidatableCandidate>(
     opts.cache.set(cacheKey, verdict);
   }
 
-  return applyVerdict(candidate, verdict);
+  return finish(applyVerdict(candidate, verdict));
 }
 
 /**

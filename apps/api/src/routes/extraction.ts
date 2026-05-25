@@ -97,6 +97,10 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
           client: rc.validatorClient ?? noLiveValidatorClient,
           cache: rc.cache,
           model: caps.model ?? undefined,
+          // Telemetry: PII-free record per validation attempt → request log.
+          requestId: req.id,
+          workspaceId: req.params.id,
+          onTelemetry: (record) => req.log.info({ validator: record }, 'validator telemetry'),
         },
       );
 
