@@ -26,6 +26,9 @@ import { registerExtractionRoutes } from './routes/extraction.js';
 import { registerFactRoutes } from './routes/facts.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
 import { detectProvider } from './services/ai/provider.js';
+import { createLiveValidatorClient } from './services/extraction/liveValidatorClient.js';
+import type { ValidatorClient } from './services/extraction/validator.js';
+import { type ValidatorCache, createValidatorCache } from './services/extraction/validatorCache.js';
 import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
 
 export const VERSION = '0.0.0';
@@ -141,7 +144,25 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     });
     registerFactRoutes(app, { substrate });
     registerConversationRoutes(app, { substrate });
-    registerExtractionRoutes(app, { substrate, flags: aiFlags, provider: aiProvider });
+    // 3B.8D: build the single live validator client + cache ONLY when a
+    // provider is configured. The API key is read here (never stored in
+    // capabilities/provider detection) and stays in the client closure.
+    let validatorClient: ValidatorClient | undefined;
+    let validatorCache: ValidatorCache | undefined;
+    if (aiProvider.configured && aiProvider.model !== null) {
+      const apiKey = process.env.MANTHANOS_VALIDATOR_API_KEY?.trim();
+      if (apiKey !== undefined && apiKey !== '') {
+        validatorClient = createLiveValidatorClient({ apiKey, model: aiProvider.model });
+        validatorCache = createValidatorCache();
+      }
+    }
+    registerExtractionRoutes(app, {
+      substrate,
+      flags: aiFlags,
+      provider: aiProvider,
+      validatorClient,
+      cache: validatorCache,
+    });
     registerAuditRoutes(app, { substrate });
   }
 

@@ -19,6 +19,8 @@ import { PROVIDER_NOT_CONFIGURED, type ProviderDetection } from '../services/ai/
 import { workspaceExists } from '../services/audit.js';
 import { getConversation } from '../services/conversations.js';
 import { assembleSuggestedCandidates } from '../services/extraction/suggest.js';
+import type { ValidatorClient } from '../services/extraction/validator.js';
+import type { ValidatorCache } from '../services/extraction/validatorCache.js';
 import {
   noLiveValidatorClient,
   validateCandidates,
@@ -32,6 +34,11 @@ interface RouteContext {
   readonly flags?: AiCapabilityFlags;
   /** Detected single provider (3B.8A). Default not-configured ⇒ gate off. */
   readonly provider?: ProviderDetection;
+  /** Live validator client (3B.8D), present only when a provider is
+   *  configured. Falls back to the no-op client otherwise. */
+  readonly validatorClient?: ValidatorClient;
+  /** Verdict cache (3B.8C), present only in the canary path. */
+  readonly cache?: ValidatorCache;
 }
 
 /** Cap on existing facts compared for duplicate detection (advisory). */
@@ -78,7 +85,12 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
           quotes: conversation.verbatim_quotes.map((q) => q.text),
           summary: conversation.summary,
         },
-        { enabled: caps.llm_validator_enabled, client: noLiveValidatorClient },
+        {
+          enabled: caps.llm_validator_enabled,
+          client: rc.validatorClient ?? noLiveValidatorClient,
+          cache: rc.cache,
+          model: caps.model ?? undefined,
+        },
       );
 
       await reply.send({ candidates, truncation: result.truncation });
