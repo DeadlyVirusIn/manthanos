@@ -6,7 +6,7 @@
 //
 // Page-level integration of MutationDialog + MutationErrorBanner +
 // MutationSuccessMessage + useExtractFact via the Conversation Detail
-// page's "Pull a fact from this conversation" button.
+// page's "Add a finding from this conversation" button.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -162,7 +162,7 @@ describe('Extract Fact — button posture', () => {
     renderConversationWith(client);
     const btn = screen.getByTestId('conversation-extract-button');
     expect(btn.tagName.toLowerCase()).toBe('button');
-    expect(btn.textContent).toContain('Pull a fact from this conversation');
+    expect(btn.textContent).toContain('Add a finding from this conversation');
   });
 
   it('does NOT render the extract button on a tombstoned conversation', () => {
@@ -192,7 +192,7 @@ describe('Extract Fact — button posture', () => {
     });
     expect(screen.getByTestId('mutation-dialog')).toBeTruthy();
     expect(screen.getByTestId('mutation-dialog-title').textContent).toBe(
-      'Pull a fact from this conversation',
+      'Add a finding from this conversation',
     );
   });
 });

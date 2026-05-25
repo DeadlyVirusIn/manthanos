@@ -306,13 +306,13 @@ function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
         />
         <DisabledQuickActionCard
           testId="quick-action-extract-facts"
-          label="Extract Facts"
-          description="Pull facts from a conversation transcript."
+          label="Suggest Findings"
+          description="Suggest findings from a conversation transcript."
         />
         <DisabledQuickActionCard
           testId="quick-action-review-evidence"
           label="Review Evidence"
-          description="Walk the evidence behind a fact."
+          description="Walk the evidence behind a finding."
         />
       </div>
     </section>

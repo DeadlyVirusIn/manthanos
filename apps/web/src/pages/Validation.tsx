@@ -72,7 +72,7 @@ export function Validation(): JSX.Element {
   if (projectId === undefined) {
     return (
       <section data-testid="validation-missing-id">
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Validation</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>To double-check</h1>
         <p style={{ color: '#666', marginTop: '0.75rem' }}>No project id in the URL.</p>
       </section>
     );
@@ -103,11 +103,11 @@ export function Validation(): JSX.Element {
         <SectionShell heading="Conversations Awaiting Review" testId="validation-pending-loading">
           <TextSkeleton lines={3} ariaLabel="Loading pending review" />
         </SectionShell>
-        <SectionShell heading="Facts by Trust Level" testId="validation-tiers-loading">
+        <SectionShell heading="Findings by Trust Level" testId="validation-tiers-loading">
           <TextSkeleton lines={4} ariaLabel="Loading trust levels" />
         </SectionShell>
-        <SectionShell heading="Follow-up Queue" testId="validation-followup-loading">
-          <TextSkeleton lines={3} ariaLabel="Loading follow-up queue" />
+        <SectionShell heading="Flagged to double-check" testId="validation-followup-loading">
+          <TextSkeleton lines={3} ariaLabel="Loading the double-check list" />
         </SectionShell>
         <SectionShell heading="Recent Activity" testId="validation-activity-loading">
           <TextSkeleton lines={4} ariaLabel="Loading activity" />
@@ -223,7 +223,7 @@ function PageHeader(): JSX.Element {
     <header>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Validation</h1>
       <p style={{ color: '#666', marginTop: '0.5rem' }}>
-        Facts that need a closer look, and what to do about them.
+        Findings that need a closer look, and what to do about them.
       </p>
     </header>
   );
@@ -277,13 +277,13 @@ function OverviewSection(props: OverviewProps): JSX.Element {
         />
         <OverviewStat
           testId="validation-overview-facts"
-          label={(n) => (n === 1 ? 'fact' : 'facts')}
+          label={(n) => (n === 1 ? 'finding' : 'findings')}
           value={props.totalFacts}
           isError={props.factsErrored}
         />
         <OverviewStat
           testId="validation-overview-followups"
-          label={(n) => (n === 1 ? 'active follow-up' : 'active follow-ups')}
+          label={(n) => (n === 1 ? 'finding to double-check' : 'findings to double-check')}
           value={props.followUpCount}
           isError={props.followUpErrored}
         />
@@ -443,7 +443,7 @@ interface TrustLevelsProps {
 
 function TrustLevelsSection({ counts, anyErrored }: TrustLevelsProps): JSX.Element {
   return (
-    <SectionShell heading="Facts by Trust Level" testId="validation-tiers">
+    <SectionShell heading="Findings by Trust Level" testId="validation-tiers">
       {anyErrored ? (
         <p data-testid="validation-tiers-warning" style={{ color: '#a06000', margin: 0 }}>
           Could not load one or more trust-level counts.
@@ -503,13 +503,13 @@ interface FollowUpQueueProps {
 
 function FollowUpQueueSection(props: FollowUpQueueProps): JSX.Element {
   return (
-    <SectionShell heading="Follow-up Queue" testId="validation-followup">
+    <SectionShell heading="Flagged to double-check" testId="validation-followup">
       {props.isError ? (
         <div data-testid="validation-followup-error">
           <PageErrorBanner
-            error={props.error ?? new Error('Could not load follow-up queue')}
+            error={props.error ?? new Error('Could not load the double-check list')}
             onRetry={props.onRetry}
-            headline="Could not load the follow-up queue"
+            headline="Could not load the double-check list"
           />
         </div>
       ) : props.facts.length === 0 ? (
@@ -517,7 +517,7 @@ function FollowUpQueueSection(props: FollowUpQueueProps): JSX.Element {
           data-testid="validation-followup-empty"
           style={{ color: '#888', fontStyle: 'italic', margin: 0 }}
         >
-          No facts need follow-up right now.
+          Nothing to double-check right now.
         </p>
       ) : (
         <>
@@ -584,7 +584,7 @@ function FollowUpRow({ fact, projectId }: FollowUpRowProps): JSX.Element {
             color: '#5c4400',
           }}
         >
-          Flagged for follow-up
+          Flagged to double-check
         </span>
       </div>
     </Link>

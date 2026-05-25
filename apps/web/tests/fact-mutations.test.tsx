@@ -206,8 +206,8 @@ describe('Fact lifecycle controls — disabled gating', () => {
     const demote = screen.getByTestId('fact-demote-button') as HTMLButtonElement;
     expect(promote.disabled).toBe(true);
     expect(demote.disabled).toBe(true);
-    expect(promote.getAttribute('title')).toContain('Resolve the follow-up');
-    expect(demote.getAttribute('title')).toContain('Resolve the follow-up');
+    expect(promote.getAttribute('title')).toContain('Resolve the double-check');
+    expect(demote.getAttribute('title')).toContain('Resolve the double-check');
   });
 
   it('disables Promote/Demote on a non-head fact with the "open the current version" reason', () => {
@@ -384,7 +384,7 @@ describe('Mark for follow-up — inline form', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe(
-        'Flagged for follow-up.',
+        'Flagged to double-check.',
       ),
     );
 
@@ -420,7 +420,7 @@ describe('Resolve follow-up — inline form', () => {
     expect(screen.getByTestId('fact-resolve-input-resolution')).toBeTruthy();
   });
 
-  it('submits, invalidates, and shows "Follow-up resolved." success', async () => {
+  it('submits, invalidates, and shows "Marked as checked." success', async () => {
     const user = userEvent.setup();
     const client = makeClient();
     seed(
@@ -453,7 +453,7 @@ describe('Resolve follow-up — inline form', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe(
-        'Follow-up resolved.',
+        'Marked as checked.',
       ),
     );
 
@@ -546,12 +546,12 @@ describe('Fact mutations — server errors', () => {
 // ─────────────────────────────────────────────────────────────────
 
 describe('Fact mutations — vocabulary discipline', () => {
-  it('uses "follow-up" wording on the buttons (not "contest")', () => {
+  it('uses "double-check" wording on the buttons (not "contest")', () => {
     const client = makeClient();
     seed(client, makeFact());
     renderFactWith(client);
     const text = screen.getByTestId('fact-lifecycle-controls').textContent ?? '';
-    expect(text).toContain('Mark for follow-up');
+    expect(text).toContain('Mark to double-check');
     expect(text).not.toContain('Contest');
     expect(text).not.toContain('contest');
   });
@@ -567,7 +567,7 @@ describe('Fact mutations — vocabulary discipline', () => {
     expect(formText).toContain('Why does this need a closer look?');
   });
 
-  it('uses "Resolve follow-up" wording on the resolve button (not "uncontest")', () => {
+  it('uses "Mark as checked" wording on the resolve button (not "uncontest")', () => {
     const client = makeClient();
     seed(
       client,
@@ -579,7 +579,7 @@ describe('Fact mutations — vocabulary discipline', () => {
     );
     renderFactWith(client);
     const text = screen.getByTestId('fact-lifecycle-controls').textContent ?? '';
-    expect(text).toContain('Resolve follow-up');
+    expect(text).toContain('Mark as checked');
     expect(text).not.toContain('uncontest');
     expect(text).not.toContain('Uncontest');
   });

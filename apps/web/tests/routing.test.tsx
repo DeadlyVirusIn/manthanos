@@ -90,9 +90,9 @@ describe('Route registration (M2 C2.1)', () => {
     expect(html).toContain('Conversation');
   });
 
-  it('GET /projects/:projectId/facts/:id renders the Fact placeholder', () => {
+  it('GET /projects/:projectId/facts/:id renders the Finding placeholder', () => {
     const html = renderAt(`/projects/${PROJ}/facts/fact-xyz`);
-    expect(html).toContain('Fact');
+    expect(html).toContain('Finding');
   });
 });
 

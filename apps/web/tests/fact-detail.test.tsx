@@ -184,7 +184,7 @@ describe('FactDetail — error state', () => {
     const html = render(client);
     expect(html).toContain('data-testid="fact-detail-error"');
     expect(html).toContain('data-testid="page-error-banner"');
-    expect(html).toContain('Could not load this fact');
+    expect(html).toContain('Could not load this finding');
     expect(html).toContain('daemon-unreachable');
   });
 
@@ -344,7 +344,7 @@ describe('FactDetail — provenance', () => {
     const html = render(client);
     expect(html).toContain('data-testid="fact-detail-populated"');
     expect(html).toContain('data-testid="fact-provenance-error"');
-    expect(html).toContain('Could not load the evidence for this fact');
+    expect(html).toContain('Could not load the evidence for this finding');
     expect(html).toContain('prov-down');
   });
 });
@@ -411,7 +411,7 @@ describe('FactDetail — history', () => {
     const html = render(client);
     expect(html).toContain('data-testid="fact-detail-populated"');
     expect(html).toContain('data-testid="fact-history-error"');
-    expect(html).toContain('Could not load the history of this fact');
+    expect(html).toContain('Could not load the history of this finding');
     expect(html).toContain('history-down');
   });
 });
@@ -436,7 +436,7 @@ describe('FactDetail — contested / follow-up state', () => {
     const html = render(client);
     expect(html).toContain('data-testid="fact-contested-banner"');
     expect(html).toContain('data-testid="fact-contested-headline"');
-    expect(html).toContain('Flagged for follow-up');
+    expect(html).toContain('Flagged to double-check');
     expect(html).toContain('data-testid="fact-contested-reason"');
     expect(html).toContain('a competitor said otherwise');
     expect(html).toContain('data-testid="fact-contested-time"');
@@ -452,7 +452,7 @@ describe('FactDetail — contested / follow-up state', () => {
     seedHistory(client, makeHistory([]));
     const html = render(client);
     expect(html).toContain('data-lifecycle="contested"');
-    expect(html).toContain('Flagged for follow-up');
+    expect(html).toContain('Flagged to double-check');
   });
 
   it('omits the contested-time line when contested_at is missing', () => {
@@ -547,7 +547,7 @@ describe('FactDetail — translation correctness', () => {
   it('translates the derived lifecycle states', () => {
     const cases: Array<[Partial<FactView>, string, string]> = [
       [{}, 'not_contested', 'Not flagged'],
-      [{ is_contested: true, contested_at: TWO_DAYS_AGO }, 'contested', 'Flagged for follow-up'],
+      [{ is_contested: true, contested_at: TWO_DAYS_AGO }, 'contested', 'Flagged to double-check'],
       [{ superseded_by_fact_id: 'newer-id' }, 'superseded', 'Older version'],
     ];
     for (const [overrides, lifecycle, label] of cases) {

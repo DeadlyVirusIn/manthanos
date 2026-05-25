@@ -46,6 +46,6 @@ export function useMarkFactForFollowUp(
         auditKeys.lists(workspaceId),
       ];
     },
-    successMessage: 'Flagged for follow-up.',
+    successMessage: 'Flagged to double-check.',
   });
 }

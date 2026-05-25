@@ -153,8 +153,8 @@ export function FactDetail(): JSX.Element {
   if (projectId === undefined || factId === undefined) {
     return (
       <section data-testid="fact-detail-missing-id">
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Fact</h1>
-        <p style={{ color: '#666', marginTop: '0.75rem' }}>No fact id in the URL.</p>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Finding</h1>
+        <p style={{ color: '#666', marginTop: '0.75rem' }}>No finding id in the URL.</p>
       </section>
     );
   }
@@ -184,7 +184,7 @@ export function FactDetail(): JSX.Element {
           <PageErrorBanner
             error={factQuery.error}
             onRetry={() => factQuery.refetch()}
-            headline="Could not load this fact"
+            headline="Could not load this finding"
           />
         </div>
       </section>,
@@ -195,7 +195,7 @@ export function FactDetail(): JSX.Element {
     return withShell(
       <section data-testid="fact-detail-error">
         <PageHeader />
-        <p>This fact has no data.</p>
+        <p>This finding has no data.</p>
       </section>,
     );
   }
@@ -296,23 +296,23 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
   const promoteReason = !head
     ? 'Open the current version to change it.'
     : contested
-      ? 'Resolve the follow-up before changing the trust level.'
+      ? 'Resolve the double-check before changing the trust level.'
       : atTop
         ? 'Trust level is already at the top.'
         : '';
   const demoteReason = !head
     ? 'Open the current version to change it.'
     : contested
-      ? 'Resolve the follow-up before changing the trust level.'
+      ? 'Resolve the double-check before changing the trust level.'
       : atBottom
         ? 'Trust level is already at the bottom.'
         : '';
   const markReason = !head
     ? 'Open the current version to change it.'
     : contested
-      ? 'This is already flagged for follow-up.'
+      ? 'This is already flagged to double-check.'
       : '';
-  const resolveReason = !contested ? "This isn't flagged for follow-up." : '';
+  const resolveReason = !contested ? "This isn't flagged to double-check." : '';
 
   const onPromote = (): void => {
     if (promoteDisabled) return;
@@ -381,7 +381,7 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
         {!contested ? (
           <LifecycleButton
             testId="fact-mark-button"
-            label="Mark for follow-up"
+            label="Mark to double-check"
             disabled={markDisabled}
             disabledReason={markReason}
             isSubmitting={false}
@@ -391,7 +391,7 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
         ) : (
           <LifecycleButton
             testId="fact-resolve-button"
-            label="Resolve follow-up"
+            label="Mark as checked"
             disabled={resolveDisabled}
             disabledReason={resolveReason}
             isSubmitting={false}
@@ -450,7 +450,7 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
               disabled={reason.trim().length === 0 || bundle.mark.isSubmitting}
               style={primaryButtonStyle(reason.trim().length === 0 || bundle.mark.isSubmitting)}
             >
-              {bundle.mark.isSubmitting ? 'Saving…' : 'Flag for follow-up'}
+              {bundle.mark.isSubmitting ? 'Saving…' : 'Flag to double-check'}
             </button>
           </div>
         </form>
@@ -610,7 +610,7 @@ function deriveLifecycle(fact: FactView): LifecycleStateValue {
 function PageHeader(): JSX.Element {
   return (
     <header>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Fact</h1>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Finding</h1>
     </header>
   );
 }
@@ -745,7 +745,7 @@ function ProvenanceSection({ state }: ProvenanceSectionProps): JSX.Element {
           <PageErrorBanner
             error={state.error ?? new Error('Could not load evidence')}
             onRetry={state.refetch}
-            headline="Could not load the evidence for this fact"
+            headline="Could not load the evidence for this finding"
           />
         </div>
       ) : state.data.length === 0 ? (
@@ -848,7 +848,7 @@ interface HistorySectionProps {
 function HistorySection({ state }: HistorySectionProps): JSX.Element {
   return (
     <section data-testid="fact-history" style={{ marginTop: '1.5rem' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>How this fact has changed</h2>
+      <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>How this finding has changed</h2>
       {state.isPending ? (
         <div data-testid="fact-history-loading" style={{ marginTop: '0.5rem' }}>
           <TextSkeleton lines={3} ariaLabel="Loading history" />
@@ -858,7 +858,7 @@ function HistorySection({ state }: HistorySectionProps): JSX.Element {
           <PageErrorBanner
             error={state.error ?? new Error('Could not load history')}
             onRetry={state.refetch}
-            headline="Could not load the history of this fact"
+            headline="Could not load the history of this finding"
           />
         </div>
       ) : state.data.length === 0 ? (
@@ -962,7 +962,7 @@ function ContestedBanner({ fact }: FactBannerProps): JSX.Element {
         color: '#5c4400',
       }}
     >
-      <strong data-testid="fact-contested-headline">Flagged for follow-up.</strong>
+      <strong data-testid="fact-contested-headline">Flagged to double-check.</strong>
       {contestedAgo !== '' ? (
         <p
           data-testid="fact-contested-time"

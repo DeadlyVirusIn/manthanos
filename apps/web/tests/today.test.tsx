@@ -350,14 +350,14 @@ describe('Today — quick actions disabled / enabled posture', () => {
     expect(html).toContain('arrive in the next milestone');
   });
 
-  it('renders the action labels: Capture Conversation, Extract Facts, Review Evidence', () => {
+  it('renders the action labels: Capture Conversation, Suggest Findings, Review Evidence', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const html = render(client);
     expect(html).toContain('Capture Conversation');
-    expect(html).toContain('Extract Facts');
+    expect(html).toContain('Suggest Findings');
     expect(html).toContain('Review Evidence');
   });
 });

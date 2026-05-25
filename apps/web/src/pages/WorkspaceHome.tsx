@@ -130,8 +130,8 @@ export function WorkspaceHome(): JSX.Element {
         <SummaryCardLink
           testId="summary-card-validation"
           to={`/projects/${projectId}/validation`}
-          label="Validation"
-          description="Facts that need a closer look."
+          label="To double-check"
+          description="Findings that need a closer look."
         />
         <SummaryCardDisabled
           testId="summary-card-conversations"
@@ -140,8 +140,8 @@ export function WorkspaceHome(): JSX.Element {
         />
         <SummaryCardDisabled
           testId="summary-card-facts"
-          label="Facts"
-          description="A full fact list view arrives in a later milestone."
+          label="Findings"
+          description="A full finding list view arrives in a later milestone."
         />
       </div>
     </section>

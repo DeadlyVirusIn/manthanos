@@ -295,7 +295,7 @@ describe('Validation — full-error state', () => {
     const err = new Error('boom');
     for (const key of ALL_KEYS) seedQueryError(client, key, err);
     const html = render(client);
-    expect(html).toContain('Facts that need a closer look');
+    expect(html).toContain('Findings that need a closer look');
   });
 });
 
@@ -407,8 +407,8 @@ describe('Validation — populated state', () => {
     expect(html).toContain('data-testid="validation-populated"');
     const visible = visibleText(html);
     expect(visible).toContain('conversations');
-    expect(visible).toContain('facts');
-    expect(visible).toContain('follow-ups');
+    expect(visible).toContain('findings');
+    expect(visible).toContain('to double-check');
     expect(visible).toContain('recent events');
   });
 
@@ -439,8 +439,8 @@ describe('Validation — populated state', () => {
     const html = render(client);
     const visible = visibleText(html);
     expect(visible).toMatch(/\bconversation\b/);
-    expect(visible).toMatch(/\bfact\b/);
-    expect(visible).toMatch(/\bactive follow-up\b/);
+    expect(visible).toMatch(/\bfinding\b/);
+    expect(visible).toMatch(/\bto double-check\b/);
     expect(visible).toMatch(/\brecent event\b/);
   });
 });
@@ -526,7 +526,7 @@ describe('Validation — follow-up queue rendering', () => {
     expect(visible).not.toContain('Should not appear (tombstoned).');
   });
 
-  it('uses "Flagged for follow-up" wording (the user-friendly rename)', () => {
+  it('uses "Flagged to double-check" wording (the user-friendly rename)', () => {
     const client = makeClient();
     seedAll(client, {
       followUp: factsResult(
@@ -535,10 +535,7 @@ describe('Validation — follow-up queue rendering', () => {
       ),
     });
     const visible = visibleText(render(client));
-    // NOTE: this pill is hardcoded page copy in Validation.tsx, not the
-    // lifecycle_state label — it migrates to "double-check" in the C4.4-E0
-    // page-copy sweep (commit #4), together with this assertion.
-    expect(visible).toContain('Flagged for follow-up');
+    expect(visible).toContain('Flagged to double-check');
     expect(visible).not.toContain('Contest');
     expect(visible).not.toContain('contest');
   });
@@ -569,7 +566,7 @@ describe('Validation — follow-up queue rendering', () => {
     });
     const html = render(client);
     expect(html).toContain('data-testid="validation-followup-empty"');
-    expect(html).toContain('No facts need follow-up right now.');
+    expect(html).toContain('Nothing to double-check right now.');
   });
 
   it('renders an inline error when only the follow-up sample query fails', () => {
@@ -582,7 +579,7 @@ describe('Validation — follow-up queue rendering', () => {
     seedQueryError(client, FOLLOWUP_SAMPLE_KEY, new Error('followup-down'));
     const html = render(client);
     expect(html).toContain('data-testid="validation-followup-error"');
-    expect(html).toContain('Could not load the follow-up queue');
+    expect(html).toContain('Could not load the double-check list');
   });
 });
 

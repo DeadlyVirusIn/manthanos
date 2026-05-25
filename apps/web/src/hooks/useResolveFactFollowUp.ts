@@ -42,6 +42,6 @@ export function useResolveFactFollowUp(
         auditKeys.lists(workspaceId),
       ];
     },
-    successMessage: 'Follow-up resolved.',
+    successMessage: 'Marked as checked.',
   });
 }

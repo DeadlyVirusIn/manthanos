@@ -180,11 +180,11 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
 
   return (
     <MutationDialog
-      title="Pull a fact from this conversation"
+      title="Add a finding from this conversation"
       isOpen={isOpen}
       onCancel={onClose}
       onSubmit={handleSubmit}
-      submitLabel="Pull fact"
+      submitLabel="Add finding"
       cancelLabel="Cancel"
       isSubmitting={status.isSubmitting}
       submitDisabled={!isValid}

@@ -726,7 +726,7 @@ function ExtractedFactsSection({
                 cursor: 'pointer',
               }}
             >
-              Suggest facts
+              Suggest findings
             </button>
           ) : null}
           {onExtractClick !== undefined ? (
@@ -744,7 +744,7 @@ function ExtractedFactsSection({
                 cursor: 'pointer',
               }}
             >
-              Pull a fact from this conversation
+              Add a finding from this conversation
             </button>
           ) : null}
         </div>
@@ -771,7 +771,7 @@ function ExtractedFactsSection({
           <PageErrorBanner
             error={factsQueryState.error ?? new Error('Could not load facts')}
             onRetry={factsQueryState.refetch}
-            headline="Could not load facts from this conversation"
+            headline="Could not load findings from this conversation"
           />
         </div>
       ) : factsQueryState.facts.length === 0 ? (

@@ -400,7 +400,7 @@ describe('ConversationDetail — extracted facts', () => {
     const html = render(client);
     expect(html).toContain('data-testid="conversation-detail-populated"');
     expect(html).toContain('data-testid="conversation-facts-error"');
-    expect(html).toContain('Could not load facts from this conversation');
+    expect(html).toContain('Could not load findings from this conversation');
     expect(html).toContain('facts-down');
   });
 
