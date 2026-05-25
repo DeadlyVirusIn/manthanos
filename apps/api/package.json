@@ -15,6 +15,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
+    "predev": "pnpm -w run build",
     "dev": "node --import tsx src/server.ts"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSL-1.1
 // Copyright (c) 2026 DeadlyVirusIn
 
-export { openDb } from './db.js';
+export { openDb, assertSchemaConsistency, StaleBuildError } from './db.js';
 export type { ManthanDb, ManthanSqliteHandle, OpenDbOptions } from './db.js';
 
 export { createBlobStore } from './blob-store.js';

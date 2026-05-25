@@ -54,6 +54,10 @@ export async function openDb(opts: OpenDbOptions): Promise<ManthanDb> {
   // creates it.
   applyMigrations(handle);
 
+  // Sprint 3B.7A: refuse to operate if the running build and the database
+  // disagree on the migration set (stale-workspace-build guard).
+  assertSchemaConsistency(handle);
+
   return {
     handle,
     path: opts.dbPath,
@@ -119,5 +123,62 @@ export function applyMigrations(
       );
     });
     tx();
+  }
+}
+
+/**
+ * Raised when the running build and the database disagree on the migration
+ * set. The daemon must REFUSE to start rather than operate against a schema
+ * it was not written for (Sprint 3B.7A; closes the stale-`dist` class that
+ * silently omitted migration 0009).
+ */
+export class StaleBuildError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleBuildError';
+  }
+}
+
+/**
+ * Assert the database's applied migrations and the running build's migration
+ * list agree. Call AFTER applyMigrations. Two divergence directions:
+ *
+ *   1. A runtime migration is not applied → migration application failed
+ *      (should be impossible immediately after applyMigrations); refuse.
+ *   2. An APPLIED migration is unknown to this build → the running build is
+ *      OLDER than the database (a stale workspace build / a downgrade).
+ *      Refuse: this code was not written for that schema, and silently
+ *      operating risks corruption.
+ *
+ * Pure read; never mutates. Reads schema_migrations(id, applied_at).
+ */
+export function assertSchemaConsistency(
+  db: Database.Database,
+  migrations: ReadonlyArray<{ readonly id: string }> = MIGRATIONS,
+): void {
+  const tableExists = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
+    .get() as { name: string } | undefined;
+  const appliedRows = tableExists
+    ? (db.prepare('SELECT id FROM schema_migrations').all() as Array<{ id: string }>)
+    : [];
+  const applied = new Set(appliedRows.map((r) => r.id));
+  const runtime = new Set(migrations.map((m) => m.id));
+
+  const missing = [...runtime].filter((id) => !applied.has(id)).sort();
+  if (missing.length > 0) {
+    throw new StaleBuildError(
+      `Migrations not fully applied after startup (${missing.join(', ')}). ` +
+        'Rebuild workspace packages (pnpm build) and restart.',
+    );
+  }
+
+  const unknown = [...applied].filter((id) => !runtime.has(id)).sort();
+  if (unknown.length > 0) {
+    throw new StaleBuildError(
+      `Database has migrations this build does not know about (${unknown.join(', ')}). ` +
+        'The running build is OLDER than the database — rebuild workspace packages ' +
+        '(pnpm build) before starting the daemon.',
+    );
   }
 }
