@@ -140,7 +140,13 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     });
     registerFactRoutes(app, { substrate });
     registerConversationRoutes(app, { substrate });
-    registerExtractionRoutes(app, { substrate });
+    registerExtractionRoutes(app, {
+      substrate,
+      flags: {
+        extractionAssistEnabled: config.extractionAssistEnabled,
+        llmValidatorEnabled: config.llmValidatorEnabled,
+      },
+    });
     registerAuditRoutes(app, { substrate });
   }
 

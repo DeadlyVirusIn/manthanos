@@ -15,13 +15,21 @@
 
 import type { FastifyInstance } from 'fastify';
 import { workspaceExists } from '../services/audit.js';
+import { type AiCapabilityFlags, computeAiCapabilities } from '../services/ai/capabilities.js';
 import { getConversation } from '../services/conversations.js';
 import { assembleSuggestedCandidates } from '../services/extraction/suggest.js';
+import {
+  noLiveValidatorClient,
+  validateCandidates,
+} from '../services/extraction/validatorRunner.js';
 import { listFacts } from '../services/facts.js';
 import type { SubstrateHandle } from '../services/substrate.js';
 
 interface RouteContext {
   readonly substrate: SubstrateHandle;
+  /** AI feature flags. The LLM validator is gated on these; in 3B the
+   *  provider is never configured so the validator stays a no-op. */
+  readonly flags?: AiCapabilityFlags;
 }
 
 /** Cap on existing facts compared for duplicate detection (advisory). */
@@ -56,7 +64,22 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
         createdAt: new Date().toISOString(),
         duplicateScanTruncated,
       });
-      await reply.send(result);
+
+      // Capability-gated LLM validation (3B.7). In deterministic 3B the
+      // gate is OFF (no provider configured) so this returns the candidates
+      // UNCHANGED and never touches a client — a true no-op. The branch
+      // exists so the validator is wired behind an already-proven gate.
+      const caps = computeAiCapabilities(rc.flags ?? {});
+      const candidates = await validateCandidates(
+        result.candidates,
+        {
+          quotes: conversation.verbatim_quotes.map((q) => q.text),
+          summary: conversation.summary,
+        },
+        { enabled: caps.llm_validator_enabled, client: noLiveValidatorClient },
+      );
+
+      await reply.send({ candidates, truncation: result.truncation });
     },
   );
 }
