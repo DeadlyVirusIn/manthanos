@@ -173,7 +173,11 @@ describe('parseProvenancePreview source allow-list (3B.6.5)', () => {
   it('passes through a known source and defaults an unknown one to conversation', () => {
     const known = parseSuggestExtractionsResponse({
       candidates: [
-        { area: 'a', statement: 's', provenance_preview: { source: 'manual', conversation_id: 'c' } },
+        {
+          area: 'a',
+          statement: 's',
+          provenance_preview: { source: 'manual', conversation_id: 'c' },
+        },
       ],
     });
     expect(known.candidates[0]?.provenance_preview.source).toBe('manual');

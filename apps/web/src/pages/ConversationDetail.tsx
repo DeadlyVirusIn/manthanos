@@ -708,7 +708,7 @@ function ExtractedFactsSection({
           Facts from this conversation
         </h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {suggestion !== undefined && suggestion.available && !suggestion.isActive ? (
+          {suggestion?.available && !suggestion.isActive ? (
             <button
               type="button"
               onClick={suggestion.onSuggestClick}

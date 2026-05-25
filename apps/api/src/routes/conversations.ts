@@ -532,7 +532,10 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
     // score, drops unknown reason flags, and caps the version string;
     // here we only reject wrong-typed fields. `model_used` is NOT read
     // from the request — it stays NULL in deterministic 3B.
-    if (body.extraction_confidence !== undefined && typeof body.extraction_confidence !== 'number') {
+    if (
+      body.extraction_confidence !== undefined &&
+      typeof body.extraction_confidence !== 'number'
+    ) {
       await reply.code(400).send({
         error: 'validation',
         field: 'extraction_confidence',
