@@ -23,7 +23,8 @@ import {
   NEEDS_REVIEW_SCORE_THRESHOLD,
 } from './confidence.js';
 import { type UntrustedConversationInput, renderUntrustedConversation } from './untrustedText.js';
-import { type ValidatorClient, parseValidatorResponse } from './validator.js';
+import { type ValidatorCache, makeValidatorCacheKey } from './validatorCache.js';
+import { type ValidatorClient, type ValidatorVerdict, parseValidatorResponse } from './validator.js';
 
 // ── Sprint 3B.8B token budgets / hard caps ──────────────────────────
 /** Max candidates sent to the model per request (canary value). Extra
@@ -72,6 +73,10 @@ export interface RunValidatorOptions {
   readonly client: ValidatorClient;
   /** Hard timeout for the model call. Default 15s (threat model §7). */
   readonly timeoutMs?: number;
+  /** 3B.8C: optional verdict cache. Requires `model` to key entries. */
+  readonly cache?: ValidatorCache;
+  /** Resolved model id; part of the cache key and never sent from the model. */
+  readonly model?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -120,15 +125,18 @@ async function callWithTimeout(
   }
 }
 
-/** Build the (security-bounded) prompt. The candidate statement and the
- *  conversation are untrusted and escaped; the only instructions are ours. */
-function buildPrompt(
-  candidate: ValidatableCandidate,
-  untrusted: UntrustedConversationInput,
-): string {
+/** Render + cap the untrusted data block. The SAME block feeds both the
+ *  prompt and the cache key, so a cache hit corresponds to identical input. */
+function cappedBlock(untrusted: UntrustedConversationInput): string {
   const rendered = renderUntrustedConversation(untrusted);
-  const block =
-    rendered.length > MAX_INPUT_CHARS ? `${rendered.slice(0, MAX_INPUT_CHARS)}\n…(truncated)` : rendered;
+  return rendered.length > MAX_INPUT_CHARS
+    ? `${rendered.slice(0, MAX_INPUT_CHARS)}\n…(truncated)`
+    : rendered;
+}
+
+/** Build the (security-bounded) prompt from a pre-capped untrusted block. The
+ *  candidate statement and conversation are escaped; only instructions are ours. */
+function buildPrompt(candidate: ValidatableCandidate, block: string): string {
   const escapedStatement = renderUntrustedConversation({ quotes: [candidate.statement] });
   return [
     'Validate the candidate fact against the conversation data below.',
@@ -142,10 +150,34 @@ function buildPrompt(
   ].join('\n');
 }
 
+/** Apply a parsed verdict to a candidate. Adjusts ONLY score/flags; never
+ *  statement/area/tier. Abstain keeps the deterministic candidate flagged. */
+function applyVerdict<T extends ValidatableCandidate>(
+  candidate: T,
+  verdict: ValidatorVerdict,
+): ValidatorOutcome<T> {
+  if (verdict.abstain) {
+    return {
+      candidate: { ...candidate, confidence_reasons: withNeedsReview(candidate.confidence_reasons) },
+      validated: false,
+      fallback_reason: 'abstain',
+    };
+  }
+  return {
+    candidate: {
+      ...candidate,
+      confidence_score: verdict.confidence_score ?? candidate.confidence_score,
+      confidence_reasons: verdict.reason_flags ?? candidate.confidence_reasons,
+    },
+    validated: true,
+  };
+}
+
 /**
  * Run the validator over a single candidate. Deterministic-first: gate off
  * (or any failure) returns the candidate unchanged. Never throws — every
- * error path resolves to a fallback outcome.
+ * error path resolves to a fallback outcome. A content-hash cache (when
+ * provided with a model) serves repeat inputs without a client call.
  */
 export async function runValidator<T extends ValidatableCandidate>(
   candidate: T,
@@ -156,7 +188,19 @@ export async function runValidator<T extends ValidatableCandidate>(
     return { candidate, validated: false, fallback_reason: 'gate_off' };
   }
 
-  const prompt = buildPrompt(candidate, untrusted);
+  const block = cappedBlock(untrusted);
+  const cacheKey =
+    opts.cache !== undefined && opts.model !== undefined
+      ? makeValidatorCacheKey({ statement: candidate.statement, block, model: opts.model })
+      : undefined;
+
+  // Cache hit → apply the cached verdict without any client call.
+  if (opts.cache !== undefined && cacheKey !== undefined) {
+    const cached = opts.cache.get(cacheKey);
+    if (cached !== undefined) return applyVerdict(candidate, cached);
+  }
+
+  const prompt = buildPrompt(candidate, block);
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let raw: string | undefined;
   // ≤1 retry on a thrown transient error; NEVER retry on timeout (the budget
@@ -184,27 +228,14 @@ export async function runValidator<T extends ValidatableCandidate>(
   if (verdict === null) {
     return { candidate, validated: false, fallback_reason: 'malformed' };
   }
-  if (verdict.abstain) {
-    // Keep the deterministic candidate, flagged for human review.
-    return {
-      candidate: {
-        ...candidate,
-        confidence_reasons: withNeedsReview(candidate.confidence_reasons),
-      },
-      validated: false,
-      fallback_reason: 'abstain',
-    };
+
+  // Cache only SUCCESSFUL parsed verdicts (incl. abstain) — never
+  // timeout/error/malformed (handled above before reaching here).
+  if (opts.cache !== undefined && cacheKey !== undefined) {
+    opts.cache.set(cacheKey, verdict);
   }
 
-  // Apply ONLY score/flags adjustments. statement/area/tier untouched.
-  return {
-    candidate: {
-      ...candidate,
-      confidence_score: verdict.confidence_score ?? candidate.confidence_score,
-      confidence_reasons: verdict.reason_flags ?? candidate.confidence_reasons,
-    },
-    validated: true,
-  };
+  return applyVerdict(candidate, verdict);
 }
 
 /**
