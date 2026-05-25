@@ -6,6 +6,7 @@ import type { ClaudePresetId } from '@manthanos/adapter-claude';
 import { cptProbeAdapterIds } from '@manthanos/providers';
 import { Command } from 'commander';
 import { runAuth } from './commands/auth.js';
+import { runResetDemo, runSeedDemo } from './commands/demo.js';
 import { computeDoctorExitCode, runDoctor } from './commands/doctor.js';
 import { InitError, runInit } from './commands/init.js';
 import { runNext } from './commands/next.js';
@@ -31,6 +32,20 @@ program
   .description('Show CLI and platform version detail')
   .action(async () => {
     await runVersion();
+  });
+
+program
+  .command('seed-demo')
+  .description('Set up the onboarding demo project (via the running daemon)')
+  .action(async () => {
+    await runSeedDemo();
+  });
+
+program
+  .command('reset-demo')
+  .description('Reset the demo project to its original state (via the running daemon)')
+  .action(async () => {
+    await runResetDemo();
   });
 
 program

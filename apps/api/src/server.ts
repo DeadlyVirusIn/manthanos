@@ -22,6 +22,7 @@ import { registerLoopbackGuard } from './loopback-guard.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerConversationRoutes } from './routes/conversations.js';
+import { registerDemoRoutes } from './routes/demo.js';
 import { registerExtractionRoutes } from './routes/extraction.js';
 import { registerFactRoutes } from './routes/facts.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
@@ -145,6 +146,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     });
     registerFactRoutes(app, { substrate });
     registerConversationRoutes(app, { substrate, provider: aiProvider });
+    registerDemoRoutes(app, { substrate, daemonWorkspaceRoot: config.workspaceRoot });
     // 3B.8D: build the single live validator client + cache ONLY when a
     // provider is configured. The API key is read here (never stored in
     // capabilities/provider detection) and stays in the client closure.
