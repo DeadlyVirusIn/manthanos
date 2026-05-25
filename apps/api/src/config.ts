@@ -14,6 +14,13 @@ export interface Config {
   readonly host: string;
   readonly logLevel: LogLevel;
   readonly workspaceRoot: string;
+  // ── Sprint 3B.6.5 AI feature flags. Optional so existing inline config
+  // objects (tests, embedders) need not set them; absent === OFF. Both
+  // default OFF — the deterministic "Suggest facts" affordance and the
+  // (future) LLM validator are opt-in. The LLM validator additionally
+  // requires a configured provider, which does not exist in 3B.
+  readonly extractionAssistEnabled?: boolean;
+  readonly llmValidatorEnabled?: boolean;
 }
 
 const DEFAULT_PORT = 7373;
@@ -36,7 +43,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: env.MANTHANOS_HOST?.trim() || DEFAULT_HOST,
     logLevel: parseLogLevel(env.MANTHANOS_LOG_LEVEL),
     workspaceRoot: parseWorkspaceRoot(env),
+    extractionAssistEnabled: parseBool(env.MANTHANOS_EXTRACTION_ASSIST_ENABLED),
+    llmValidatorEnabled: parseBool(env.MANTHANOS_LLM_VALIDATOR_ENABLED),
   };
+}
+
+/** Parse a boolean feature flag from an env var. Default OFF: only the
+ *  explicit affirmative tokens enable a flag; anything else (including
+ *  undefined / empty / typos) is false. */
+function parseBool(raw: string | undefined): boolean {
+  if (raw === undefined) return false;
+  const v = raw.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 function parseWorkspaceRoot(env: NodeJS.ProcessEnv): string {

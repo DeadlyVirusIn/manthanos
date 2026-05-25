@@ -7,6 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  parseAiCapabilities,
   parseAuditEventsResult,
   parseAuditVerifyResult,
   parseSuggestExtractionsResponse,
@@ -129,6 +130,42 @@ describe('parseAuditVerifyResult (DEFECT-003)', () => {
   it('fails closed on null / non-object', () => {
     expect(parseAuditVerifyResult(null).valid).toBe(false);
     expect(parseAuditVerifyResult('x').valid).toBe(false);
+  });
+});
+
+describe('parseAiCapabilities (3B.6.5)', () => {
+  it('parses a well-formed capability payload', () => {
+    expect(
+      parseAiCapabilities({
+        ai_extraction_available: true,
+        provider_configured: false,
+        llm_validator_enabled: false,
+        model: null,
+      }),
+    ).toEqual({
+      ai_extraction_available: true,
+      provider_configured: false,
+      llm_validator_enabled: false,
+      model: null,
+    });
+  });
+
+  it('degrades to all-false on malformed / missing / non-object input', () => {
+    const safe = {
+      ai_extraction_available: false,
+      provider_configured: false,
+      llm_validator_enabled: false,
+      model: null,
+    };
+    expect(parseAiCapabilities(null)).toEqual(safe);
+    expect(parseAiCapabilities('nope')).toEqual(safe);
+    expect(parseAiCapabilities({})).toEqual(safe);
+    // Non-boolean fields coerce to false; non-string model → null.
+    expect(parseAiCapabilities({ ai_extraction_available: 'yes', model: 123 })).toEqual(safe);
+  });
+
+  it('passes through a string model id', () => {
+    expect(parseAiCapabilities({ model: 'claude-haiku-4-5' }).model).toBe('claude-haiku-4-5');
   });
 });
 

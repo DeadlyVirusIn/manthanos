@@ -19,6 +19,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { type Config, loadConfig } from './config.js';
 import { registerHealth } from './health.js';
 import { registerLoopbackGuard } from './loopback-guard.js';
+import { registerAiRoutes } from './routes/ai.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerConversationRoutes } from './routes/conversations.js';
 import { registerExtractionRoutes } from './routes/extraction.js';
@@ -122,6 +123,15 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     version: VERSION,
     boundHost: config.host,
     port: config.port,
+  });
+  // 3B.6.5: AI capability gate. No substrate needed — derived purely from
+  // config flags (both default OFF). Always registered so the UI can
+  // query it even before any AI affordance is enabled.
+  registerAiRoutes(app, {
+    flags: {
+      extractionAssistEnabled: config.extractionAssistEnabled,
+      llmValidatorEnabled: config.llmValidatorEnabled,
+    },
   });
   if (substrate) {
     registerWorkspaceRoutes(app, {

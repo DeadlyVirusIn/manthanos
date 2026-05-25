@@ -27,6 +27,7 @@ import {
   type ExtractFactResponse,
   type FactView,
   type SuggestExtractionsResult,
+  aiKeys,
   asAudienceFit,
   asConversationOutcome,
   asConversationType,
@@ -141,6 +142,19 @@ function seed(client: QueryClient, conv: ConversationView, facts: readonly FactV
     facts,
     total: facts.length,
   } satisfies ConversationFactsResponse);
+  // 3B.6.5: the "Suggest facts" affordance is gated on the capability
+  // query. Seed it ON so the suggestion flow is exercisable. The gate-off
+  // path is covered by its own test below.
+  seedCapabilities(client, true);
+}
+
+function seedCapabilities(client: QueryClient, available: boolean): void {
+  client.setQueryData(aiKeys.capabilities(), {
+    ai_extraction_available: available,
+    provider_configured: false,
+    llm_validator_enabled: false,
+    model: null,
+  });
 }
 
 function renderPage(client: QueryClient): void {
@@ -170,6 +184,15 @@ describe('Suggest facts — button posture', () => {
   it('does NOT render the Suggest button on a tombstoned conversation', () => {
     const client = makeClient();
     seed(client, makeConv({ is_tombstoned: true, tombstoned_at: TEN_MIN_AGO }), []);
+    renderPage(client);
+    expect(screen.queryByTestId('conversation-suggest-button')).toBeNull();
+  });
+
+  it('hides the Suggest button when the capability gate is OFF (safe degrade)', () => {
+    const client = makeClient();
+    seed(client, makeConv(), []);
+    // Capability unavailable (flag off, or daemon old / unreachable).
+    seedCapabilities(client, false);
     renderPage(client);
     expect(screen.queryByTestId('conversation-suggest-button')).toBeNull();
   });

@@ -3,6 +3,7 @@
 
 // Barrel export for ManthanOS web hooks. Sprint 2 M2 C2.1.
 
+export * from './useAiCapabilities.js';
 export * from './useCaptureConversation.js';
 export * from './useConversationData.js';
 export * from './useDemoteFact.js';

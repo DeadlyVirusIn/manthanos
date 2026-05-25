@@ -448,6 +448,19 @@ export interface SuggestExtractionsResult {
   readonly candidates: readonly CandidateFact[];
 }
 
+// ─────────────────────────────────────────────────────────────────
+// AI capability gate (Sprint 3B.6.5) — GET /api/v1/ai/capabilities.
+// ─────────────────────────────────────────────────────────────────
+//
+// The UI gates the "Suggest facts" affordance on `ai_extraction_available`
+// and degrades safely (treats everything as false) when the call fails.
+export interface AiCapabilities {
+  readonly ai_extraction_available: boolean;
+  readonly provider_configured: boolean;
+  readonly llm_validator_enabled: boolean;
+  readonly model: string | null;
+}
+
 export interface ValidationErrorBody {
   readonly error: 'validation';
   readonly field: string;

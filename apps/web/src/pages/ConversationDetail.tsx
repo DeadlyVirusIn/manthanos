@@ -51,6 +51,7 @@ import {
 } from '../components/index.js';
 import {
   type MutationStatus,
+  useAiCapabilities,
   useConversation,
   useConversationFacts,
   useExtractFact,
@@ -105,6 +106,11 @@ export function ConversationDetail(): JSX.Element {
   // extract mutation + dialog as the manual flow — no new write path.
   const [isSuggestActive, setIsSuggestActive] = useState(false);
   const suggestQuery = useSuggestExtractions(projectId, conversationId, isSuggestActive);
+  // 3B.6.5: capability gate. Degrades safely — when the query is loading,
+  // errored, or the daemon is old, `data` is undefined and the affordance
+  // stays hidden (both flags default OFF anyway).
+  const aiCaps = useAiCapabilities();
+  const suggestAvailable = aiCaps.data?.ai_extraction_available === true;
   // Pre-fill values handed to ExtractFactDialog when approving a candidate
   // (blank for the manual "Pull a fact" flow).
   const [extractInitial, setExtractInitial] = useState<ExtractInitial>(EMPTY_EXTRACT_INITIAL);
@@ -344,6 +350,7 @@ export function ConversationDetail(): JSX.Element {
         factsQueryState={factsQueryStateOf(factsQuery)}
         onExtractClick={openExtract}
         suggestion={{
+          available: suggestAvailable,
           isActive: isSuggestActive,
           isPending: suggestQuery.isPending,
           isError: suggestQuery.isError,
@@ -633,6 +640,8 @@ function QuotesSection({ quotes }: QuotesSectionProps): JSX.Element {
 }
 
 interface SuggestionBundle {
+  /** Capability gate (3B.6.5): false hides the "Suggest facts" affordance. */
+  readonly available: boolean;
   readonly isActive: boolean;
   readonly isPending: boolean;
   readonly isError: boolean;
@@ -699,7 +708,7 @@ function ExtractedFactsSection({
           Facts from this conversation
         </h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {suggestion !== undefined && !suggestion.isActive ? (
+          {suggestion !== undefined && suggestion.available && !suggestion.isActive ? (
             <button
               type="button"
               onClick={suggestion.onSuggestClick}

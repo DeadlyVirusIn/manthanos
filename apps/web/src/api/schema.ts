@@ -11,6 +11,7 @@
 import {
   ALLOWED_CANDIDATE_DUPLICATE_KIND,
   ALLOWED_EXTRACTION_REASON,
+  type AiCapabilities,
   type AuditChainVerifyResult,
   type AuditEventSummary,
   type CandidateDuplicate,
@@ -223,6 +224,32 @@ function toCandidateFact(row: Record<string, unknown>): CandidateFact | null {
     : base;
   const duplicate = parseDuplicate(row.duplicate);
   return duplicate !== undefined ? { ...withQuote, duplicate } : withQuote;
+}
+
+// AI capability gate (3B.6.5). Degrade-to-safe: any malformed/unreachable
+// response yields all-false capabilities so the UI hides AI affordances
+// rather than crashing or over-promising.
+const SAFE_AI_CAPABILITIES: AiCapabilities = {
+  ai_extraction_available: false,
+  provider_configured: false,
+  llm_validator_enabled: false,
+  model: null,
+};
+
+export function parseAiCapabilities(raw: unknown): AiCapabilities {
+  return parseWithFallback(
+    'GET /api/v1/ai/capabilities',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      return {
+        ai_extraction_available: raw.ai_extraction_available === true,
+        provider_configured: raw.provider_configured === true,
+        llm_validator_enabled: raw.llm_validator_enabled === true,
+        model: isString(raw.model) ? raw.model : null,
+      };
+    },
+    SAFE_AI_CAPABILITIES,
+  );
 }
 
 const EMPTY_SUGGEST: SuggestExtractionsResult = { candidates: [] };
