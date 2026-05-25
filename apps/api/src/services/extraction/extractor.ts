@@ -31,6 +31,15 @@ export const DEFAULT_CANDIDATE_AREA = 'general';
  *  noise (e.g. "ok", "hi") and dropped. */
 export const MIN_STATEMENT_CHARS = 3;
 
+/** Sprint 3B.6.5 input bound: at most this many quotes are processed per
+ *  conversation. Bounds the O(N) quote loop (and, downstream, the O(N·M)
+ *  duplicate scan) so a pathologically large conversation cannot stall
+ *  the event loop or — once 3B.7 forwards candidates to a model — balloon
+ *  spend. Real discovery conversations are far smaller; this is a guard,
+ *  not a product limit. Quotes are processed in position order, so the
+ *  cap keeps the earliest quotes. */
+export const MAX_QUOTES_PROCESSED = 200;
+
 /** A proposed fact derived deterministically from a conversation.
  *  Confidence/reason-flags are added by the scorer in 3B.3. */
 export interface ExtractedCandidate {
@@ -71,8 +80,11 @@ export function extractCandidateFacts(conversation: ExtractorInput): ExtractedCa
 
   const raw: ExtractedCandidate[] = [];
 
-  // 1) Primary source: verbatim quotes, in stable position order.
-  const quotes = [...(conversation.verbatim_quotes ?? [])].sort((a, b) => a.position - b.position);
+  // 1) Primary source: verbatim quotes, in stable position order. Capped
+  //    at MAX_QUOTES_PROCESSED to bound work on pathological input.
+  const quotes = [...(conversation.verbatim_quotes ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .slice(0, MAX_QUOTES_PROCESSED);
   for (const quote of quotes) {
     const statement = normalizeStatement(quote.text);
     if (isNoise(statement)) continue;

@@ -43,13 +43,18 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
       }
 
       // Read-only: head, non-tombstoned facts for advisory duplicate checks.
-      const existingFacts = listFacts(db, req.params.id, { limit: DUPLICATE_SCAN_LIMIT }).facts;
+      const factsPage = listFacts(db, req.params.id, { limit: DUPLICATE_SCAN_LIMIT });
+      const existingFacts = factsPage.facts;
+      // 3B.6.5: surface when the scan did not cover the whole fact base so
+      // the advisory "duplicate" result is honestly qualified.
+      const duplicateScanTruncated = factsPage.total > DUPLICATE_SCAN_LIMIT;
 
       const result = assembleSuggestedCandidates({
         conversation,
         conversationId: conversation.id,
         existingFacts,
         createdAt: new Date().toISOString(),
+        duplicateScanTruncated,
       });
       await reply.send(result);
     },

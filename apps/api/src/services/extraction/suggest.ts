@@ -25,7 +25,7 @@ import {
   detectDuplicates,
   duplicateReasonFlags,
 } from './duplicates.js';
-import { EXTRACTOR_VERSION, extractCandidateFacts } from './extractor.js';
+import { EXTRACTOR_VERSION, MAX_QUOTES_PROCESSED, extractCandidateFacts } from './extractor.js';
 import { type ExtractionProvenance, buildExtractionProvenance } from './provenanceBuilder.js';
 
 export interface SuggestedCandidateDuplicate {
@@ -45,8 +45,26 @@ export interface SuggestedCandidate {
   readonly provenance_preview: ExtractionProvenance;
 }
 
+/** Sprint 3B.6.5 input bound: at most this many candidates are returned
+ *  per suggestion. Caps the response size and (downstream) the per-request
+ *  model fan-out once 3B.7 lands. Applied BEFORE duplicate detection so
+ *  the O(N·M) scan is bounded too. */
+export const MAX_CANDIDATES = 50;
+
+/** Explicit truncation signals so the caller/UI can say "showing the
+ *  first N" rather than silently dropping data (Gemini/Codex review). */
+export interface SuggestionTruncation {
+  /** Conversation had more than MAX_QUOTES_PROCESSED quotes. */
+  readonly quotes_truncated: boolean;
+  /** More than MAX_CANDIDATES candidates were produced; list was capped. */
+  readonly candidates_truncated: boolean;
+  /** The existing-fact duplicate scan hit its limit (not all facts compared). */
+  readonly duplicate_scan_truncated: boolean;
+}
+
 export interface SuggestExtractionsResult {
   readonly candidates: SuggestedCandidate[];
+  readonly truncation: SuggestionTruncation;
 }
 
 /** Union of two flag lists, returned in CONFIDENCE_REASON_FLAGS order. */
@@ -64,6 +82,9 @@ export interface AssembleSuggestedCandidatesArgs {
   readonly existingFacts: readonly ExistingFactLike[];
   /** ISO-8601 timestamp supplied by the caller (keeps this pure). */
   readonly createdAt: string;
+  /** 3B.6.5: the route caps the existing-fact scan; pass true when the
+   *  workspace had more facts than were compared. Default false. */
+  readonly duplicateScanTruncated?: boolean;
 }
 
 /**
@@ -74,7 +95,11 @@ export interface AssembleSuggestedCandidatesArgs {
 export function assembleSuggestedCandidates(
   args: AssembleSuggestedCandidatesArgs,
 ): SuggestExtractionsResult {
-  const candidates = extractCandidateFacts(args.conversation);
+  const allCandidates = extractCandidateFacts(args.conversation);
+  // Cap candidates BEFORE duplicate detection so the O(N·M) scan is bounded.
+  const candidatesTruncated = allCandidates.length > MAX_CANDIDATES;
+  const candidates = candidatesTruncated ? allCandidates.slice(0, MAX_CANDIDATES) : allCandidates;
+  const quotesTruncated = (args.conversation.verbatim_quotes?.length ?? 0) > MAX_QUOTES_PROCESSED;
 
   const dupAnnotations = detectDuplicates(
     candidates.map((c) => ({
@@ -114,5 +139,12 @@ export function assembleSuggestedCandidates(
     };
   });
 
-  return { candidates: out };
+  return {
+    candidates: out,
+    truncation: {
+      quotes_truncated: quotesTruncated,
+      candidates_truncated: candidatesTruncated,
+      duplicate_scan_truncated: args.duplicateScanTruncated ?? false,
+    },
+  };
 }
