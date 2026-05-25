@@ -70,8 +70,8 @@ export interface DemoFact {
   readonly key: string;
   readonly area: string;
   readonly statement: string;
-  /** Final at-rest trust tier. The replay reaches it via promote/demote
-   *  after create+corroborate (create lands at the service default tier). */
+  /** At-rest trust tier. Set directly on the minting extract (sources[0])
+   *  via ExtractFactInput.tier; corroboration by later sources preserves it. */
   readonly target_tier: FactTier;
   /** Evidence pointers; sources[0] creates, sources[1..] corroborate. */
   readonly sources: readonly DemoFactSource[];
@@ -162,10 +162,9 @@ const CONVERSATIONS: readonly DemoConversation[] = [
 // double-check; F3 is the duplicate target for C2.q8 (corroboration
 // demo); F6 is the contradicted "Doubted" hunch.
 //
-// sources[0] mints the fact; later sources corroborate. target_tier is
-// reached by promote/demote after create (which lands at the service
-// default). F6 has a conversation-level source (no quote) — the
-// "early hunch" — and is demoted to the bottom tier.
+// sources[0] mints the fact at target_tier (tier set on the extract);
+// later sources corroborate (tier preserved). F6 has a conversation-level
+// source (no quote) — the "early hunch" — minted directly at the bottom tier.
 // ─────────────────────────────────────────────────────────────────
 
 const FACTS: readonly DemoFact[] = [
