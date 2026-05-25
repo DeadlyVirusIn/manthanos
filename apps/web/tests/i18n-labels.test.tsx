@@ -18,8 +18,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ALLOWED_AUDIENCE_FIT,
+  ALLOWED_CANDIDATE_DUPLICATE_KIND,
+  ALLOWED_CONFIDENCE_BUCKET,
   ALLOWED_CONVERSATION_OUTCOME,
   ALLOWED_CONVERSATION_TYPE,
+  ALLOWED_EXTRACTION_REASON,
+  ALLOWED_EXTRACTION_SOURCE,
   ALLOWED_EXTRACTOR,
   ALLOWED_FACT_EXTRACTION_STATUS,
   ALLOWED_FACT_TIER,
@@ -228,6 +232,10 @@ describe('Exhaustiveness (M1 C1.8)', () => {
       'lifecycle_state',
       'provenance_kind',
       'extractor',
+      'confidence_bucket',
+      'extraction_reason',
+      'extraction_source',
+      'duplicate_warning',
       'field_label',
       'fact_action',
       'audit_action',
@@ -255,6 +263,10 @@ describe('No raw substrate jargon (M1 C1.8)', () => {
       ['lifecycle_state', ALLOWED_LIFECYCLE_STATE],
       ['provenance_kind', ALLOWED_PROVENANCE_KIND],
       ['extractor', ALLOWED_EXTRACTOR],
+      ['confidence_bucket', ALLOWED_CONFIDENCE_BUCKET],
+      ['extraction_reason', ALLOWED_EXTRACTION_REASON],
+      ['extraction_source', ALLOWED_EXTRACTION_SOURCE],
+      ['duplicate_warning', ALLOWED_CANDIDATE_DUPLICATE_KIND],
     ];
 
     for (const [kind, values] of enumChecks) {

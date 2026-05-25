@@ -44,12 +44,22 @@ export interface ExtractFactDialogProps {
   readonly workspaceId: string;
   readonly conversationId: string;
   readonly quotes: readonly ConversationQuoteView[];
+  // Sprint 3B.6: when the dialog opens to APPROVE a suggested candidate,
+  // the host seeds these so the human reviews/edits a pre-filled draft
+  // rather than re-typing. Omitted (→ empty) for the blank "Pull a fact"
+  // flow. Read once on open; the human stays in full control of the
+  // final submitted values (the only write path is still this audited,
+  // human-approved extract mutation).
+  readonly initialArea?: string;
+  readonly initialStatement?: string;
+  readonly initialQuoteId?: string;
   // Exposed for tests + the host page to read the success message.
   readonly status?: MutationStatus<ExtractFactInput, ExtractFactResponse>;
 }
 
 export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
   const { isOpen, onClose, workspaceId, conversationId, quotes } = props;
+  const { initialArea = '', initialStatement = '', initialQuoteId = '' } = props;
   const ownStatus = useExtractFact(workspaceId, conversationId);
   const status = (props.status ?? ownStatus) as MutationStatus<
     ExtractFactInput,
@@ -61,15 +71,20 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
   const [tier, setTier] = useState<FactTierValue | ''>('');
   const [quoteId, setQuoteId] = useState('');
 
-  // F.3: clear prior error / success + form state when dialog opens.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: status.reset is referentially stable via useCallback; effect fires only on isOpen transition (see SPRINT2_M2.5_MUTATION_FRAMEWORK.md §1.4 / F.3).
+  // F.3: clear prior error / success when dialog opens, then seed the
+  // form. For the blank flow the initial* props default to '' (a fresh
+  // empty form); for candidate approval the host passes the candidate's
+  // area / statement / quote so the human edits a draft. Tier is always
+  // left to the human — extraction confidence is a different axis from
+  // fact trust and must not auto-pick a trust level.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: status.reset is referentially stable via useCallback; the initial* values are read intentionally at open-time only, so the effect fires on the isOpen transition (see SPRINT2_M2.5_MUTATION_FRAMEWORK.md §1.4 / F.3).
   useEffect(() => {
     if (!isOpen) return;
     status.reset();
-    setArea('');
-    setStatement('');
+    setArea(initialArea);
+    setStatement(initialStatement);
     setTier('');
-    setQuoteId('');
+    setQuoteId(initialQuoteId);
   }, [isOpen]);
 
   // Close the dialog once the mutation succeeds.

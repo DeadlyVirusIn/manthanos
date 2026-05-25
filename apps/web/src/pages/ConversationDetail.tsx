@@ -23,10 +23,11 @@
 // All enum values flow through getEnumLabel; every timestamp through
 // formatRelativeTime. No raw ISO or substrate vocabulary in the DOM.
 
-import { type Dispatch, type SetStateAction, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type {
+  CandidateFact,
   ConversationQuoteView,
   ConversationView,
   ExtractFactInput,
@@ -38,6 +39,7 @@ import type {
   TombstoneConversationResponse,
 } from '../api/index.js';
 import {
+  CandidateReviewPanel,
   ExtractFactDialog,
   MutationSuccessMessage,
   PageErrorBanner,
@@ -45,6 +47,7 @@ import {
   TextSkeleton,
   TombstoneConversationDialog,
   TrustLevelIndicator,
+  candidateKey,
 } from '../components/index.js';
 import {
   type MutationStatus,
@@ -52,6 +55,7 @@ import {
   useConversationFacts,
   useExtractFact,
   useSkipExtraction,
+  useSuggestExtractions,
   useTombstoneConversation,
 } from '../hooks/index.js';
 import { getEnumLabel } from '../i18n/labels.js';
@@ -60,6 +64,13 @@ import { formatRelativeTime } from '../lib/time.js';
 type ExtractStatus = MutationStatus<ExtractFactInput, ExtractFactResponse>;
 type SkipStatus = MutationStatus<SkipExtractionInput, SkipExtractionResponse>;
 type TombstoneStatus = MutationStatus<TombstoneConversationInput, TombstoneConversationResponse>;
+
+interface ExtractInitial {
+  readonly area: string;
+  readonly statement: string;
+  readonly quoteId: string;
+}
+const EMPTY_EXTRACT_INITIAL: ExtractInitial = { area: '', statement: '', quoteId: '' };
 
 export function ConversationDetail(): JSX.Element {
   const { projectId, id: conversationId } = useParams<{ projectId: string; id: string }>();
@@ -82,6 +93,30 @@ export function ConversationDetail(): JSX.Element {
   // helper just like the others.
   const tombstoneStatus = useTombstoneConversation(projectId, conversationId) as TombstoneStatus;
   const [isTombstoneOpen, setIsTombstoneOpen] = useState(false);
+
+  // Sprint 3B.6: AI-assisted suggestion review. The query stays disabled
+  // until the user clicks "Suggest facts" (candidates are computed on
+  // demand, never persisted). Approving a candidate reuses the SAME
+  // extract mutation + dialog as the manual flow — no new write path.
+  const [isSuggestActive, setIsSuggestActive] = useState(false);
+  const suggestQuery = useSuggestExtractions(projectId, conversationId, isSuggestActive);
+  // Pre-fill values handed to ExtractFactDialog when approving a candidate
+  // (blank for the manual "Pull a fact" flow).
+  const [extractInitial, setExtractInitial] = useState<ExtractInitial>(EMPTY_EXTRACT_INITIAL);
+  // The candidate currently mid-approval; once its extract succeeds it is
+  // promoted to `approvedCandidateKey` so the panel drops it from the list.
+  const [pendingApprovalKey, setPendingApprovalKey] = useState<string | null>(null);
+  const [approvedCandidateKey, setApprovedCandidateKey] = useState<string | null>(null);
+
+  // When an approval-originated extract succeeds, mark that candidate
+  // approved so the review panel removes it. Manual extractions leave
+  // pendingApprovalKey null, so they never touch the candidate list.
+  useEffect(() => {
+    if (extractStatus.isSuccess && pendingApprovalKey !== null) {
+      setApprovedCandidateKey(pendingApprovalKey);
+      setPendingApprovalKey(null);
+    }
+  }, [extractStatus.isSuccess, pendingApprovalKey]);
 
   if (projectId === undefined || conversationId === undefined) {
     return (
@@ -110,6 +145,7 @@ export function ConversationDetail(): JSX.Element {
         extractStatus,
         isExtractOpen,
         setIsExtractOpen,
+        extractInitial,
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
@@ -142,6 +178,7 @@ export function ConversationDetail(): JSX.Element {
         extractStatus,
         isExtractOpen,
         setIsExtractOpen,
+        extractInitial,
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
@@ -166,6 +203,7 @@ export function ConversationDetail(): JSX.Element {
         extractStatus,
         isExtractOpen,
         setIsExtractOpen,
+        extractInitial,
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
@@ -197,6 +235,7 @@ export function ConversationDetail(): JSX.Element {
         extractStatus,
         isExtractOpen,
         setIsExtractOpen,
+        extractInitial,
         skipStatus,
         isSkipOpen,
         setIsSkipOpen,
@@ -207,9 +246,29 @@ export function ConversationDetail(): JSX.Element {
     );
   }
 
-  const openExtract = (): void => setIsExtractOpen(true);
+  // Manual "Pull a fact": blank draft, not tied to any candidate.
+  const openExtract = (): void => {
+    setExtractInitial(EMPTY_EXTRACT_INITIAL);
+    setPendingApprovalKey(null);
+    setIsExtractOpen(true);
+  };
   const openSkip = (): void => setIsSkipOpen(true);
   const openTombstone = (): void => setIsTombstoneOpen(true);
+  const openSuggest = (): void => setIsSuggestActive(true);
+
+  // Approve a suggested candidate: pre-fill the SAME extract dialog with
+  // the candidate's draft so the human reviews/edits before the one
+  // audited write. The candidate leaves the list only after that write
+  // succeeds (tracked via pendingApprovalKey → approvedCandidateKey).
+  const approveCandidate = (candidate: CandidateFact): void => {
+    setExtractInitial({
+      area: candidate.area,
+      statement: candidate.statement,
+      quoteId: candidate.source_quote_id ?? '',
+    });
+    setPendingApprovalKey(candidateKey(candidate));
+    setIsExtractOpen(true);
+  };
 
   // C25.4: the "Mark as not useful" button is visible ONLY when the
   // conversation is in the pending extraction state. Extracted /
@@ -273,12 +332,27 @@ export function ConversationDetail(): JSX.Element {
         projectId={projectId}
         factsQueryState={factsQueryStateOf(factsQuery)}
         onExtractClick={openExtract}
+        suggestion={{
+          isActive: isSuggestActive,
+          isPending: suggestQuery.isPending,
+          isError: suggestQuery.isError,
+          error: suggestQuery.error ?? null,
+          candidates: suggestQuery.data?.candidates ?? [],
+          quotes: conversation.verbatim_quotes,
+          approvedKey: approvedCandidateKey,
+          onSuggestClick: openSuggest,
+          onApprove: approveCandidate,
+          onRetry: () => {
+            suggestQuery.refetch();
+          },
+        }}
       />
     </section>,
     {
       extractStatus,
       isExtractOpen,
       setIsExtractOpen,
+      extractInitial,
       skipStatus,
       isSkipOpen,
       setIsSkipOpen,
@@ -293,6 +367,7 @@ interface ConversationShellBundle {
   readonly extractStatus: ExtractStatus;
   readonly isExtractOpen: boolean;
   readonly setIsExtractOpen: Dispatch<SetStateAction<boolean>>;
+  readonly extractInitial: ExtractInitial;
   readonly skipStatus: SkipStatus;
   readonly isSkipOpen: boolean;
   readonly setIsSkipOpen: Dispatch<SetStateAction<boolean>>;
@@ -340,6 +415,9 @@ function renderConversationShell(
         workspaceId={projectId}
         conversationId={conversationId}
         quotes={quotes}
+        initialArea={bundle.extractInitial.area}
+        initialStatement={bundle.extractInitial.statement}
+        initialQuoteId={bundle.extractInitial.quoteId}
         status={bundle.extractStatus}
       />
       <SkipExtractionDialog
@@ -540,6 +618,19 @@ function QuotesSection({ quotes }: QuotesSectionProps): JSX.Element {
   );
 }
 
+interface SuggestionBundle {
+  readonly isActive: boolean;
+  readonly isPending: boolean;
+  readonly isError: boolean;
+  readonly error: Error | null;
+  readonly candidates: readonly CandidateFact[];
+  readonly quotes: readonly ConversationQuoteView[];
+  readonly approvedKey: string | null;
+  readonly onSuggestClick: () => void;
+  readonly onApprove: (candidate: CandidateFact) => void;
+  readonly onRetry: () => void;
+}
+
 interface ExtractedFactsSectionProps {
   readonly projectId: string;
   readonly factsQueryState: FactsQueryState;
@@ -547,6 +638,10 @@ interface ExtractedFactsSectionProps {
   // this conversation" button next to the heading. Tombstoned and
   // loading/error branches pass nothing here.
   readonly onExtractClick?: () => void;
+  // 3B.6: when provided, the section also renders a "Suggest facts"
+  // button + the candidate review panel. Only the live/populated
+  // branch passes this.
+  readonly suggestion?: SuggestionBundle;
 }
 
 interface FactsQueryState {
@@ -573,6 +668,7 @@ function ExtractedFactsSection({
   projectId,
   factsQueryState,
   onExtractClick,
+  suggestion,
 }: ExtractedFactsSectionProps): JSX.Element {
   return (
     <section data-testid="conversation-facts" style={{ marginTop: '1.5rem' }}>
@@ -588,25 +684,58 @@ function ExtractedFactsSection({
         <h2 style={{ fontSize: '1rem', fontWeight: 500, margin: 0 }}>
           Facts from this conversation
         </h2>
-        {onExtractClick !== undefined ? (
-          <button
-            type="button"
-            onClick={onExtractClick}
-            data-testid="conversation-extract-button"
-            style={{
-              padding: '0.375rem 0.625rem',
-              borderRadius: '0.25rem',
-              border: '1px solid #0066cc',
-              backgroundColor: '#f6faff',
-              color: '#0066cc',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-            }}
-          >
-            Pull a fact from this conversation
-          </button>
-        ) : null}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {suggestion !== undefined && !suggestion.isActive ? (
+            <button
+              type="button"
+              onClick={suggestion.onSuggestClick}
+              data-testid="conversation-suggest-button"
+              style={{
+                padding: '0.375rem 0.625rem',
+                borderRadius: '0.25rem',
+                border: '1px solid #0066cc',
+                backgroundColor: 'transparent',
+                color: '#0066cc',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+              }}
+            >
+              Suggest facts
+            </button>
+          ) : null}
+          {onExtractClick !== undefined ? (
+            <button
+              type="button"
+              onClick={onExtractClick}
+              data-testid="conversation-extract-button"
+              style={{
+                padding: '0.375rem 0.625rem',
+                borderRadius: '0.25rem',
+                border: '1px solid #0066cc',
+                backgroundColor: '#f6faff',
+                color: '#0066cc',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+              }}
+            >
+              Pull a fact from this conversation
+            </button>
+          ) : null}
+        </div>
       </header>
+      {suggestion !== undefined ? (
+        <CandidateReviewPanel
+          isActive={suggestion.isActive}
+          isPending={suggestion.isPending}
+          isError={suggestion.isError}
+          error={suggestion.error}
+          candidates={suggestion.candidates}
+          quotes={suggestion.quotes}
+          approvedKey={suggestion.approvedKey}
+          onApprove={suggestion.onApprove}
+          onRetry={suggestion.onRetry}
+        />
+      ) : null}
       {factsQueryState.isPending ? (
         <div data-testid="conversation-facts-loading" style={{ marginTop: '0.5rem' }}>
           <TextSkeleton lines={2} ariaLabel="Loading facts" />

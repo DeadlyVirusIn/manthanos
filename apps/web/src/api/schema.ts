@@ -8,16 +8,18 @@
 // never throws into the UI. Scoped intentionally to the three endpoints
 // that drifted; not a general framework.
 
-import type {
-  AuditChainVerifyResult,
-  AuditEventSummary,
-  CandidateDuplicate,
-  CandidateFact,
-  CandidateProvenancePreview,
-  ListAuditEventsResult,
-  SuggestExtractionsResult,
-  WorkspaceStatus,
-  WorkspaceView,
+import {
+  ALLOWED_CANDIDATE_DUPLICATE_KIND,
+  ALLOWED_EXTRACTION_REASON,
+  type AuditChainVerifyResult,
+  type AuditEventSummary,
+  type CandidateDuplicate,
+  type CandidateFact,
+  type CandidateProvenancePreview,
+  type ListAuditEventsResult,
+  type SuggestExtractionsResult,
+  type WorkspaceStatus,
+  type WorkspaceView,
 } from './types.js';
 
 // ── primitive guards ──────────────────────────────────────────────
@@ -170,17 +172,8 @@ export function parseAuditVerifyResult(raw: unknown): AuditChainVerifyResult {
 // Web-local allow-lists. NOTE: these mirror the API's enums; a shared
 // constants package is a documented future (single-source-of-truth)
 // improvement — for now they are validated defensively here.
-const ALLOWED_REASON_FLAGS: ReadonlySet<string> = new Set([
-  'has_clear_claim',
-  'has_subject',
-  'has_source_context',
-  'quote_backed',
-  'ambiguous',
-  'short_statement',
-  'possible_duplicate',
-  'needs_human_review',
-]);
-const ALLOWED_DUPLICATE_KINDS: ReadonlySet<string> = new Set(['exact', 'likely', 'corroborates']);
+const ALLOWED_REASON_FLAGS: ReadonlySet<string> = new Set(ALLOWED_EXTRACTION_REASON);
+const ALLOWED_DUPLICATE_KINDS: ReadonlySet<string> = new Set(ALLOWED_CANDIDATE_DUPLICATE_KIND);
 
 const clamp01 = (v: unknown): number => (isNumber(v) ? Math.min(1, Math.max(0, v)) : 0);
 

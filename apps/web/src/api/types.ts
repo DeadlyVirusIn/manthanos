@@ -389,7 +389,32 @@ export interface AuditChainVerifyResult {
 // AI-assisted extraction suggestions (Sprint 3B.5) — read-only.
 // ─────────────────────────────────────────────────────────────────
 
-export type CandidateDuplicateKind = 'exact' | 'likely' | 'corroborates';
+// Allowed-value tuples for the extraction display layer. These are the
+// single source of truth consumed by the schema parser (drop-unknown
+// guards), the i18n label maps (Record-exhaustiveness), and the web
+// confidence bucketing helper. Mirror discipline: they track the
+// backend's extraction constants (apps/api/.../extraction/confidence.ts).
+export const ALLOWED_CANDIDATE_DUPLICATE_KIND = ['exact', 'likely', 'corroborates'] as const;
+export const ALLOWED_EXTRACTION_REASON = [
+  'has_clear_claim',
+  'has_subject',
+  'has_source_context',
+  'quote_backed',
+  'ambiguous',
+  'short_statement',
+  'possible_duplicate',
+  'needs_human_review',
+] as const;
+export const ALLOWED_EXTRACTION_SOURCE = ['conversation', 'manual', 'ai_assisted'] as const;
+// Display buckets are a *view* over the numeric extraction-confidence
+// score — never persisted, never sent by the API. Distinct copy from the
+// fact-tier labels (resolved in Sprint 3B.6) so the two axes don't blur.
+export const ALLOWED_CONFIDENCE_BUCKET = ['needs_review', 'tentative', 'solid', 'strong'] as const;
+
+export type CandidateDuplicateKind = (typeof ALLOWED_CANDIDATE_DUPLICATE_KIND)[number];
+export type ExtractionReasonValue = (typeof ALLOWED_EXTRACTION_REASON)[number];
+export type ExtractionSourceValue = (typeof ALLOWED_EXTRACTION_SOURCE)[number];
+export type ConfidenceBucketValue = (typeof ALLOWED_CONFIDENCE_BUCKET)[number];
 
 export interface CandidateDuplicate {
   readonly kind: CandidateDuplicateKind;

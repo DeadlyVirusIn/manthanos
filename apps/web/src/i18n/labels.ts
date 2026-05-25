@@ -34,8 +34,12 @@
 
 import type {
   AudienceFitValue,
+  CandidateDuplicateKind,
+  ConfidenceBucketValue,
   ConversationOutcomeValue,
   ConversationTypeValue,
+  ExtractionReasonValue,
+  ExtractionSourceValue,
   ExtractorValue,
   FactExtractionStatusValue,
   FactTierValue,
@@ -107,6 +111,53 @@ const PROVENANCE_KIND_LABELS: Record<ProvenanceKindValue, string> = {
  *  as nothing in JSX. Future AI extractors land in Sprint 3+. */
 const EXTRACTOR_LABELS: Record<ExtractorValue, string> = {
   manual: '',
+};
+
+// ─────────────────────────────────────────────────────────────────
+// AI-assisted extraction display vocabulary — Sprint 3B.6
+// ─────────────────────────────────────────────────────────────────
+//
+// The suggest-extractions endpoint returns substrate-flavoured signals
+// (numeric confidence, reason-flag enum, duplicate kinds, source kind).
+// None of those raw tokens may reach the DOM — the review UI renders
+// only the friendly copy below. Confidence buckets get DISTINCT copy
+// from the fact-tier labels ("Noted"/"Well-evidenced"), resolving the
+// §7 copy-collision flag: extraction confidence and fact trust are
+// different axes and must not share words.
+
+const CONFIDENCE_BUCKET_LABELS: Record<ConfidenceBucketValue, string> = {
+  needs_review: 'Needs review',
+  tentative: 'Tentative',
+  solid: 'Solid',
+  strong: 'Strong',
+};
+
+/** Why a candidate looks the way it does — shown as advisory chips. The
+ *  raw reason-flag tokens are never rendered; only this copy is. */
+const EXTRACTION_REASON_LABELS: Record<ExtractionReasonValue, string> = {
+  has_clear_claim: 'Clear claim',
+  has_subject: 'Names who or what',
+  has_source_context: 'Backed by context',
+  quote_backed: 'Tied to a quote',
+  ambiguous: 'Ambiguous wording',
+  short_statement: 'Very short',
+  possible_duplicate: 'Possible duplicate',
+  needs_human_review: 'Worth a closer look',
+};
+
+/** Where a suggested fact would be sourced from, for the preview line. */
+const EXTRACTION_SOURCE_LABELS: Record<ExtractionSourceValue, string> = {
+  conversation: 'From this conversation',
+  manual: 'Added by hand',
+  ai_assisted: 'AI-assisted',
+};
+
+/** Advisory duplicate-warning copy. Never blocking; approving still goes
+ *  through the idempotent extract path (which links rather than dupes). */
+const DUPLICATE_WARNING_LABELS: Record<CandidateDuplicateKind, string> = {
+  exact: 'Already appears to exist',
+  likely: 'Possible duplicate',
+  corroborates: 'May support an existing fact',
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -299,6 +350,10 @@ const LABEL_MAPS = {
   lifecycle_state: LIFECYCLE_STATE_LABELS,
   provenance_kind: PROVENANCE_KIND_LABELS,
   extractor: EXTRACTOR_LABELS,
+  confidence_bucket: CONFIDENCE_BUCKET_LABELS,
+  extraction_reason: EXTRACTION_REASON_LABELS,
+  extraction_source: EXTRACTION_SOURCE_LABELS,
+  duplicate_warning: DUPLICATE_WARNING_LABELS,
   field_label: FIELD_LABELS,
   fact_action: FACT_ACTION_LABELS,
   audit_action: AUDIT_ACTION_LABELS,
@@ -319,6 +374,10 @@ export const LABEL_KINDS = [
   'lifecycle_state',
   'provenance_kind',
   'extractor',
+  'confidence_bucket',
+  'extraction_reason',
+  'extraction_source',
+  'duplicate_warning',
   'field_label',
   'fact_action',
   'audit_action',

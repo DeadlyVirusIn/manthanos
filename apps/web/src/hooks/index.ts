@@ -15,6 +15,7 @@ export * from './usePromoteFact.js';
 export * from './useResolveFactFollowUp.js';
 export * from './useReviseFact.js';
 export * from './useSkipExtraction.js';
+export * from './useSuggestExtractions.js';
 export * from './useTodayData.js';
 export * from './useTombstoneConversation.js';
 export * from './useValidationData.js';
