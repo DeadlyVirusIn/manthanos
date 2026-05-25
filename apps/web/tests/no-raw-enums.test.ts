@@ -60,6 +60,11 @@ const FORBIDDEN_WORDS: ReadonlyArray<string> = [
   'superseded',
   'extractor',
   'audit_seq',
+  // C4.1.1: novice-forbidden process vocabulary. A suggested fact is a
+  // "suggested finding" (never "candidate"); the LLM check is never named
+  // to the user (never "validator").
+  'candidate',
+  'validator',
 ];
 
 // Substrate tier strings. Quoted in source. Case-sensitive (capital T).
@@ -367,6 +372,8 @@ describe('Enum-rendering lint scan (M1 C1.9)', () => {
         'superseded',
         'extractor',
         'audit_seq',
+        'candidate',
+        'validator',
       ];
       const missing = required.filter((w) => !tokens.has(w));
       expect(missing).toEqual([]);
@@ -434,6 +441,8 @@ describe('Enum-rendering lint scan (M1 C1.9)', () => {
       'superseded',
       'extractor',
       'audit_seq',
+      'candidate',
+      'validator',
     ];
     for (const word of required) {
       expect(FORBIDDEN_WORDS).toContain(word);

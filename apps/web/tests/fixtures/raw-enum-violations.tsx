@@ -56,6 +56,9 @@ export function RawEnumViolations({ conv, fact }: Props): JSX.Element {
       <p>This row was superseded.</p>
       <p>The extractor was manual.</p>
       <p>The audit_seq is 42.</p>
+      {/* C4.1.1: novice-forbidden process vocabulary. */}
+      <p>Approve this candidate suggestion.</p>
+      <p>The validator scored this finding.</p>
 
       {/* word (JSX attribute): forbidden vocabulary in user-facing prop. */}
       <button type="button" title="tombstone this fact">
