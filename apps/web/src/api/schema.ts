@@ -11,6 +11,7 @@
 import {
   ALLOWED_CANDIDATE_DUPLICATE_KIND,
   ALLOWED_EXTRACTION_REASON,
+  ALLOWED_EXTRACTION_SOURCE,
   type AiCapabilities,
   type AuditChainVerifyResult,
   type AuditEventSummary,
@@ -175,6 +176,7 @@ export function parseAuditVerifyResult(raw: unknown): AuditChainVerifyResult {
 // improvement — for now they are validated defensively here.
 const ALLOWED_REASON_FLAGS: ReadonlySet<string> = new Set(ALLOWED_EXTRACTION_REASON);
 const ALLOWED_DUPLICATE_KINDS: ReadonlySet<string> = new Set(ALLOWED_CANDIDATE_DUPLICATE_KIND);
+const ALLOWED_SOURCES: ReadonlySet<string> = new Set(ALLOWED_EXTRACTION_SOURCE);
 
 const clamp01 = (v: unknown): number => (isNumber(v) ? Math.min(1, Math.max(0, v)) : 0);
 
@@ -199,7 +201,10 @@ function parseDuplicate(value: unknown): CandidateDuplicate | undefined {
 function parseProvenancePreview(value: unknown): CandidateProvenancePreview {
   const v = isObject(value) ? value : {};
   return {
-    source: isString(v.source) ? v.source : 'conversation',
+    // Allow-list the source: an unknown/drifted value must never reach the
+    // DOM as raw vocabulary (3B.6.5). Default to 'conversation' — the only
+    // source a deterministic 3B candidate can legitimately have.
+    source: isString(v.source) && ALLOWED_SOURCES.has(v.source) ? v.source : 'conversation',
     conversation_id: isString(v.conversation_id) ? v.conversation_id : '',
     source_quote_id: stringOrNull(v.source_quote_id),
     created_at: isString(v.created_at) ? v.created_at : '',

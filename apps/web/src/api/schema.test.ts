@@ -169,6 +169,29 @@ describe('parseAiCapabilities (3B.6.5)', () => {
   });
 });
 
+describe('parseProvenancePreview source allow-list (3B.6.5)', () => {
+  it('passes through a known source and defaults an unknown one to conversation', () => {
+    const known = parseSuggestExtractionsResponse({
+      candidates: [
+        { area: 'a', statement: 's', provenance_preview: { source: 'manual', conversation_id: 'c' } },
+      ],
+    });
+    expect(known.candidates[0]?.provenance_preview.source).toBe('manual');
+
+    const drifted = parseSuggestExtractionsResponse({
+      candidates: [
+        {
+          area: 'a',
+          statement: 's',
+          provenance_preview: { source: 'totally_bogus_source', conversation_id: 'c' },
+        },
+      ],
+    });
+    // Unknown source must never leak raw — defaults to a safe known value.
+    expect(drifted.candidates[0]?.provenance_preview.source).toBe('conversation');
+  });
+});
+
 describe('parseSuggestExtractionsResponse (3B.5)', () => {
   const goodCandidate = {
     area: 'pricing',
