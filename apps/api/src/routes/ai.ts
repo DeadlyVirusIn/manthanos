@@ -12,13 +12,16 @@
 
 import type { FastifyInstance } from 'fastify';
 import { type AiCapabilityFlags, computeAiCapabilities } from '../services/ai/capabilities.js';
+import { PROVIDER_NOT_CONFIGURED, type ProviderDetection } from '../services/ai/provider.js';
 
 interface RouteContext {
   readonly flags: AiCapabilityFlags;
+  /** Detected single provider (3B.8A). Default not-configured ⇒ gate off. */
+  readonly provider?: ProviderDetection;
 }
 
 export function registerAiRoutes(app: FastifyInstance, rc: RouteContext): void {
   app.get('/api/v1/ai/capabilities', async (_req, reply) => {
-    await reply.send(computeAiCapabilities(rc.flags));
+    await reply.send(computeAiCapabilities(rc.flags, rc.provider ?? PROVIDER_NOT_CONFIGURED));
   });
 }

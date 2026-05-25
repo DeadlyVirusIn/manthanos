@@ -25,6 +25,7 @@ import { registerConversationRoutes } from './routes/conversations.js';
 import { registerExtractionRoutes } from './routes/extraction.js';
 import { registerFactRoutes } from './routes/facts.js';
 import { registerWorkspaceRoutes } from './routes/workspace.js';
+import { detectProvider } from './services/ai/provider.js';
 import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
 
 export const VERSION = '0.0.0';
@@ -124,15 +125,15 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     boundHost: config.host,
     port: config.port,
   });
-  // 3B.6.5: AI capability gate. No substrate needed — derived purely from
-  // config flags (both default OFF). Always registered so the UI can
-  // query it even before any AI affordance is enabled.
-  registerAiRoutes(app, {
-    flags: {
-      extractionAssistEnabled: config.extractionAssistEnabled,
-      llmValidatorEnabled: config.llmValidatorEnabled,
-    },
-  });
+  // 3B.6.5/3B.8A: AI capability gate. Derived from config flags (default
+  // OFF) + single-provider detection (fail-closed; not configured unless
+  // both a key and model env are set). Always registered.
+  const aiProvider = detectProvider();
+  const aiFlags = {
+    extractionAssistEnabled: config.extractionAssistEnabled,
+    llmValidatorEnabled: config.llmValidatorEnabled,
+  };
+  registerAiRoutes(app, { flags: aiFlags, provider: aiProvider });
   if (substrate) {
     registerWorkspaceRoutes(app, {
       substrate,
@@ -140,13 +141,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
     });
     registerFactRoutes(app, { substrate });
     registerConversationRoutes(app, { substrate });
-    registerExtractionRoutes(app, {
-      substrate,
-      flags: {
-        extractionAssistEnabled: config.extractionAssistEnabled,
-        llmValidatorEnabled: config.llmValidatorEnabled,
-      },
-    });
+    registerExtractionRoutes(app, { substrate, flags: aiFlags, provider: aiProvider });
     registerAuditRoutes(app, { substrate });
   }
 

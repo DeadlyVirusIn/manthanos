@@ -15,6 +15,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { type AiCapabilityFlags, computeAiCapabilities } from '../services/ai/capabilities.js';
+import { PROVIDER_NOT_CONFIGURED, type ProviderDetection } from '../services/ai/provider.js';
 import { workspaceExists } from '../services/audit.js';
 import { getConversation } from '../services/conversations.js';
 import { assembleSuggestedCandidates } from '../services/extraction/suggest.js';
@@ -27,9 +28,10 @@ import type { SubstrateHandle } from '../services/substrate.js';
 
 interface RouteContext {
   readonly substrate: SubstrateHandle;
-  /** AI feature flags. The LLM validator is gated on these; in 3B the
-   *  provider is never configured so the validator stays a no-op. */
+  /** AI feature flags. The LLM validator is gated on these. */
   readonly flags?: AiCapabilityFlags;
+  /** Detected single provider (3B.8A). Default not-configured ⇒ gate off. */
+  readonly provider?: ProviderDetection;
 }
 
 /** Cap on existing facts compared for duplicate detection (advisory). */
@@ -69,7 +71,7 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
       // gate is OFF (no provider configured) so this returns the candidates
       // UNCHANGED and never touches a client — a true no-op. The branch
       // exists so the validator is wired behind an already-proven gate.
-      const caps = computeAiCapabilities(rc.flags ?? {});
+      const caps = computeAiCapabilities(rc.flags ?? {}, rc.provider ?? PROVIDER_NOT_CONFIGURED);
       const candidates = await validateCandidates(
         result.candidates,
         {

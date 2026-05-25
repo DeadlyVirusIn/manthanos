@@ -23,22 +23,28 @@ export interface AiCapabilities {
   readonly model: string | null;
 }
 
+import { PROVIDER_NOT_CONFIGURED, type ProviderDetection } from './provider.js';
+
 export interface AiCapabilityFlags {
   readonly extractionAssistEnabled?: boolean;
   readonly llmValidatorEnabled?: boolean;
 }
 
-export function computeAiCapabilities(flags: AiCapabilityFlags): AiCapabilities {
-  // No provider exists in deterministic 3B. Hard false here is the single
-  // chokepoint a future phase flips on once real provider detection lands.
-  const providerConfigured = false;
+export function computeAiCapabilities(
+  flags: AiCapabilityFlags,
+  provider: ProviderDetection = PROVIDER_NOT_CONFIGURED,
+): AiCapabilities {
+  // 3B.8A: provider detection replaces the former hard-false. Default arg is
+  // "not configured" so callers that don't pass a provider stay
+  // deterministic-only. The LLM validator still requires BOTH a configured
+  // provider AND its (default-OFF) flag.
+  const providerConfigured = provider.configured;
   const aiExtractionAvailable = flags.extractionAssistEnabled === true;
-  // The LLM validator requires BOTH its flag and a configured provider.
   const llmValidatorEnabled = providerConfigured && flags.llmValidatorEnabled === true;
   return {
     ai_extraction_available: aiExtractionAvailable,
     provider_configured: providerConfigured,
     llm_validator_enabled: llmValidatorEnabled,
-    model: null,
+    model: providerConfigured ? provider.model : null,
   };
 }
