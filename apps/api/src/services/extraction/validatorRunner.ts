@@ -17,9 +17,33 @@
 //   • Any failure (timeout, error, malformed) → deterministic fallback.
 //   • Abstain → keep the deterministic candidate, flagged needs_human_review.
 
-import { CONFIDENCE_REASON_FLAGS, type ConfidenceReasonFlag } from './confidence.js';
+import {
+  CONFIDENCE_REASON_FLAGS,
+  type ConfidenceReasonFlag,
+  NEEDS_REVIEW_SCORE_THRESHOLD,
+} from './confidence.js';
 import { type UntrustedConversationInput, renderUntrustedConversation } from './untrustedText.js';
 import { type ValidatorClient, parseValidatorResponse } from './validator.js';
+
+// ── Sprint 3B.8B token budgets / hard caps ──────────────────────────
+/** Max candidates sent to the model per request (canary value). Extra
+ *  candidates keep their deterministic scores. */
+export const MAX_VALIDATED_PER_REQUEST = 5;
+/** Hard char cap on the untrusted data block placed in the prompt;
+ *  truncated with a visible marker beyond this. */
+export const MAX_INPUT_CHARS = 8_000;
+/** Defensive cap on the raw model response; longer ⇒ treated as malformed. */
+export const MAX_RESPONSE_CHARS = 4_000;
+/** At most one retry, on a thrown transient error (never on timeout/malformed/abstain). */
+export const MAX_RETRIES = 1;
+
+/** A candidate is eligible for LLM validation only when it is uncertain:
+ *  sub-threshold score OR flagged ambiguous (deterministic-first). */
+export function isEligibleForValidation(c: ValidatableCandidate): boolean {
+  return (
+    c.confidence_score < NEEDS_REVIEW_SCORE_THRESHOLD || c.confidence_reasons.includes('ambiguous')
+  );
+}
 
 /** Minimal candidate shape the runner reads/adjusts. SuggestedCandidate is
  *  assignable to it; the runner preserves the caller's concrete type T. */
@@ -102,7 +126,9 @@ function buildPrompt(
   candidate: ValidatableCandidate,
   untrusted: UntrustedConversationInput,
 ): string {
-  const block = renderUntrustedConversation(untrusted);
+  const rendered = renderUntrustedConversation(untrusted);
+  const block =
+    rendered.length > MAX_INPUT_CHARS ? `${rendered.slice(0, MAX_INPUT_CHARS)}\n…(truncated)` : rendered;
   const escapedStatement = renderUntrustedConversation({ quotes: [candidate.statement] });
   return [
     'Validate the candidate fact against the conversation data below.',
@@ -130,17 +156,28 @@ export async function runValidator<T extends ValidatableCandidate>(
     return { candidate, validated: false, fallback_reason: 'gate_off' };
   }
 
-  let raw: string;
-  try {
-    raw = await callWithTimeout(
-      opts.client,
-      buildPrompt(candidate, untrusted),
-      opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    );
-  } catch (err) {
-    const reason: ValidatorFallbackReason =
-      err instanceof ValidatorTimeoutError ? 'timeout' : 'error';
-    return { candidate, validated: false, fallback_reason: reason };
+  const prompt = buildPrompt(candidate, untrusted);
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let raw: string | undefined;
+  // ≤1 retry on a thrown transient error; NEVER retry on timeout (the budget
+  // is already spent) or on malformed/abstain (those are parse outcomes).
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      raw = await callWithTimeout(opts.client, prompt, timeoutMs);
+      break;
+    } catch (err) {
+      if (err instanceof ValidatorTimeoutError) {
+        return { candidate, validated: false, fallback_reason: 'timeout' };
+      }
+      if (attempt === MAX_RETRIES) {
+        return { candidate, validated: false, fallback_reason: 'error' };
+      }
+      // else: retry once more
+    }
+  }
+  // Defensive response cap: an over-long body is treated as malformed.
+  if (raw === undefined || raw.length > MAX_RESPONSE_CHARS) {
+    return { candidate, validated: false, fallback_reason: 'malformed' };
   }
 
   const verdict = parseValidatorResponse(raw);
@@ -181,8 +218,16 @@ export async function validateCandidates<T extends ValidatableCandidate>(
   opts: RunValidatorOptions,
 ): Promise<T[]> {
   if (!opts.enabled) return [...candidates];
+  let validatedCount = 0;
   const out: T[] = [];
   for (const candidate of candidates) {
+    // Deterministic-first: only uncertain candidates are eligible, and at
+    // most MAX_VALIDATED_PER_REQUEST are sent to the model per request.
+    if (validatedCount >= MAX_VALIDATED_PER_REQUEST || !isEligibleForValidation(candidate)) {
+      out.push(candidate);
+      continue;
+    }
+    validatedCount++;
     const outcome = await runValidator(candidate, untrusted, opts);
     out.push(outcome.candidate);
   }
