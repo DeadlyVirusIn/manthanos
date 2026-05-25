@@ -69,6 +69,11 @@ interface ExtractInitial {
   readonly area: string;
   readonly statement: string;
   readonly quoteId: string;
+  // 3B.6.5: pass-through extraction metadata when approving a candidate.
+  // Undefined for the manual "Pull a fact" flow.
+  readonly extractionConfidence?: number;
+  readonly extractorVersion?: string;
+  readonly reasonFlags?: readonly string[];
 }
 const EMPTY_EXTRACT_INITIAL: ExtractInitial = { area: '', statement: '', quoteId: '' };
 
@@ -265,6 +270,12 @@ export function ConversationDetail(): JSX.Element {
       area: candidate.area,
       statement: candidate.statement,
       quoteId: candidate.source_quote_id ?? '',
+      // Carry the candidate's deterministic provenance metadata so the
+      // audited extract persists it (migration 0009). model_used is not
+      // carried — it stays NULL until a real LLM validator runs (3B.7).
+      extractionConfidence: candidate.confidence_score,
+      extractorVersion: candidate.provenance_preview.extractor_version,
+      reasonFlags: candidate.confidence_reasons,
     });
     setPendingApprovalKey(candidateKey(candidate));
     setIsExtractOpen(true);
@@ -418,6 +429,9 @@ function renderConversationShell(
         initialArea={bundle.extractInitial.area}
         initialStatement={bundle.extractInitial.statement}
         initialQuoteId={bundle.extractInitial.quoteId}
+        extractionConfidence={bundle.extractInitial.extractionConfidence}
+        extractorVersion={bundle.extractInitial.extractorVersion}
+        reasonFlags={bundle.extractInitial.reasonFlags}
         status={bundle.extractStatus}
       />
       <SkipExtractionDialog

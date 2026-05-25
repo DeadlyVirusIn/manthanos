@@ -53,6 +53,14 @@ export interface ExtractFactDialogProps {
   readonly initialArea?: string;
   readonly initialStatement?: string;
   readonly initialQuoteId?: string;
+  // 3B.6.5: pass-through extraction metadata from an approved candidate.
+  // These are NOT editable form fields — they ride alongside the human's
+  // edited area/statement into the audited extract so provenance can
+  // persist the candidate's score/reasons/version. Absent for the blank
+  // "Pull a fact" flow.
+  readonly extractionConfidence?: number;
+  readonly extractorVersion?: string;
+  readonly reasonFlags?: readonly string[];
   // Exposed for tests + the host page to read the success message.
   readonly status?: MutationStatus<ExtractFactInput, ExtractFactResponse>;
 }
@@ -105,10 +113,29 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
         statement: statement.trim(),
         ...(tier.length > 0 ? { tier: asFactTier(tier) } : {}),
         ...(quoteId.length > 0 ? { quote_id: quoteId } : {}),
+        // 3B.6.5: pass-through candidate metadata (only when approving a
+        // suggestion). Persisted into provenance by the audited mutation.
+        ...(props.extractionConfidence !== undefined
+          ? { extraction_confidence: props.extractionConfidence }
+          : {}),
+        ...(props.extractorVersion !== undefined && props.extractorVersion.length > 0
+          ? { extractor_version: props.extractorVersion }
+          : {}),
+        ...(props.reasonFlags !== undefined ? { reason_flags: props.reasonFlags } : {}),
       };
       status.mutate(input);
     },
-    [isValid, area, statement, tier, quoteId, status],
+    [
+      isValid,
+      area,
+      statement,
+      tier,
+      quoteId,
+      status,
+      props.extractionConfidence,
+      props.extractorVersion,
+      props.reasonFlags,
+    ],
   );
 
   // F.2: duplicate_fact → link to the existing fact, dialog stays open.

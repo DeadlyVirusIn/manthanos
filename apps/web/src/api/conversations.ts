@@ -84,6 +84,14 @@ export interface ExtractFactInput {
   readonly statement: string;
   readonly tier?: FactTier;
   readonly quote_id?: string;
+  // 3B.6.5: optional extraction metadata carried from an approved
+  // suggestion so the audited extract persists it into provenance
+  // (migration 0009). Omitted for a manual hand-typed extraction.
+  // `model_used` is intentionally NOT sent from the web — it stays NULL
+  // in deterministic 3B and is reserved for the 3B.7 LLM validator.
+  readonly extraction_confidence?: number;
+  readonly extractor_version?: string;
+  readonly reason_flags?: readonly string[];
 }
 
 // ─────────────────────────────────────────────────────────────────

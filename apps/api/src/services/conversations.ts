@@ -33,6 +33,7 @@ import {
   markProvenanceDegradedByConversation,
   recordProvenanceSource,
 } from './provenance.js';
+import { clampConfidence, parseReasonFlags } from './extraction/confidence.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Enum vocabularies (mirrors migration 0007 documentation)
@@ -787,6 +788,57 @@ export interface ExtractFactInput {
   readonly tier?: FactTier;
   /** Optional. If absent, provenance is recorded at conversation level. */
   readonly quote_id?: string;
+  // ── Sprint 3B.6.5: optional extraction metadata carried from an
+  // approved suggestion. Persisted into the provenance row (migration
+  // 0009). Absent for a manual hand-typed extraction. Validated/clamped
+  // here at the service boundary before reaching recordProvenanceSource.
+  /** Candidate extraction-confidence score at approval time (0.0–1.0). */
+  readonly extraction_confidence?: number;
+  /** Extractor algorithm version, e.g. 'det-1'. */
+  readonly extractor_version?: string;
+  /** Confidence reason flags from the candidate. */
+  readonly reason_flags?: readonly string[];
+  /** LLM model id. MUST be null/absent in deterministic 3B; reserved for
+   *  the 3B.7 validator. The HTTP route does not populate it. */
+  readonly model_used?: string | null;
+}
+
+/** Normalized, validated extraction metadata threaded to the provenance
+ *  write. Built once in extractFactFromConversation; `undefined` fields
+ *  become NULL columns. */
+interface ExtractionMeta {
+  readonly extractionConfidence?: number;
+  readonly extractorVersion?: string;
+  readonly reasonFlags?: readonly string[];
+  readonly modelUsed?: string | null;
+}
+
+const MAX_EXTRACTOR_VERSION_LEN = 64;
+
+/** Validate/clamp the optional extraction metadata at the service
+ *  boundary. Unknown reason flags are dropped; the score is clamped to
+ *  [0,1]; extractor_version is trimmed + length-capped. */
+function normalizeExtractionMeta(input: ExtractFactInput): ExtractionMeta {
+  const meta: {
+    extractionConfidence?: number;
+    extractorVersion?: string;
+    reasonFlags?: readonly string[];
+    modelUsed?: string | null;
+  } = {};
+  if (typeof input.extraction_confidence === 'number') {
+    meta.extractionConfidence = clampConfidence(input.extraction_confidence);
+  }
+  if (typeof input.extractor_version === 'string') {
+    const v = input.extractor_version.trim();
+    if (v.length > 0) meta.extractorVersion = v.slice(0, MAX_EXTRACTOR_VERSION_LEN);
+  }
+  if (input.reason_flags !== undefined) {
+    meta.reasonFlags = parseReasonFlags(input.reason_flags);
+  }
+  if (input.model_used !== undefined) {
+    meta.modelUsed = input.model_used;
+  }
+  return meta;
 }
 
 export interface ExtractFactResult {
@@ -859,12 +911,18 @@ export async function extractFactFromConversation(
   const statementHash = computeStatementHash(area, statement);
   const existingFact = selectFactByHash(ctx.db, workspaceId, statementHash);
 
+  // 6. Normalize optional extraction metadata (3B.6.5). Empty for a
+  //    manual hand-typed extraction; populated when an approved
+  //    suggestion carried score/reasons/version.
+  const meta = normalizeExtractionMeta(input);
+
   if (existingFact) {
     return corroborateExistingFact(ctx, workspaceId, conversationId, existingFact, {
       area,
       statement,
       statementHash,
       quoteId,
+      meta,
     });
   }
   return createFactFromExtraction(ctx, workspaceId, conversationId, {
@@ -873,6 +931,7 @@ export async function extractFactFromConversation(
     statementHash,
     tier: requestedTier,
     quoteId,
+    meta,
   });
 }
 
@@ -881,6 +940,7 @@ interface ExtractionProps {
   readonly statement: string;
   readonly statementHash: string;
   readonly quoteId: string | undefined;
+  readonly meta: ExtractionMeta;
 }
 
 interface CreationProps extends ExtractionProps {
@@ -910,6 +970,10 @@ async function corroborateExistingFact(
       quote_id: props.quoteId ?? null,
       extractor: 'manual',
       corroborated_at: now,
+      // 3B.6.5: non-secret extraction metadata in the audit trail.
+      extraction_confidence: props.meta.extractionConfidence ?? null,
+      extractor_version: props.meta.extractorVersion ?? null,
+      reason_flags: props.meta.reasonFlags ?? null,
     },
     brainWrites: ({ seq }) => {
       // 1. New provenance row pointing at the existing fact.
@@ -919,6 +983,10 @@ async function corroborateExistingFact(
         conversationId: props.quoteId === undefined ? conversationId : undefined,
         extractor: 'manual',
         extractedAt: now,
+        extractionConfidence: props.meta.extractionConfidence,
+        extractorVersion: props.meta.extractorVersion,
+        reasonFlags: props.meta.reasonFlags,
+        modelUsed: props.meta.modelUsed,
       });
       // 2. Bump the fact's last_corroborated (Stabilization §3.1: this
       //    IS a genuine corroboration, not an administrative touch).
@@ -983,6 +1051,10 @@ async function createFactFromExtraction(
         conversation_id: conversationId,
         quote_id: props.quoteId ?? null,
       },
+      // 3B.6.5: non-secret extraction metadata in the audit trail.
+      extraction_confidence: props.meta.extractionConfidence ?? null,
+      extractor_version: props.meta.extractorVersion ?? null,
+      reason_flags: props.meta.reasonFlags ?? null,
     },
     brainWrites: ({ seq }) => {
       // 1. Insert the new fact.
@@ -1013,6 +1085,10 @@ async function createFactFromExtraction(
         conversationId: props.quoteId === undefined ? conversationId : undefined,
         extractor: 'manual',
         extractedAt: now,
+        extractionConfidence: props.meta.extractionConfidence,
+        extractorVersion: props.meta.extractorVersion,
+        reasonFlags: props.meta.reasonFlags,
+        modelUsed: props.meta.modelUsed,
       });
       // 3. Conversation status.
       ctx.db

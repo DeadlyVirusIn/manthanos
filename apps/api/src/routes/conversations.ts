@@ -491,6 +491,10 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       statement?: unknown;
       tier?: unknown;
       quote_id?: unknown;
+      // 3B.6.5: optional extraction metadata from an approved suggestion.
+      extraction_confidence?: unknown;
+      extractor_version?: unknown;
+      reason_flags?: unknown;
     };
     if (typeof body.area !== 'string') {
       await reply
@@ -524,6 +528,34 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
       });
       return;
     }
+    // 3B.6.5 metadata validation (all optional). The service clamps the
+    // score, drops unknown reason flags, and caps the version string;
+    // here we only reject wrong-typed fields. `model_used` is NOT read
+    // from the request — it stays NULL in deterministic 3B.
+    if (body.extraction_confidence !== undefined && typeof body.extraction_confidence !== 'number') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'extraction_confidence',
+        details: 'extraction_confidence must be a number when provided',
+      });
+      return;
+    }
+    if (body.extractor_version !== undefined && typeof body.extractor_version !== 'string') {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'extractor_version',
+        details: 'extractor_version must be a string when provided',
+      });
+      return;
+    }
+    if (body.reason_flags !== undefined && !Array.isArray(body.reason_flags)) {
+      await reply.code(400).send({
+        error: 'validation',
+        field: 'reason_flags',
+        details: 'reason_flags must be an array when provided',
+      });
+      return;
+    }
     try {
       const result = await extractFactFromConversation(
         rc.substrate.ctx,
@@ -534,6 +566,9 @@ export function registerConversationRoutes(app: FastifyInstance, rc: RouteContex
           statement: body.statement,
           tier: body.tier as FactTier | undefined,
           quote_id: (body.quote_id ?? undefined) as string | undefined,
+          extraction_confidence: body.extraction_confidence as number | undefined,
+          extractor_version: body.extractor_version as string | undefined,
+          reason_flags: body.reason_flags as readonly string[] | undefined,
         },
       );
       // 201 when a new fact was minted; 200 when an existing fact was

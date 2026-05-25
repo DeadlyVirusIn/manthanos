@@ -123,6 +123,20 @@ export interface RecordProvenanceSourceInput {
    *  to keep the provenance row's timestamp aligned with the audit
    *  event's `extracted_at`). Defaults to now if omitted. */
   readonly extractedAt?: string;
+  // ── Sprint 3B.6.5: extraction metadata (migration 0009 columns) ──
+  // All optional/nullable. Callers (extractFactFromConversation) MUST
+  // validate/clamp before passing; this function only persists. A manual
+  // hand-typed extraction omits all of these → the columns stay NULL,
+  // exactly as before 0009. `modelUsed` stays NULL in deterministic 3B;
+  // only the 3B.7 LLM validator may set it.
+  /** Numeric extraction-confidence score (0.0–1.0), already clamped. */
+  readonly extractionConfidence?: number | null;
+  /** Extractor algorithm version, e.g. 'det-1'. */
+  readonly extractorVersion?: string | null;
+  /** Confidence reason flags, already drop-unknown filtered. Stored as a JSON array. */
+  readonly reasonFlags?: readonly string[] | null;
+  /** LLM model id; NULL unless an LLM validator ran (3B.7+). */
+  readonly modelUsed?: string | null;
 }
 
 /**
@@ -150,11 +164,23 @@ export function recordProvenanceSource(
 
   const id = generateProvenanceId();
   const extractedAt = input.extractedAt ?? new Date().toISOString();
+  // 0009 metadata columns. Bound as NULL when absent so a manual
+  // extraction writes exactly the pre-0009 shape. reason_flags is stored
+  // as a JSON array string (the schema column is TEXT).
+  const extractionConfidence =
+    input.extractionConfidence === undefined ? null : input.extractionConfidence;
+  const extractorVersion = input.extractorVersion ?? null;
+  const modelUsed = input.modelUsed ?? null;
+  const reasonFlags =
+    input.reasonFlags === undefined || input.reasonFlags === null
+      ? null
+      : JSON.stringify([...input.reasonFlags]);
   db.prepare(
     `INSERT INTO fact_provenance_sources (
        id, workspace_id, fact_id, quote_id, conversation_id,
-       extracted_at, extractor
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       extracted_at, extractor,
+       extraction_confidence, extractor_version, model_used, reason_flags
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     workspaceId,
@@ -163,6 +189,10 @@ export function recordProvenanceSource(
     hasConversation ? (input.conversationId as string) : null,
     extractedAt,
     input.extractor,
+    extractionConfidence,
+    extractorVersion,
+    modelUsed,
+    reasonFlags,
   );
   return id;
 }
