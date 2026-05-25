@@ -21,6 +21,7 @@ import { getConversation } from '../services/conversations.js';
 import { assembleSuggestedCandidates } from '../services/extraction/suggest.js';
 import type { ValidatorClient } from '../services/extraction/validator.js';
 import type { ValidatorCache } from '../services/extraction/validatorCache.js';
+import { isWorkspaceAllowedForCanary } from '../services/extraction/validatorCanary.js';
 import {
   noLiveValidatorClient,
   validateCandidates,
@@ -39,6 +40,8 @@ interface RouteContext {
   readonly validatorClient?: ValidatorClient;
   /** Verdict cache (3B.8C), present only in the canary path. */
   readonly cache?: ValidatorCache;
+  /** Canary workspace allow-list (3B.8E). Empty ⇒ validator off for all. */
+  readonly canaryWorkspaces?: readonly string[];
 }
 
 /** Cap on existing facts compared for duplicate detection (advisory). */
@@ -86,7 +89,11 @@ export function registerExtractionRoutes(app: FastifyInstance, rc: RouteContext)
           summary: conversation.summary,
         },
         {
-          enabled: caps.llm_validator_enabled,
+          // Canary gate: live validation requires the capability gate AND
+          // the workspace being explicitly allow-listed (empty ⇒ off).
+          enabled:
+            caps.llm_validator_enabled &&
+            isWorkspaceAllowedForCanary(req.params.id, rc.canaryWorkspaces ?? []),
           client: rc.validatorClient ?? noLiveValidatorClient,
           cache: rc.cache,
           model: caps.model ?? undefined,

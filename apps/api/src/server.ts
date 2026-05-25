@@ -29,6 +29,7 @@ import { detectProvider } from './services/ai/provider.js';
 import { createLiveValidatorClient } from './services/extraction/liveValidatorClient.js';
 import type { ValidatorClient } from './services/extraction/validator.js';
 import { type ValidatorCache, createValidatorCache } from './services/extraction/validatorCache.js';
+import { parseCanaryWorkspaces } from './services/extraction/validatorCanary.js';
 import { type SubstrateHandle, openSubstrate } from './services/substrate.js';
 
 export const VERSION = '0.0.0';
@@ -162,6 +163,7 @@ export async function createDaemon(opts: CreateDaemonOptions = {}): Promise<Daem
       provider: aiProvider,
       validatorClient,
       cache: validatorCache,
+      canaryWorkspaces: parseCanaryWorkspaces(),
     });
     registerAuditRoutes(app, { substrate });
   }
