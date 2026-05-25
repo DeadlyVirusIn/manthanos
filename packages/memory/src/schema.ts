@@ -546,4 +546,26 @@ export const MIGRATIONS: ReadonlyArray<{ readonly id: string; readonly sql: stri
         WHERE degraded_at IS NOT NULL;
     `,
   },
+  {
+    id: '0009_extraction_confidence_provenance_metadata',
+    sql: `
+      -- ============================================================
+      -- Sprint 3B.1 — additive provenance metadata for AI-assisted
+      -- extraction. Structural only; all columns are NULLABLE, so
+      -- pre-existing rows keep NULL and no backfill is required. No
+      -- behavior change until extraction lands (services in 3B.3/3B.5).
+      --
+      -- Value vocabularies (enforced at the @manthanos/api service
+      -- layer, same TEXT-only pattern as the existing extractor column):
+      --   extraction_confidence  REAL  0.0–1.0 candidate score at approve
+      --   extractor_version      TEXT  e.g. 'det-1' / 'det+llm-1'
+      --   model_used             TEXT  set only when an LLM validator ran
+      --   reason_flags           TEXT  JSON array of confidence reason flags
+      -- ============================================================
+      ALTER TABLE fact_provenance_sources ADD COLUMN extraction_confidence REAL;
+      ALTER TABLE fact_provenance_sources ADD COLUMN extractor_version TEXT;
+      ALTER TABLE fact_provenance_sources ADD COLUMN model_used TEXT;
+      ALTER TABLE fact_provenance_sources ADD COLUMN reason_flags TEXT;
+    `,
+  },
 ];
