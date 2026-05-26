@@ -17,6 +17,7 @@ import {
   runManthanProviderLogin,
   runManthanSetup,
 } from './commands/setup.js';
+import { runStartCommand } from './commands/start.js';
 import { runVersion } from './commands/version.js';
 import { CLI_VERSION } from './version-const.js';
 
@@ -32,6 +33,13 @@ program
   .description('Show CLI and platform version detail')
   .action(async () => {
     await runVersion();
+  });
+
+program
+  .command('start')
+  .description('Start ManthanOS: bring up the local engine, set up the demo, and open the app')
+  .action(async () => {
+    await runStartCommand();
   });
 
 program
