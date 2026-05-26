@@ -46,6 +46,14 @@ describe('TrustLevelIndicator — dot counts per tier', () => {
   });
 });
 
+describe('TrustLevelIndicator — first-encounter explainer (M3)', () => {
+  it('carries the C4.1.1 §9 trust explainer as a tooltip', () => {
+    const html = renderToString(<TrustLevelIndicator tier={asFactTier('T0')} />);
+    // renderToString encodes apostrophes, so assert an apostrophe-free span.
+    expect(html).toContain('title="How well-backed this finding is. More dots = more evidence.');
+  });
+});
+
 describe('TrustLevelIndicator — tombstoned variant', () => {
   it('renders zero filled dots when tombstoned, regardless of tier', () => {
     const html = renderToString(<TrustLevelIndicator tier={asFactTier('T+1')} tombstoned={true} />);

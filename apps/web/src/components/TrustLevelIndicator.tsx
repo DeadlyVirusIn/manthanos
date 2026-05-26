@@ -19,7 +19,7 @@
 // "Removed" label so the indicator still has accessible meaning.
 
 import type { FactTier, FactTierValue } from '../api/index.js';
-import { getEnumLabel } from '../i18n/labels.js';
+import { TRUST_LEVEL_EXPLAINER, getEnumLabel } from '../i18n/labels.js';
 
 export interface TrustLevelIndicatorProps {
   readonly tier: FactTier;
@@ -48,6 +48,7 @@ export function TrustLevelIndicator({
   return (
     <span
       aria-label={ariaLabel ?? `Trust level: ${label}`}
+      title={TRUST_LEVEL_EXPLAINER}
       data-testid="trust-level-indicator"
       data-tombstoned={tombstoned ? 'true' : 'false'}
       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}

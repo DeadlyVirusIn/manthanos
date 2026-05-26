@@ -134,6 +134,14 @@ const EXTRACTOR_LABELS: Record<ExtractorValue, string> = {
 //   tentative      → "Looks reasonable"
 //   needs_review   → "Needs your eyes"
 
+// First-encounter explainers (C4.1.1 §9). Short one-liners that tell a
+// novice what each scale means and keep the two scales distinct. Rendered
+// as lightweight tooltips on the trust meter and the review pill.
+export const TRUST_LEVEL_EXPLAINER =
+  "How well-backed this finding is. More dots = more evidence. 'Well-supported' has several sources; 'Doubted' is contradicted by what you heard.";
+export const CONFIDENCE_REVIEW_EXPLAINER =
+  "How clearly this reads as a finding — a nudge to review, not a verdict. 'Needs your eyes' means check it; 'Strong signal' means it looks solid.";
+
 const CONFIDENCE_BUCKET_LABELS: Record<ConfidenceBucketValue, string> = {
   needs_review: 'Needs your eyes',
   tentative: 'Looks reasonable',

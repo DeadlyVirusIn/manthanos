@@ -157,6 +157,12 @@ describe('CandidateReviewPanel — candidate rendering', () => {
     expect(labels).toEqual(['Needs your eyes', 'Looks reasonable', 'Strong signal']);
   });
 
+  it('carries the C4.1.1 §9 confidence explainer as a tooltip on the pill (M3)', () => {
+    renderPanel();
+    const title = screen.getByTestId('candidate-confidence').getAttribute('title') ?? '';
+    expect(title).toContain('a nudge to review, not a verdict');
+  });
+
   it('omits the source quote block when the candidate is not tied to a quote', () => {
     renderPanel({ candidates: [makeCandidate({ source_quote_id: undefined })] });
     expect(screen.queryByTestId('candidate-source-quote')).toBeNull();
