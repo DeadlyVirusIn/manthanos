@@ -89,6 +89,22 @@ describe('StartupGate', () => {
     expect(screen.getByTestId('app-child')).toBeTruthy();
   });
 
+  it('R1: a throwing getItem degrades to first run instead of crashing render', async () => {
+    const throwingGetStore: Pick<Storage, 'getItem' | 'setItem'> = {
+      getItem: () => {
+        throw new Error('storage access denied');
+      },
+      setItem: () => undefined,
+    };
+    // Must not throw during render; treats the user as first-run.
+    render(
+      <StartupGate probe={okProbe} storage={throwingGetStore}>
+        <Child />
+      </StartupGate>,
+    );
+    await waitFor(() => expect(screen.getByTestId('startup-payoff')).toBeTruthy());
+  });
+
   it('probe failure: shows a friendly F-card, not the app', async () => {
     render(
       <StartupGate

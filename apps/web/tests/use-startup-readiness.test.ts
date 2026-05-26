@@ -93,6 +93,21 @@ describe('useStartupReadiness', () => {
     expect(result.current.errorId).toBe('F4');
   });
 
+  it('R2: normalizes a malformed not-ok result to F8 immediately (not at the ceiling)', async () => {
+    const { result } = renderHook(() =>
+      useStartupReadiness({
+        // Type-violating result: not ok, but no valid errorId.
+        probe: () => Promise.resolve({ ok: false } as never),
+        timing: TIMING,
+      }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.status).toBe('error');
+    expect(result.current.errorId).toBe('F8');
+  });
+
   it('maps a thrown probe to F1 (engine did not start)', async () => {
     const { result } = renderHook(() =>
       useStartupReadiness({ probe: () => Promise.reject(new Error('down')), timing: TIMING }),

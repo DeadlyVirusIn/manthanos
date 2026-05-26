@@ -17,7 +17,16 @@
 // Timing uses setTimeout; tests drive it with fake timers.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { StartupErrorId } from '../startup/errorCatalog.js';
+import { ALL_STARTUP_ERROR_IDS, type StartupErrorId } from '../startup/errorCatalog.js';
+
+/** R2: a not-ok probe must carry a valid friendly card id. A malformed
+ *  result (missing/unknown id) normalizes to F8 immediately, rather than
+ *  leaving the UI on the panel until the ceiling fires. */
+function normalizeErrorId(id: unknown): StartupErrorId {
+  return typeof id === 'string' && (ALL_STARTUP_ERROR_IDS as readonly string[]).includes(id)
+    ? (id as StartupErrorId)
+    : 'F8';
+}
 
 export type ReadinessResult = { ok: true } | { ok: false; errorId: StartupErrorId };
 
@@ -106,7 +115,7 @@ export function useStartupReadiness(opts: UseStartupReadinessOptions): StartupRe
           setStatus('ready');
         } else {
           setStatus('error');
-          setErrorId(result.errorId);
+          setErrorId(normalizeErrorId(result.errorId));
         }
       })
       .catch(() => {

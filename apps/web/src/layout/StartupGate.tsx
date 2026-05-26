@@ -43,6 +43,16 @@ function detectReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** Read a key without ever throwing during render. Some privacy modes
+ *  expose `localStorage` but throw on access (R1 hardening). */
+function safeGetItem(store: Pick<Storage, 'getItem'> | null, key: string): string | null {
+  try {
+    return store?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface StartupGateProps {
   readonly children: React.ReactNode;
   /** Injectable for tests; defaults to a minimal /health probe. */
@@ -74,7 +84,7 @@ export function StartupGate({
   const probeFn = useMemo(() => probe ?? defaultHealthProbe, [probe]);
 
   // Read once: has this person seen the welcome before?
-  const [onboarded, setOnboarded] = useState(() => store?.getItem(ONBOARDED_KEY) === 'true');
+  const [onboarded, setOnboarded] = useState(() => safeGetItem(store, ONBOARDED_KEY) === 'true');
 
   const readiness = useStartupReadiness({ probe: probeFn, timing });
 
