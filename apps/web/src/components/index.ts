@@ -13,5 +13,6 @@ export * from './PageErrorBanner.js';
 export * from './ReviseFactDialog.js';
 export * from './SkipExtractionDialog.js';
 export * from './TombstoneConversationDialog.js';
+export * from './TrustExplainer.js';
 export * from './TrustLevelIndicator.js';
 export * from './skeletons/index.js';

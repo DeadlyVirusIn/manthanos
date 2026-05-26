@@ -46,6 +46,7 @@ import {
   SkipExtractionDialog,
   TextSkeleton,
   TombstoneConversationDialog,
+  TrustExplainer,
   TrustLevelIndicator,
   candidateKey,
 } from '../components/index.js';
@@ -782,23 +783,28 @@ function ExtractedFactsSection({
           No findings have been added from this conversation yet.
         </p>
       ) : (
-        <ul
-          data-testid="conversation-facts-list"
-          style={{
-            marginTop: '0.5rem',
-            padding: 0,
-            listStyle: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-          }}
-        >
-          {factsQueryState.facts.map((fact) => (
-            <li key={fact.id}>
-              <FactRow fact={fact} projectId={projectId} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* C4.4 H1 follow-up: one trust explainer per section (findings
+              exist here), never per row. */}
+          <TrustExplainer />
+          <ul
+            data-testid="conversation-facts-list"
+            style={{
+              marginTop: '0.5rem',
+              padding: 0,
+              listStyle: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+            }}
+          >
+            {factsQueryState.facts.map((fact) => (
+              <li key={fact.id}>
+                <FactRow fact={fact} projectId={projectId} />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

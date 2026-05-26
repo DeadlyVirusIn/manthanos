@@ -716,4 +716,34 @@ describe('FactDetail — no raw ISO timestamps', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────
+// Trust explainer (C4.4 H1 follow-up)
+// ─────────────────────────────────────────────────────────────────
+
+describe('FactDetail — trust explainer', () => {
+  it('renders exactly one discoverable trust explainer near the trust meter', () => {
+    const client = makeClient();
+    seedFact(client, makeFact());
+    seedProvenance(client, makeProvenance([makeSource()]));
+    seedHistory(client, makeHistory([]));
+    const html = render(client);
+    // Native <details> disclosure — once per screen, never per row.
+    expect(html).toContain('data-testid="trust-explainer"');
+    expect(html).toContain('What do these levels mean?');
+    // §9 trust copy (apostrophe-free span; renderToString encodes quotes).
+    expect(html).toContain('How well-backed this finding is. More dots = more evidence.');
+    expect(html.match(/data-testid="trust-explainer"/g)?.length).toBe(1);
+  });
+
+  it('keeps the single trust explainer even when history versions are present', () => {
+    const client = makeClient();
+    seedFact(client, makeFact());
+    seedProvenance(client, makeProvenance([makeSource()]));
+    seedHistory(client, makeHistory([makeFact({ id: 'older', statement: 'Older version.' })]));
+    const html = render(client);
+    // One explainer covers the primary meter and every history-version meter.
+    expect(html.match(/data-testid="trust-explainer"/g)?.length).toBe(1);
+  });
+});
+
 void NOW_ISO;

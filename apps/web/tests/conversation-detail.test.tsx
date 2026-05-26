@@ -651,3 +651,36 @@ describe('ConversationDetail — no raw ISO timestamps', () => {
     expect(html).not.toContain('data-testid="conversation-created"');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Trust explainer (C4.4 H1 follow-up)
+// ─────────────────────────────────────────────────────────────────
+
+describe('ConversationDetail — trust explainer', () => {
+  it('renders exactly one discoverable trust explainer when findings exist', () => {
+    const client = makeClient();
+    seedConversation(client, makeConversation());
+    seedFacts(
+      client,
+      makeFactsResponse([
+        makeFact({ id: 'f-a', statement: 'First fact.' }),
+        makeFact({ id: 'f-b', statement: 'Second fact.' }),
+      ]),
+    );
+    const html = render(client);
+    // Native <details> disclosure — once per section, never per row.
+    expect(html).toContain('data-testid="trust-explainer"');
+    expect(html).toContain('What do these levels mean?');
+    // §9 trust copy (apostrophe-free span; renderToString encodes quotes).
+    expect(html).toContain('How well-backed this finding is. More dots = more evidence.');
+    expect(html.match(/data-testid="trust-explainer"/g)?.length).toBe(1);
+  });
+
+  it('does not render the trust explainer when there are no findings', () => {
+    const client = makeClient();
+    seedConversation(client, makeConversation());
+    seedFacts(client, makeFactsResponse([]));
+    const html = render(client);
+    expect(html).not.toContain('data-testid="trust-explainer"');
+  });
+});

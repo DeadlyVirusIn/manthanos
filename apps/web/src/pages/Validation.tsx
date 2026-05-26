@@ -32,7 +32,12 @@ import {
   asFactExtractionStatus,
   asFactTier,
 } from '../api/index.js';
-import { PageErrorBanner, TextSkeleton, TrustLevelIndicator } from '../components/index.js';
+import {
+  PageErrorBanner,
+  TextSkeleton,
+  TrustExplainer,
+  TrustLevelIndicator,
+} from '../components/index.js';
 import {
   useConversationTotal,
   useFactCountByTier,
@@ -42,7 +47,7 @@ import {
   usePendingConversations,
   useRecentAuditEvents,
 } from '../hooks/index.js';
-import { TRUST_LEVEL_EXPLAINER, getEnumLabel } from '../i18n/labels.js';
+import { getEnumLabel } from '../i18n/labels.js';
 import { formatRelativeTime } from '../lib/time.js';
 
 // Display order is the strongest-trust-first reverse of the substrate
@@ -444,16 +449,8 @@ interface TrustLevelsProps {
 function TrustLevelsSection({ counts, anyErrored }: TrustLevelsProps): JSX.Element {
   return (
     <SectionShell heading="Findings by Trust Level" testId="validation-tiers">
-      {/* C4.4 H1: discoverable trust explainer (native disclosure — works on
-          mouse/touch/keyboard/SR). Once per section, not per row. */}
-      <details data-testid="trust-explainer" style={{ marginBottom: '0.5rem' }}>
-        <summary style={{ cursor: 'pointer', fontSize: '0.8125rem', color: '#555' }}>
-          What do these levels mean?
-        </summary>
-        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: '#666' }}>
-          {TRUST_LEVEL_EXPLAINER}
-        </p>
-      </details>
+      {/* C4.4 H1 follow-up: one trust explainer per section, not per row. */}
+      <TrustExplainer />
       {anyErrored ? (
         <p data-testid="validation-tiers-warning" style={{ color: '#a06000', margin: 0 }}>
           Could not load one or more trust-level counts.

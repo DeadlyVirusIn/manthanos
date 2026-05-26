@@ -44,6 +44,7 @@ import {
   PageErrorBanner,
   ReviseFactDialog,
   TextSkeleton,
+  TrustExplainer,
   TrustLevelIndicator,
 } from '../components/index.js';
 import {
@@ -220,6 +221,9 @@ export function FactDetail(): JSX.Element {
       {fact.is_contested ? <ContestedBanner fact={fact} /> : null}
       <StatementSection fact={fact} />
       <MetaSection fact={fact} />
+      {/* C4.4 H1 follow-up: one trust explainer per screen, near the primary
+          trust meter — also covers the history-version meters below. */}
+      <TrustExplainer />
       <FactLifecycleControls fact={fact} bundle={mutationBundle} />
       {showReviseButton ? (
         <div data-testid="fact-revise-row" style={{ marginTop: '0.5rem' }}>
