@@ -51,7 +51,9 @@ describe('ReadinessScreen', () => {
   });
 
   it('adds slow-start reassurance past the slow threshold', () => {
-    render(<ReadinessScreen readiness={readiness({ showPanel: true, slowStart: true })} firstRun />);
+    render(
+      <ReadinessScreen readiness={readiness({ showPanel: true, slowStart: true })} firstRun />,
+    );
     expect(screen.getByTestId('readiness-slow-start').textContent).toBe(
       STARTUP_COPY.slowStartFirstRun,
     );
