@@ -293,7 +293,7 @@ const AUDIT_ACTION_LABELS: Record<AuditActionKey, AuditActionLabelEntry> = {
     const stmt = coerce(p.statement, 'a claim');
     const fromExtraction = p.extraction_source !== undefined && p.extraction_source !== null;
     return fromExtraction
-      ? `Pulled a finding from a conversation: "${stmt}".`
+      ? `Added a finding from a conversation: "${stmt}".`
       : `Added a finding: "${stmt}".`;
   },
   'fact.update': (p) => `Edited a finding: "${coerce(p.statement, 'a claim')}".`,

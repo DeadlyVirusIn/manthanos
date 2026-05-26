@@ -369,7 +369,7 @@ describe('audit_action payload parameterisation (M1 C1.8)', () => {
       extraction_source: { conversation_id: 'conv-x' },
     });
     expect(direct).toBe('Added a finding: "s".');
-    expect(fromExtraction).toBe('Pulled a finding from a conversation: "s".');
+    expect(fromExtraction).toBe('Added a finding from a conversation: "s".');
   });
 
   it('fact.contest renders the double-check rename', () => {
