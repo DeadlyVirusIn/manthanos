@@ -708,7 +708,7 @@ function ExtractedFactsSection({
         }}
       >
         <h2 style={{ fontSize: '1rem', fontWeight: 500, margin: 0 }}>
-          Facts from this conversation
+          Findings from this conversation
         </h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {suggestion?.available && !suggestion.isActive ? (
