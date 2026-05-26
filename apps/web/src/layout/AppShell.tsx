@@ -15,7 +15,10 @@
 // also render inside this shell — reached by clicking through, not
 // from the top nav.
 
+import { useState } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom';
+
+import { SendFeedbackDialog } from '../components/SendFeedbackDialog.js';
 
 interface NavItem {
   readonly key: string;
@@ -51,6 +54,7 @@ const NAV_ITEMS: readonly NavItem[] = [
 export function AppShell(): JSX.Element {
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', minHeight: '100vh' }}>
       <nav
@@ -97,10 +101,27 @@ export function AppShell(): JSX.Element {
             </Link>
           );
         })}
+        <button
+          type="button"
+          data-testid="nav-send-feedback"
+          onClick={() => setFeedbackOpen(true)}
+          style={{
+            marginLeft: 'auto',
+            border: 'none',
+            background: 'none',
+            color: '#555',
+            fontSize: '0.875rem',
+            textDecoration: 'underline',
+            cursor: 'pointer',
+          }}
+        >
+          Send feedback
+        </button>
       </nav>
       <main style={{ padding: '2rem', maxWidth: '48rem' }}>
         <Outlet />
       </main>
+      <SendFeedbackDialog isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }
