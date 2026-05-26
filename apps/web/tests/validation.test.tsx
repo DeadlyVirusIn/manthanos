@@ -286,7 +286,7 @@ describe('Validation — full-error state', () => {
     const html = render(client);
     expect(html).toContain('data-testid="validation-error"');
     expect(html).toContain('data-testid="page-error-banner"');
-    expect(html).toContain('Could not load Validation');
+    expect(html).toContain('Could not load the double-check list');
     expect(html).toContain('daemon-unreachable');
   });
 

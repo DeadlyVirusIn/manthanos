@@ -116,11 +116,11 @@ describe('Home — empty state', () => {
     expect(html).not.toContain('Start a new project');
   });
 
-  it('points users to the seed command rather than a UI flow', () => {
+  it('reassures the user that the demo Project will appear here', () => {
     const client = makeClient();
     client.setQueryData(workspacesKeys.list(), []);
     const html = render(client);
-    expect(html).toContain('seed command');
+    expect(html).toContain('demo Project will appear here');
   });
 });
 

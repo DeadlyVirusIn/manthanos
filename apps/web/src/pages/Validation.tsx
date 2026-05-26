@@ -119,7 +119,7 @@ export function Validation(): JSX.Element {
   if (allErrored) {
     const firstErr =
       coreQueries.find((q) => q.error !== null && q.error !== undefined)?.error ??
-      new Error('Could not load Validation');
+      new Error('Could not load the double-check list');
     return (
       <section data-testid="validation-error">
         <PageHeader />
@@ -129,7 +129,7 @@ export function Validation(): JSX.Element {
             onRetry={() => {
               for (const q of coreQueries) q.refetch();
             }}
-            headline="Could not load Validation"
+            headline="Could not load the double-check list"
           />
         </div>
       </section>
@@ -221,7 +221,7 @@ export function Validation(): JSX.Element {
 function PageHeader(): JSX.Element {
   return (
     <header>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Validation</h1>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>To double-check</h1>
       <p style={{ color: '#666', marginTop: '0.5rem' }}>
         Findings that need a closer look, and what to do about them.
       </p>

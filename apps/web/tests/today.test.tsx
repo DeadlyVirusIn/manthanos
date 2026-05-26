@@ -341,13 +341,13 @@ describe('Today — quick actions disabled / enabled posture', () => {
     );
   });
 
-  it('includes explanatory copy that the actions arrive in the next milestone', () => {
+  it('includes explanatory copy that the other actions are coming soon', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const html = render(client);
-    expect(html).toContain('arrive in the next milestone');
+    expect(html).toContain('are coming soon');
   });
 
   it('renders the action labels: Capture Conversation, Suggest Findings, Review Evidence', () => {

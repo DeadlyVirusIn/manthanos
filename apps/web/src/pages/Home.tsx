@@ -75,8 +75,7 @@ export function Home(): JSX.Element {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Projects</h1>
         <p style={{ color: '#666', marginTop: '0.75rem' }}>You do not have any projects yet.</p>
         <p style={{ color: '#999', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-          Creating a new project from the app lands in a later milestone. For now, run the seed
-          command in the project README to bootstrap a starter project.
+          Your demo Project will appear here. If it's missing, reopen ManthanOS to set it up.
         </p>
       </section>
     );

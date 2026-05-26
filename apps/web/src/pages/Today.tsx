@@ -288,7 +288,7 @@ function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
     <section data-testid="today-quick-actions" style={{ marginTop: '1.5rem' }}>
       <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Quick actions</h2>
       <p style={{ color: '#999', marginTop: '0.25rem', fontSize: '0.875rem' }}>
-        Capture a conversation now. The other actions arrive in the next milestone.
+        Capture a conversation now. The other actions are coming soon.
       </p>
       <div
         style={{
@@ -369,7 +369,7 @@ function DisabledQuickActionCard({
     <div
       aria-disabled="true"
       data-testid={testId}
-      title="This action arrives in the next milestone"
+      title="This action is coming soon"
       style={{
         padding: '1rem',
         border: '1px dashed #ddd',
