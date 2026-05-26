@@ -450,6 +450,23 @@ describe('Validation — populated state', () => {
 // ─────────────────────────────────────────────────────────────────
 
 describe('Validation — trust-level grouping', () => {
+  it('renders one discoverable trust explainer disclosure (H1)', () => {
+    const client = makeClient();
+    seedAll(client, {
+      tierTPlus1: factsResult([], 1),
+      tierT0: factsResult([], 2),
+      tierT1: factsResult([], 3),
+      tierT2: factsResult([], 4),
+    });
+    const html = render(client);
+    // Native <details> disclosure, rendered once for the trust section.
+    expect(html).toContain('data-testid="trust-explainer"');
+    expect(html).toContain('What do these levels mean?');
+    // §9 trust copy (apostrophe-free span; renderToString encodes quotes).
+    expect(html).toContain('How well-backed this finding is. More dots = more evidence.');
+    expect(html.match(/data-testid="trust-explainer"/g)?.length).toBe(1);
+  });
+
   it('renders the four tiers in T+1 → T-2 order', () => {
     const client = makeClient();
     seedAll(client, {

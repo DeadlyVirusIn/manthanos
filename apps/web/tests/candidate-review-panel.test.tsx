@@ -163,6 +163,18 @@ describe('CandidateReviewPanel — candidate rendering', () => {
     expect(title).toContain('a nudge to review, not a verdict');
   });
 
+  it('renders one discoverable confidence explainer disclosure (H1, not per card)', () => {
+    renderPanel({
+      candidates: [makeCandidate({ statement: 's1' }), makeCandidate({ statement: 's2' })],
+    });
+    const explainers = screen.getAllByTestId('confidence-explainer');
+    expect(explainers).toHaveLength(1); // once per panel, not per candidate
+    const el = explainers[0];
+    expect(el.tagName).toBe('DETAILS');
+    expect(el.querySelector('summary')?.textContent).toBe('What do these labels mean?');
+    expect(el.textContent).toContain('a nudge to review, not a verdict');
+  });
+
   it('omits the source quote block when the candidate is not tied to a quote', () => {
     renderPanel({ candidates: [makeCandidate({ source_quote_id: undefined })] });
     expect(screen.queryByTestId('candidate-source-quote')).toBeNull();
