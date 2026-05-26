@@ -84,6 +84,9 @@ export function useStartupReadiness(opts: UseStartupReadinessOptions): StartupRe
     setAttempt((n) => n + 1);
   }, []);
 
+  // `attempt` is a retry nonce: it is not read in the body, it exists only to
+  // re-run this effect when retry() is called.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt intentionally re-arms the effect
   useEffect(() => {
     let active = true;
     const timers: ReturnType<typeof setTimeout>[] = [];
