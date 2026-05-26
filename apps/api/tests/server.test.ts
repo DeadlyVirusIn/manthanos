@@ -34,6 +34,22 @@ describe('config', () => {
     expect(config.host).toBe('127.0.0.1');
     expect(config.logLevel).toBe('info');
     expect(config.workspaceRoot).toBe('/tmp/fake-home/.manthanos/workspaces/default');
+    // Deterministic Suggest findings is ON by default (C4 demo); the LLM
+    // validator stays OFF by default.
+    expect(config.extractionAssistEnabled).toBe(true);
+    expect(config.llmValidatorEnabled).toBe(false);
+  });
+
+  it('honors explicit MANTHANOS_EXTRACTION_ASSIST_ENABLED overrides', () => {
+    expect(loadConfig({ MANTHANOS_EXTRACTION_ASSIST_ENABLED: '0' }).extractionAssistEnabled).toBe(
+      false,
+    );
+    expect(
+      loadConfig({ MANTHANOS_EXTRACTION_ASSIST_ENABLED: 'false' }).extractionAssistEnabled,
+    ).toBe(false);
+    expect(loadConfig({ MANTHANOS_EXTRACTION_ASSIST_ENABLED: '1' }).extractionAssistEnabled).toBe(
+      true,
+    );
   });
 
   it('honors MANTHANOS_WORKSPACE_ROOT explicitly', () => {

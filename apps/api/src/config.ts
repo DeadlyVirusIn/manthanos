@@ -43,7 +43,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: env.MANTHANOS_HOST?.trim() || DEFAULT_HOST,
     logLevel: parseLogLevel(env.MANTHANOS_LOG_LEVEL),
     workspaceRoot: parseWorkspaceRoot(env),
-    extractionAssistEnabled: parseBool(env.MANTHANOS_EXTRACTION_ASSIST_ENABLED),
+    // Deterministic "Suggest findings" defaults ON so the shipped C4 demo
+    // matches its documented design (C4.1 §2). It is local-only: no provider,
+    // key, model, validator, or network. Explicit `0`/`false` still disables.
+    extractionAssistEnabled: parseBoolWithDefault(env.MANTHANOS_EXTRACTION_ASSIST_ENABLED, true),
     llmValidatorEnabled: parseBool(env.MANTHANOS_LLM_VALIDATOR_ENABLED),
   };
 }
@@ -53,6 +56,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
  *  undefined / empty / typos) is false. */
 function parseBool(raw: string | undefined): boolean {
   if (raw === undefined) return false;
+  const v = raw.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+/** Like parseBool, but an unset/empty value yields `fallback` instead of
+ *  false. An explicit value is parsed normally — affirmative tokens
+ *  (`1`/`true`/`yes`/`on`) are true; anything else (incl. `0`/`false`/`off`)
+ *  is false — so explicit overrides always win over the default. */
+function parseBoolWithDefault(raw: string | undefined, fallback: boolean): boolean {
+  if (raw === undefined || raw.trim() === '') return fallback;
   const v = raw.trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }

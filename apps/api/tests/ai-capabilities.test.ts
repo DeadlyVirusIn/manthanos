@@ -52,7 +52,11 @@ async function getCaps(h: DaemonHandle): Promise<Record<string, unknown>> {
 }
 
 describe('GET /api/v1/ai/capabilities', () => {
-  it('defaults everything OFF when no flags are set', async () => {
+  it('treats explicitly-unset flags as OFF (capability fn is null-safe)', async () => {
+    // NB: this passes an explicit config with undefined flags — it exercises
+    // computeAiCapabilities' null-safety, NOT the daemon's env default. The
+    // env default for extractionAssistEnabled is ON (see config tests in
+    // server.test.ts); only an explicit/undefined flag value maps to false here.
     handle = await bootWith({});
     const caps = await getCaps(handle);
     expect(caps).toEqual({
