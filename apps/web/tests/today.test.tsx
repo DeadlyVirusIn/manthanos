@@ -249,7 +249,7 @@ describe('Today — empty state', () => {
     expect(html).toContain('0');
     expect(html).toContain('conversations');
     expect(html).toContain('data-testid="today-count-facts"');
-    expect(html).toContain('facts');
+    expect(html).toContain('findings');
   });
 
   it('still shows Quick Actions in the empty state', () => {
@@ -293,9 +293,9 @@ describe('Today — populated state', () => {
     const visible = visibleText(html);
     expect(visible).toContain('1');
     expect(visible).toMatch(/\bconversation\b/);
-    expect(visible).toMatch(/\bfact\b/);
+    expect(visible).toMatch(/\bfinding\b/);
     expect(visible).not.toMatch(/\b1 conversations\b/);
-    expect(visible).not.toMatch(/\b1 facts\b/);
+    expect(visible).not.toMatch(/\b1 findings\b/);
   });
 
   it('pluralises counts when total is not 1', () => {
@@ -305,7 +305,7 @@ describe('Today — populated state', () => {
     seedFacts(client, makeFactResult(7));
     const html = render(client);
     expect(html).toContain('conversations');
-    expect(html).toContain('facts');
+    expect(html).toContain('findings');
   });
 });
 

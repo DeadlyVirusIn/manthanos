@@ -142,7 +142,7 @@ export function Today(): JSX.Element {
         ) : null}
         {factQuery.isSuccess && factTotal !== undefined ? (
           <span data-testid="today-count-facts">
-            <strong>{factTotal}</strong> {factTotal === 1 ? 'fact' : 'facts'}
+            <strong>{factTotal}</strong> {factTotal === 1 ? 'finding' : 'findings'}
           </span>
         ) : null}
         {/* Per-section error fallback: when one count fails but the
@@ -154,7 +154,7 @@ export function Today(): JSX.Element {
         ) : null}
         {factQuery.isError ? (
           <span data-testid="today-count-facts-error" style={{ color: '#a00' }}>
-            Could not load fact count
+            Could not load finding count
           </span>
         ) : null}
       </div>
