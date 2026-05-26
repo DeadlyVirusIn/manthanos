@@ -69,6 +69,26 @@ describe('StartupGate', () => {
     expect(screen.queryByTestId('startup-payoff')).toBeNull();
   });
 
+  it('localStorage unavailable: payoff still dismisses into the app (setItem failure is non-fatal)', async () => {
+    const throwingStore: Pick<Storage, 'getItem' | 'setItem'> = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('storage disabled');
+      },
+    };
+    render(
+      <StartupGate probe={okProbe} storage={throwingStore}>
+        <Child />
+      </StartupGate>,
+    );
+    await waitFor(() => expect(screen.getByTestId('startup-payoff')).toBeTruthy());
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('startup-payoff-cta'));
+    });
+    // The session continues even though the flag couldn't be persisted.
+    expect(screen.getByTestId('app-child')).toBeTruthy();
+  });
+
   it('probe failure: shows a friendly F-card, not the app', async () => {
     render(
       <StartupGate

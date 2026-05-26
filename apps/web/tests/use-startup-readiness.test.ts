@@ -105,6 +105,21 @@ describe('useStartupReadiness', () => {
     expect(result.current.errorId).toBe('F1');
   });
 
+  it('does not set state (or warn) when unmounted mid-probe', async () => {
+    const d = deferred();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { unmount } = renderHook(() => useStartupReadiness({ probe: d.probe, timing: TIMING }));
+    unmount();
+    await act(async () => {
+      d.resolve({ ok: true });
+      await Promise.resolve();
+    });
+    // The active-flag guard + clearTimeout cleanup mean no post-unmount
+    // setState, so React emits no act/update-on-unmounted warning.
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('retry re-runs the probe from the start', async () => {
     let outcome: ReadinessResult = { ok: false, errorId: 'F1' };
     const { result } = renderHook(() =>
