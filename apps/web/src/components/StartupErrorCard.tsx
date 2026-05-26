@@ -89,7 +89,6 @@ export function StartupErrorCard({
   const bodyId = `startup-error-${copy.id}-body`;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: alertdialog needs an Esc handler; focus is managed to the title.
     <div
       role="alertdialog"
       aria-labelledby={titleId}
