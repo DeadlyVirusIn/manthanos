@@ -166,7 +166,7 @@ describe('Revise Fact — button visibility', () => {
     });
     expect(screen.getByTestId('mutation-dialog')).toBeTruthy();
     expect(screen.getByTestId('mutation-dialog-title').textContent).toBe(
-      'Make a new version of this insight?',
+      'Make a new version of this finding?',
     );
   });
 });

@@ -105,7 +105,7 @@ export function ReviseFactDialog(props: ReviseFactDialogProps): JSX.Element {
 
   return (
     <MutationDialog
-      title="Make a new version of this insight?"
+      title="Make a new version of this finding?"
       isOpen={isOpen}
       onCancel={onClose}
       onSubmit={handleSubmit}

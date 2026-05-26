@@ -81,7 +81,7 @@ describe('Route registration (M2 C2.1)', () => {
 
   it('GET /projects/:projectId/validation renders the Validation placeholder', () => {
     const html = renderAt(`/projects/${PROJ}/validation`);
-    expect(html).toContain('Validation');
+    expect(html).toContain('To double-check');
     expect(html).toContain('closer look');
   });
 
@@ -173,7 +173,7 @@ describe('Navigation shell (M2 C2.1)', () => {
     expect(html).toContain(`href="/projects/${PROJ}/validation"`);
     expect(html).toContain('Projects');
     expect(html).toContain('Today');
-    expect(html).toContain('Validation');
+    expect(html).toContain('To double-check');
   });
 
   it('marks the active route with aria-current="page"', () => {

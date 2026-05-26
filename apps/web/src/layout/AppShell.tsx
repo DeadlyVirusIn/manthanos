@@ -44,7 +44,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     key: 'validation',
-    label: 'Validation',
+    label: 'To double-check',
     target: (projectId) => (projectId ? `/projects/${projectId}/validation` : null),
     isActive: (pathname, projectId) =>
       projectId !== undefined && pathname === `/projects/${projectId}/validation`,
