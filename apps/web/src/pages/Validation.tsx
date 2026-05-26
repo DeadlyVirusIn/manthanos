@@ -552,7 +552,7 @@ function FollowUpQueueSection(props: FollowUpQueueProps): JSX.Element {
               data-testid="validation-followup-has-more"
               style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#888' }}
             >
-              Showing the most recent batch. More facts may exist.
+              Showing the most recent batch. More findings may exist.
             </p>
           ) : null}
         </>

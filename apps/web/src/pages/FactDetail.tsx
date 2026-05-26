@@ -798,7 +798,7 @@ function ProvenanceRow({ source }: ProvenanceRowProps): JSX.Element {
       }}
     >
       <p data-testid="fact-provenance-kind" style={{ margin: 0, fontSize: '0.95rem' }}>
-        Pulled <strong>{kindLabel}</strong>
+        Added <strong>{kindLabel}</strong>
         {extractedAgo !== '' ? (
           <>
             {' '}

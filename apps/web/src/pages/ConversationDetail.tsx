@@ -764,12 +764,12 @@ function ExtractedFactsSection({
       ) : null}
       {factsQueryState.isPending ? (
         <div data-testid="conversation-facts-loading" style={{ marginTop: '0.5rem' }}>
-          <TextSkeleton lines={2} ariaLabel="Loading facts" />
+          <TextSkeleton lines={2} ariaLabel="Loading findings" />
         </div>
       ) : factsQueryState.isError ? (
         <div data-testid="conversation-facts-error" style={{ marginTop: '0.5rem' }}>
           <PageErrorBanner
-            error={factsQueryState.error ?? new Error('Could not load facts')}
+            error={factsQueryState.error ?? new Error('Could not load findings')}
             onRetry={factsQueryState.refetch}
             headline="Could not load findings from this conversation"
           />
@@ -779,7 +779,7 @@ function ExtractedFactsSection({
           data-testid="conversation-facts-empty"
           style={{ marginTop: '0.5rem', color: '#888', fontStyle: 'italic' }}
         >
-          No facts have been pulled from this conversation yet.
+          No findings have been added from this conversation yet.
         </p>
       ) : (
         <ul

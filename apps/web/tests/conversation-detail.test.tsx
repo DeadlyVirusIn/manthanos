@@ -386,7 +386,7 @@ describe('ConversationDetail — extracted facts', () => {
     seedFacts(client, makeFactsResponse([]));
     const html = render(client);
     expect(html).toContain('data-testid="conversation-facts-empty"');
-    expect(html).toContain('No facts have been pulled');
+    expect(html).toContain('No findings have been added');
   });
 
   it('renders an inline error when the facts query fails (page still renders)', () => {

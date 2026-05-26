@@ -573,7 +573,7 @@ describe('Validation — follow-up queue rendering', () => {
     });
     const html = render(client);
     expect(html).toContain('data-testid="validation-followup-has-more"');
-    expect(html).toContain('More facts may exist');
+    expect(html).toContain('More findings may exist');
   });
 
   it('renders the empty-state when no contested facts are in the sample', () => {
