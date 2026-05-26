@@ -8,8 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfidenceReasonFlag } from '../src/services/extraction/confidence.js';
 import type { ValidatorClient } from '../src/services/extraction/validator.js';
-import type { ValidatorTelemetryRecord } from '../src/services/extraction/validatorCanary.js';
 import { createValidatorCache } from '../src/services/extraction/validatorCache.js';
+import type { ValidatorTelemetryRecord } from '../src/services/extraction/validatorCanary.js';
 import {
   type ValidatableCandidate,
   runValidator,
@@ -47,7 +47,14 @@ describe('telemetry emission', () => {
     const { records, onTelemetry } = sink();
     let t = 1000;
     await runValidator(candidate(), untrusted, {
-      ...base({ client: fixed('{"confidence_score":0.9}'), onTelemetry, now: () => (t += 5) }),
+      ...base({
+        client: fixed('{"confidence_score":0.9}'),
+        onTelemetry,
+        now: () => {
+          t += 5;
+          return t;
+        },
+      }),
     });
     expect(records).toHaveLength(1);
     const r = records[0];

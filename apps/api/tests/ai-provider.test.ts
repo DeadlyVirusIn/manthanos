@@ -52,7 +52,10 @@ describe('detectProvider — fail-closed', () => {
 
 describe('computeAiCapabilities — provider gating', () => {
   it('default (no provider arg) stays deterministic-only', () => {
-    const caps = computeAiCapabilities({ extractionAssistEnabled: true, llmValidatorEnabled: true });
+    const caps = computeAiCapabilities({
+      extractionAssistEnabled: true,
+      llmValidatorEnabled: true,
+    });
     expect(caps.provider_configured).toBe(false);
     expect(caps.llm_validator_enabled).toBe(false);
     expect(caps.model).toBeNull();

@@ -26,17 +26,15 @@ const SYSTEM_PROMPT = [
 ].join(' ');
 
 /** Minimal HTTP transport seam. Defaults to global fetch; tests inject a fake. */
-export interface HttpTransport {
-  (
-    url: string,
-    init: {
-      method: string;
-      headers: Record<string, string>;
-      body: string;
-      signal?: AbortSignal;
-    },
-  ): Promise<{ readonly ok: boolean; readonly status: number; text(): Promise<string> }>;
-}
+export type HttpTransport = (
+  url: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+    signal?: AbortSignal;
+  },
+) => Promise<{ readonly ok: boolean; readonly status: number; text(): Promise<string> }>;
 
 export interface LiveValidatorClientOptions {
   readonly apiKey: string;

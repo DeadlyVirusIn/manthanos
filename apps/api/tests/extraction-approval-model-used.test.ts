@@ -41,7 +41,11 @@ async function boot(withProvider: boolean): Promise<DaemonHandle> {
     process.env.MANTHANOS_VALIDATOR_API_KEY = 'sk-test-secret';
     process.env.MANTHANOS_VALIDATOR_MODEL = MODEL;
   } else {
+    // `delete` is required to truly unset an env var; assigning `undefined`
+    // coerces to the string "undefined" and would not clear it.
+    // biome-ignore lint/performance/noDelete: process.env must be unset, not assigned undefined
     delete process.env.MANTHANOS_VALIDATOR_API_KEY;
+    // biome-ignore lint/performance/noDelete: process.env must be unset, not assigned undefined
     delete process.env.MANTHANOS_VALIDATOR_MODEL;
   }
   return createDaemon({

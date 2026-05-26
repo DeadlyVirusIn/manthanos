@@ -16,6 +16,7 @@ import {
   auditedWrite,
 } from '@manthanos/memory';
 import { AUDIT_DECISION_HUMAN_APPROVED } from '@manthanos/safety';
+import { clampConfidence, parseReasonFlags } from './extraction/confidence.js';
 import {
   type FactRow,
   type FactTier,
@@ -33,7 +34,6 @@ import {
   markProvenanceDegradedByConversation,
   recordProvenanceSource,
 } from './provenance.js';
-import { clampConfidence, parseReasonFlags } from './extraction/confidence.js';
 
 // ─────────────────────────────────────────────────────────────────
 // Enum vocabularies (mirrors migration 0007 documentation)

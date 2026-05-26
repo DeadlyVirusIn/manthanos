@@ -81,7 +81,13 @@ const CASES: Case[] = [
     candidate: candidate({ statement: 'All good here', source_context: 'All good here' }),
     score: 0.2,
     bucket: 'Needs Review',
-    flags: ['has_subject', 'has_source_context', 'ambiguous', 'short_statement', 'needs_human_review'],
+    flags: [
+      'has_subject',
+      'has_source_context',
+      'ambiguous',
+      'short_statement',
+      'needs_human_review',
+    ],
   },
 ];
 
