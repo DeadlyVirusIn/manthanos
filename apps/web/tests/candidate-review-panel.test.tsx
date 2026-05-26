@@ -199,7 +199,7 @@ describe('CandidateReviewPanel — duplicate warnings (advisory)', () => {
       candidates: [makeCandidate({ duplicate: { kind: 'corroborates', fact_id: 'f1' } })],
     });
     expect(screen.getByTestId('candidate-duplicate').textContent).toBe(
-      'May support an existing fact',
+      'May support an existing finding',
     );
   });
 

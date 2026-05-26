@@ -236,7 +236,7 @@ describe('ConversationDetail — populated state', () => {
     expect(visible).toContain('Exact match');
     expect(visible).toContain('First conversation');
     expect(visible).toContain('Confirmed what I expected');
-    expect(visible).toContain('Facts pulled');
+    expect(visible).toContain('Findings added');
   });
 });
 
@@ -522,8 +522,8 @@ describe('ConversationDetail — translation correctness', () => {
 
   it('translates fact_extraction_status values across the full enum', () => {
     const cases: Array<[Parameters<typeof asFactExtractionStatus>[0], string]> = [
-      ['pending', 'No facts pulled yet'],
-      ['extracted', 'Facts pulled'],
+      ['pending', 'No findings yet'],
+      ['extracted', 'Findings added'],
       ['skipped', 'Marked as not useful'],
     ];
     for (const [raw, expected] of cases) {

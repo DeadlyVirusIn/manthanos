@@ -136,7 +136,7 @@ describe('MutationErrorBanner — network and unknown', () => {
     expect(html).toContain('data-category="network"');
     // React's renderToString HTML-encodes apostrophes ('→&#x27;), so
     // assert a substring without the apostrophe.
-    expect(html).toContain('reach the daemon');
+    expect(html).toContain('reach ManthanOS');
   });
 
   it('falls back to unknown for plain Errors', () => {

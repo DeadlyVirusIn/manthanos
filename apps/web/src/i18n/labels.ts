@@ -63,7 +63,7 @@ const CONVERSATION_TYPE_LABELS: Record<ConversationTypeValue, string> = {
   discovery: 'First conversation',
   validation: 'Testing an idea',
   sales: 'Selling / pricing',
-  support: 'Help / follow-up',
+  support: 'Help / support',
   other: 'Other',
 };
 
@@ -75,8 +75,8 @@ const CONVERSATION_OUTCOME_LABELS: Record<ConversationOutcomeValue, string> = {
 };
 
 const FACT_EXTRACTION_STATUS_LABELS: Record<FactExtractionStatusValue, string> = {
-  pending: 'No facts pulled yet',
-  extracted: 'Facts pulled',
+  pending: 'No findings yet',
+  extracted: 'Findings added',
   skipped: 'Marked as not useful',
 };
 
@@ -166,7 +166,7 @@ const EXTRACTION_SOURCE_LABELS: Record<ExtractionSourceValue, string> = {
 const DUPLICATE_WARNING_LABELS: Record<CandidateDuplicateKind, string> = {
   exact: 'Already appears to exist',
   likely: 'Possible duplicate',
-  corroborates: 'May support an existing fact',
+  corroborates: 'May support an existing finding',
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ const MUTATION_ERROR_LABELS: Record<MutationErrorCategory, AuditActionLabelEntry
     if (fromLabel === '' || toLabel === '') return "Can't change the trust level that way.";
     return `Can't move from "${fromLabel}" to "${toLabel}".`;
   },
-  network: "Couldn't reach the daemon. Check that it's running and try again.",
+  network: "Couldn't reach ManthanOS. Make sure it's running, then try again.",
   unknown: 'Something unexpected happened. Try again, or report this if it keeps happening.',
 };
 

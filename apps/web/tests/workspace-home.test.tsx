@@ -281,7 +281,7 @@ describe('WorkspaceHome — disabled action cards', () => {
     const client = makeClient();
     client.setQueryData(workspacesKeys.detail(PROJECT_ID), makeWorkspace());
     const html = render(client);
-    expect(html).toContain('arrives in a later milestone');
+    expect(html).toContain('coming soon');
   });
 });
 

@@ -136,12 +136,12 @@ export function WorkspaceHome(): JSX.Element {
         <SummaryCardDisabled
           testId="summary-card-conversations"
           label="Conversations"
-          description="A full conversation list view arrives in a later milestone."
+          description="More ways to browse your conversations are coming soon."
         />
         <SummaryCardDisabled
           testId="summary-card-facts"
           label="Findings"
-          description="A full finding list view arrives in a later milestone."
+          description="A full findings list is coming soon."
         />
       </div>
     </section>
@@ -235,7 +235,7 @@ function SummaryCardDisabled({
     <div
       aria-disabled="true"
       data-testid={testId}
-      title="This view arrives in a later milestone"
+      title="This view is coming soon"
       style={{
         padding: '1rem',
         border: '1px dashed #ddd',
