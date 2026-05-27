@@ -78,6 +78,25 @@ export class AsyncMutex {
   }
 }
 
+/**
+ * Raised when a statement that must affect exactly one row did not. A
+ * broken single-row invariant means a silent write failure (the exact
+ * "succeeds while doing nothing" class this guards against), so it must
+ * fail loud: thrown inside the SQLite transaction, it rolls the whole
+ * audited write back and propagates to the caller (→ HTTP 500).
+ */
+export class AuditWriteIntegrityError extends Error {
+  constructor(label: string, changes: number) {
+    super(`audited-write integrity: ${label} affected ${changes} row(s), expected exactly 1`);
+    this.name = 'AuditWriteIntegrityError';
+  }
+}
+
+/** Fail loud unless a write affected exactly one row. */
+export function assertAffectedExactlyOne(changes: number, label: string): void {
+  if (changes !== 1) throw new AuditWriteIntegrityError(label, changes);
+}
+
 export async function auditedWrite(
   ctx: AuditedWriteContext,
   input: AuditedWriteInput,
@@ -133,7 +152,7 @@ async function runProtocol(
     };
     const computed = computeSelfHash(prevHash, body);
 
-    ctx.db
+    const auditInsert = ctx.db
       .prepare(
         `INSERT INTO audit_events
            (workspace_id, seq, ts, actor, action, kind, payload_hash, decision, prev_hash, self_hash)
@@ -151,8 +170,15 @@ async function runProtocol(
         prevHash,
         computed,
       );
+    // Fail loud: every audited write MUST append exactly one new audit row.
+    // A 0-row result here would mean a silent write failure that breaks the
+    // hash chain — never acceptable, so we roll back rather than succeed.
+    assertAffectedExactlyOne(auditInsert.changes, 'audit_events insert');
 
     if (payloadHash !== null) {
+      // NOT guarded: `INSERT OR IGNORE` is content-addressed blob dedup, so
+      // 0 rows (blob already present / reused) is a legitimate no-op, not a
+      // failure. Only statements that must affect exactly one row are guarded.
       ctx.db
         .prepare(
           `INSERT OR IGNORE INTO blobs (payload_hash, size_bytes, first_referenced_at)

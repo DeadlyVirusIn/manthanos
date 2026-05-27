@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { verifyChain } from '@manthanos/safety';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AuditWriteIntegrityError, assertAffectedExactlyOne } from '../src/audited-write.js';
 import { AsyncMutex, auditedWrite, createBlobStore, openDb, runRecovery } from '../src/index.js';
 
 const WORKSPACE_ID = 'ws-test-001';
@@ -117,6 +118,88 @@ describe('auditedWrite', () => {
     const results = await Promise.all(promises);
     const seqs = results.map((r) => r.seq).sort((a, b) => a - b);
     expect(seqs).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+    const rows = m.handle
+      .prepare(
+        `SELECT workspace_id, seq, ts, actor, action, kind, payload_hash, decision, prev_hash, self_hash
+         FROM audit_events WHERE workspace_id = ? ORDER BY seq ASC`,
+      )
+      .all(WORKSPACE_ID);
+    expect(verifyChain(rows as never).ok).toBe(true);
+
+    m.close();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// R2a — fail-loud single-row guard
+// ─────────────────────────────────────────────────────────────────
+
+describe('assertAffectedExactlyOne (R2a)', () => {
+  it('does not throw when exactly one row was affected', () => {
+    expect(() => assertAffectedExactlyOne(1, 'x')).not.toThrow();
+  });
+
+  it('throws when a guarded write affected 0 rows (silent no-op)', () => {
+    expect(() => assertAffectedExactlyOne(0, 'audit_events insert')).toThrow(
+      AuditWriteIntegrityError,
+    );
+  });
+
+  it('throws when a guarded write affected more than one row', () => {
+    expect(() => assertAffectedExactlyOne(2, 'audit_events insert')).toThrow(
+      AuditWriteIntegrityError,
+    );
+  });
+});
+
+describe('auditedWrite — fail-loud guard (R2a)', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeWorkspaceDir();
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('does NOT trip the guard on a legitimate blob-dedup no-op', async () => {
+    const dbPath = path.join(dir, '.manthan/memory/manthan.db');
+    const jsonlPath = path.join(dir, '.manthan/audit.log');
+    const blobs = createBlobStore(path.join(dir, '.manthan/audit/blobs'));
+    const m = await openDb({ dbPath });
+    m.handle
+      .prepare(
+        `INSERT INTO workspaces (id, root_path, git_remote_hash, created_at)
+         VALUES (?, ?, NULL, ?)`,
+      )
+      .run(WORKSPACE_ID, dir, new Date().toISOString());
+    const ctx = { db: m.handle, blobs, jsonlPath, mutex: new AsyncMutex() };
+
+    // Identical payload twice: the second write reuses the content-addressed
+    // blob (INSERT OR IGNORE → 0 rows). The audit_events INSERT still writes
+    // exactly one new seq row, so the guard must pass both times.
+    const samePayload = { dedup: 'identical', n: 1 };
+    const r1 = await auditedWrite(ctx, {
+      workspaceId: WORKSPACE_ID,
+      actor: 'system:test',
+      action: 'fact.created',
+      kind: 'system',
+      decision: 'auto-approve',
+      payload: samePayload,
+    });
+    const r2 = await auditedWrite(ctx, {
+      workspaceId: WORKSPACE_ID,
+      actor: 'system:test',
+      action: 'fact.created',
+      kind: 'system',
+      decision: 'auto-approve',
+      payload: samePayload,
+    });
+
+    expect(r1.seq).toBe(1);
+    expect(r2.seq).toBe(2);
+    expect(r2.blobReused).toBe(true); // the no-op path actually exercised
+    expect(r1.payloadHash).toBe(r2.payloadHash);
 
     const rows = m.handle
       .prepare(
