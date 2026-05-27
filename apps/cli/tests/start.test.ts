@@ -9,6 +9,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   type StartDeps,
   browserOpenCommand,
+  resolveWebCommand,
+  resolveWebUrl,
   runStart,
   waitForHealth,
 } from '../src/commands/start.js';
@@ -21,6 +23,8 @@ function makeDeps(over: Partial<StartDeps> = {}): StartDeps {
     listWorkspaceNames: vi.fn(async () => [DEMO_NAME]),
     seedDemo: vi.fn(async () => undefined),
     spawnDaemon: vi.fn(),
+    checkWebReachable: vi.fn(async () => true),
+    spawnWeb: vi.fn(),
     openUrl: vi.fn(),
     sleep: vi.fn(async () => undefined),
     log: vi.fn(),
@@ -125,5 +129,71 @@ describe('runStart', () => {
       }),
     });
     expect(await runStart(deps)).toBe(1);
+  });
+
+  it('web already reachable: does not spawn web, opens the app', async () => {
+    const deps = makeDeps(); // checkWebReachable → true by default
+    const code = await runStart(deps);
+    expect(code).toBe(0);
+    expect(deps.spawnWeb).not.toHaveBeenCalled();
+    expect(deps.openUrl).toHaveBeenCalledWith('http://web.test');
+  });
+
+  it('web down: spawns the web server and polls until reachable, then opens', async () => {
+    let calls = 0;
+    const checkWebReachable = vi.fn(async () => {
+      calls += 1;
+      return calls >= 3; // false, false, true
+    });
+    const deps = makeDeps({ checkWebReachable });
+    const code = await runStart(deps);
+    expect(code).toBe(0);
+    expect(deps.spawnWeb).toHaveBeenCalledOnce();
+    expect(checkWebReachable.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(deps.openUrl).toHaveBeenCalledOnce();
+  });
+
+  it('web never reachable: friendly failure, no browser open, exit 1', async () => {
+    const deps = makeDeps({
+      checkWebReachable: vi.fn(async () => false),
+      healthAttempts: 3,
+    });
+    const code = await runStart(deps);
+    expect(code).toBe(1);
+    expect(deps.spawnWeb).toHaveBeenCalledOnce();
+    expect(deps.openUrl).not.toHaveBeenCalled();
+    expect(deps.logErr).toHaveBeenCalled();
+  });
+
+  it('already-running engine: does not spawn a duplicate API', async () => {
+    const deps = makeDeps(); // checkHealth → true by default
+    await runStart(deps);
+    expect(deps.spawnDaemon).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveWebUrl', () => {
+  it('defaults to the Vite dev port 7374', () => {
+    expect(resolveWebUrl({})).toBe('http://127.0.0.1:7374');
+  });
+  it('honors MANTHANOS_WEB_URL override', () => {
+    expect(resolveWebUrl({ MANTHANOS_WEB_URL: 'http://localhost:9999' })).toBe(
+      'http://localhost:9999',
+    );
+  });
+});
+
+describe('resolveWebCommand', () => {
+  it('defaults to `pnpm --filter @manthanos/web dev`', () => {
+    expect(resolveWebCommand({})).toEqual({
+      cmd: 'pnpm',
+      args: ['--filter', '@manthanos/web', 'dev'],
+    });
+  });
+  it('honors MANTHANOS_WEB_CMD override (space-separated)', () => {
+    expect(resolveWebCommand({ MANTHANOS_WEB_CMD: 'npm run web:serve' })).toEqual({
+      cmd: 'npm',
+      args: ['run', 'web:serve'],
+    });
   });
 });
