@@ -17,7 +17,8 @@
     "format": "biome format --write .",
     "ci": "pnpm typecheck && pnpm lint && pnpm test",
     "cli": "node apps/cli/dist/index.js",
-    "cli:dev": "node --import tsx apps/cli/src/index.ts"
+    "cli:dev": "node --import tsx apps/cli/src/index.ts",
+    "check:enum-drift": "node scripts/check-enum-drift.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
