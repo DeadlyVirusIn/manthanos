@@ -6,6 +6,7 @@
 
 import type { ApiClient } from './client.js';
 import { defaultApiClient } from './client.js';
+import { parseConversationFacts, parseConversationView, parseListConversations } from './schema.js';
 import type {
   AudienceFit,
   ConversationOutcome,
@@ -148,9 +149,11 @@ export async function listConversations(
   params: ListConversationsParams = {},
   client: ApiClient = defaultApiClient,
 ): Promise<ListConversationsResult> {
-  return client.get<ListConversationsResult>(
+  // R1: parse, don't cast — validate the list and normalize unknown enums.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations${buildQuery(params)}`,
   );
+  return parseListConversations(raw);
 }
 
 export async function getConversation(
@@ -158,9 +161,12 @@ export async function getConversation(
   conversationId: string,
   client: ApiClient = defaultApiClient,
 ): Promise<ConversationView> {
-  return client.get<ConversationView>(
+  // R1: parse, don't cast — a malformed conversation falls back to a safe
+  // placeholder (normalized enums) rather than throwing into the UI.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}`,
   );
+  return parseConversationView(raw);
 }
 
 export async function createConversation(
@@ -227,9 +233,12 @@ export async function getConversationFacts(
   conversationId: string,
   client: ApiClient = defaultApiClient,
 ): Promise<ConversationFactsResponse> {
-  return client.get<ConversationFactsResponse>(
+  // R1: parse, don't cast — the per-conversation findings list normalizes
+  // unknown fact tiers so ConversationDetail degrades gracefully on drift.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/conversations/${encodeURIComponent(conversationId)}/facts`,
   );
+  return parseConversationFacts(raw);
 }
 
 export async function exportConversationMarkdown(

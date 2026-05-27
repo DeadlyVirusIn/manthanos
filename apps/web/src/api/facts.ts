@@ -6,6 +6,7 @@
 
 import type { ApiClient } from './client.js';
 import { defaultApiClient } from './client.js';
+import { parseFactView, parseListFactsResult } from './schema.js';
 import type {
   FactHistoryResult,
   FactTier,
@@ -123,9 +124,12 @@ export async function listFacts(
   params: ListFactsParams = {},
   client: ApiClient = defaultApiClient,
 ): Promise<ListFactsResult> {
-  return client.get<ListFactsResult>(
+  // R1: parse, don't cast — validate the findings list and normalize unknown
+  // enums (e.g. tier) so the Validation page degrades gracefully on drift.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/facts${buildQuery(params)}`,
   );
+  return parseListFactsResult(raw);
 }
 
 export async function getFact(
@@ -133,9 +137,12 @@ export async function getFact(
   factId: string,
   client: ApiClient = defaultApiClient,
 ): Promise<FactView> {
-  return client.get<FactView>(
+  // R1: parse, don't cast — a malformed fact detail falls back to a safe,
+  // lowest-trust placeholder rather than throwing into the UI.
+  const raw = await client.get<unknown>(
     `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/facts/${encodeURIComponent(factId)}`,
   );
+  return parseFactView(raw);
 }
 
 export async function createFact(

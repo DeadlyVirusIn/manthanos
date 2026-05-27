@@ -8,20 +8,36 @@
 // never throws into the UI. Scoped intentionally to the three endpoints
 // that drifted; not a general framework.
 
+import type { ConversationFactsResponse } from './conversations.js';
 import {
   ALLOWED_CANDIDATE_DUPLICATE_KIND,
   ALLOWED_EXTRACTION_REASON,
   ALLOWED_EXTRACTION_SOURCE,
   type AiCapabilities,
+  type AudienceFit,
   type AuditChainVerifyResult,
   type AuditEventSummary,
   type CandidateDuplicate,
   type CandidateFact,
   type CandidateProvenancePreview,
+  type ConversationOutcome,
+  type ConversationQuoteView,
+  type ConversationType,
+  type ConversationView,
+  type FactExtractionStatus,
+  type FactTier,
+  type FactView,
   type ListAuditEventsResult,
+  type ListConversationsResult,
+  type ListFactsResult,
   type SuggestExtractionsResult,
   type WorkspaceStatus,
   type WorkspaceView,
+  isAudienceFit,
+  isConversationOutcome,
+  isConversationType,
+  isFactExtractionStatus,
+  isFactTier,
 } from './types.js';
 
 // ── primitive guards ──────────────────────────────────────────────
@@ -276,5 +292,265 @@ export function parseSuggestExtractionsResponse(raw: unknown): SuggestExtraction
       return { candidates };
     },
     EMPTY_SUGGEST,
+  );
+}
+
+// ── findings read-path (R1) ───────────────────────────────────────
+// The fact & conversation read endpoints were previously cast, not
+// parsed. These mirror the parsers above: validate structurally, never
+// throw into the UI, and NORMALIZE unknown enum values to a safe known
+// default at the boundary (not just at render) so downstream code only
+// ever sees a valid enum. lifecycle_state is NOT a wire field on these
+// endpoints — it is derived in the UI from is_tombstoned / superseded /
+// is_contested — so there is nothing to downgrade for it here.
+
+// Trust-tier normalization defaults to the LOWEST tier on unknown/missing
+// input: a malformed fact must never *overstate* how well-backed it is.
+function normTier(v: unknown): FactTier {
+  return isFactTier(v) ? v : ('T-2' as FactTier);
+}
+
+function toFactView(row: Record<string, unknown>): FactView | null {
+  // id/area/statement are load-bearing; a row missing any is dropped from
+  // a list (or triggers the detail fallback).
+  if (!isString(row.id) || !isString(row.area) || !isString(row.statement)) return null;
+  return {
+    id: row.id,
+    workspace_id: isString(row.workspace_id) ? row.workspace_id : '',
+    area: row.area,
+    statement: row.statement,
+    statement_hash: isString(row.statement_hash) ? row.statement_hash : '',
+    tier: normTier(row.tier),
+    confidence: isNumber(row.confidence) ? row.confidence : 0,
+    last_corroborated: isString(row.last_corroborated) ? row.last_corroborated : '',
+    last_administratively_touched: isString(row.last_administratively_touched)
+      ? row.last_administratively_touched
+      : '',
+    audit_seq: isNumber(row.audit_seq) ? row.audit_seq : 0,
+    version_chain_root_id: stringOrNull(row.version_chain_root_id),
+    superseded_by_fact_id: stringOrNull(row.superseded_by_fact_id),
+    contested_at: stringOrNull(row.contested_at),
+    contested_reason: stringOrNull(row.contested_reason),
+    tombstoned_at: stringOrNull(row.tombstoned_at),
+    tombstone_reason: stringOrNull(row.tombstone_reason),
+    is_head: isBool(row.is_head) ? row.is_head : false,
+    is_contested: isBool(row.is_contested) ? row.is_contested : false,
+    is_tombstoned: isBool(row.is_tombstoned) ? row.is_tombstoned : false,
+    active_source_count: isNumber(row.active_source_count) ? row.active_source_count : 0,
+    degraded_source_count: isNumber(row.degraded_source_count) ? row.degraded_source_count : 0,
+    provenance_degraded: isBool(row.provenance_degraded) ? row.provenance_degraded : false,
+  };
+}
+
+// A renderable placeholder for a malformed single-fact response. All flags
+// false, lowest trust — safe to show without crashing or overstating trust.
+const FALLBACK_FACT: FactView = {
+  id: '',
+  workspace_id: '',
+  area: '',
+  statement: '',
+  statement_hash: '',
+  tier: 'T-2' as FactTier,
+  confidence: 0,
+  last_corroborated: '',
+  last_administratively_touched: '',
+  audit_seq: 0,
+  version_chain_root_id: null,
+  superseded_by_fact_id: null,
+  contested_at: null,
+  contested_reason: null,
+  tombstoned_at: null,
+  tombstone_reason: null,
+  is_head: false,
+  is_contested: false,
+  is_tombstoned: false,
+  active_source_count: 0,
+  degraded_source_count: 0,
+  provenance_degraded: false,
+};
+
+export function parseFactView(raw: unknown): FactView {
+  return parseWithFallback(
+    'GET /api/v1/workspaces/:id/facts/:fact_id',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      const view = toFactView(raw);
+      if (view === null) throw new Error('fact missing id/area/statement');
+      return view;
+    },
+    FALLBACK_FACT,
+  );
+}
+
+const EMPTY_FACTS_LIST: ListFactsResult = {
+  facts: [],
+  total: 0,
+  returned: 0,
+  limit: 0,
+  offset: 0,
+  has_more: false,
+};
+
+export function parseListFactsResult(raw: unknown): ListFactsResult {
+  return parseWithFallback(
+    'GET /api/v1/workspaces/:id/facts',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      if (!Array.isArray(raw.facts)) throw new Error('`facts` is not an array');
+      const facts: FactView[] = [];
+      for (const item of raw.facts) {
+        if (!isObject(item)) continue;
+        const view = toFactView(item);
+        if (view !== null) facts.push(view);
+      }
+      return {
+        facts,
+        total: isNumber(raw.total) ? raw.total : facts.length,
+        returned: isNumber(raw.returned) ? raw.returned : facts.length,
+        limit: isNumber(raw.limit) ? raw.limit : 0,
+        offset: isNumber(raw.offset) ? raw.offset : 0,
+        has_more: isBool(raw.has_more) ? raw.has_more : false,
+      };
+    },
+    EMPTY_FACTS_LIST,
+  );
+}
+
+function toQuote(value: unknown): ConversationQuoteView | null {
+  if (!isObject(value) || !isString(value.id)) return null;
+  return {
+    id: value.id,
+    position: isNumber(value.position) ? value.position : 0,
+    text: isString(value.text) ? value.text : '',
+  };
+}
+
+function toConversationView(row: Record<string, unknown>): ConversationView | null {
+  if (!isString(row.id)) return null;
+  const quotes: ConversationQuoteView[] = [];
+  if (Array.isArray(row.verbatim_quotes)) {
+    for (const q of row.verbatim_quotes) {
+      const quote = toQuote(q);
+      if (quote !== null) quotes.push(quote);
+    }
+  }
+  return {
+    id: row.id,
+    workspace_id: isString(row.workspace_id) ? row.workspace_id : '',
+    person_name: isString(row.person_name) ? row.person_name : '',
+    occurred_at: isString(row.occurred_at) ? row.occurred_at : '',
+    // Enum normalization: unknown/missing → a safe known default.
+    audience_fit: isAudienceFit(row.audience_fit) ? row.audience_fit : ('unknown' as AudienceFit),
+    conversation_type: isConversationType(row.conversation_type)
+      ? row.conversation_type
+      : ('other' as ConversationType),
+    outcome: isConversationOutcome(row.outcome)
+      ? row.outcome
+      : ('inconclusive' as ConversationOutcome),
+    summary: stringOrNull(row.summary),
+    created_at: isString(row.created_at) ? row.created_at : '',
+    audit_seq: isNumber(row.audit_seq) ? row.audit_seq : 0,
+    tombstoned_at: stringOrNull(row.tombstoned_at),
+    tombstone_reason: stringOrNull(row.tombstone_reason),
+    fact_extraction_status: isFactExtractionStatus(row.fact_extraction_status)
+      ? row.fact_extraction_status
+      : ('pending' as FactExtractionStatus),
+    last_extracted_at: stringOrNull(row.last_extracted_at),
+    is_tombstoned: isBool(row.is_tombstoned) ? row.is_tombstoned : false,
+    verbatim_quotes: quotes,
+  };
+}
+
+const FALLBACK_CONVERSATION: ConversationView = {
+  id: '',
+  workspace_id: '',
+  person_name: '',
+  occurred_at: '',
+  audience_fit: 'unknown' as AudienceFit,
+  conversation_type: 'other' as ConversationType,
+  outcome: 'inconclusive' as ConversationOutcome,
+  summary: null,
+  created_at: '',
+  audit_seq: 0,
+  tombstoned_at: null,
+  tombstone_reason: null,
+  fact_extraction_status: 'pending' as FactExtractionStatus,
+  last_extracted_at: null,
+  is_tombstoned: false,
+  verbatim_quotes: [],
+};
+
+export function parseConversationView(raw: unknown): ConversationView {
+  return parseWithFallback(
+    'GET /api/v1/workspaces/:id/conversations/:cid',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      const view = toConversationView(raw);
+      if (view === null) throw new Error('conversation missing id');
+      return view;
+    },
+    FALLBACK_CONVERSATION,
+  );
+}
+
+const EMPTY_CONVERSATIONS_LIST: ListConversationsResult = {
+  conversations: [],
+  total: 0,
+  returned: 0,
+  limit: 0,
+  offset: 0,
+  has_more: false,
+};
+
+export function parseListConversations(raw: unknown): ListConversationsResult {
+  return parseWithFallback(
+    'GET /api/v1/workspaces/:id/conversations',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      if (!Array.isArray(raw.conversations)) throw new Error('`conversations` is not an array');
+      const conversations: ConversationView[] = [];
+      for (const item of raw.conversations) {
+        if (!isObject(item)) continue;
+        const view = toConversationView(item);
+        if (view !== null) conversations.push(view);
+      }
+      return {
+        conversations,
+        total: isNumber(raw.total) ? raw.total : conversations.length,
+        returned: isNumber(raw.returned) ? raw.returned : conversations.length,
+        limit: isNumber(raw.limit) ? raw.limit : 0,
+        offset: isNumber(raw.offset) ? raw.offset : 0,
+        has_more: isBool(raw.has_more) ? raw.has_more : false,
+      };
+    },
+    EMPTY_CONVERSATIONS_LIST,
+  );
+}
+
+const EMPTY_CONVERSATION_FACTS: ConversationFactsResponse = {
+  conversation_id: '',
+  facts: [],
+  total: 0,
+};
+
+export function parseConversationFacts(raw: unknown): ConversationFactsResponse {
+  return parseWithFallback(
+    'GET /api/v1/workspaces/:id/conversations/:cid/facts',
+    () => {
+      if (!isObject(raw)) throw new Error('response is not an object');
+      if (!Array.isArray(raw.facts)) throw new Error('`facts` is not an array');
+      const facts: FactView[] = [];
+      for (const item of raw.facts) {
+        if (!isObject(item)) continue;
+        const view = toFactView(item);
+        if (view !== null) facts.push(view);
+      }
+      return {
+        conversation_id: isString(raw.conversation_id) ? raw.conversation_id : '',
+        facts,
+        total: isNumber(raw.total) ? raw.total : facts.length,
+      };
+    },
+    EMPTY_CONVERSATION_FACTS,
   );
 }

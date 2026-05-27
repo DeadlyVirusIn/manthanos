@@ -10,6 +10,11 @@ import {
   parseAiCapabilities,
   parseAuditEventsResult,
   parseAuditVerifyResult,
+  parseConversationFacts,
+  parseConversationView,
+  parseFactView,
+  parseListConversations,
+  parseListFactsResult,
   parseSuggestExtractionsResponse,
   parseWorkspaceList,
 } from './schema.js';
@@ -280,5 +285,194 @@ describe('parseSuggestExtractionsResponse (3B.5)', () => {
     expect(parseSuggestExtractionsResponse({ candidates: [1, 'x', null, {}] })).toEqual({
       candidates: [],
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// R1 — findings read-path parsers
+// ─────────────────────────────────────────────────────────────────
+
+// Minimal valid wire shapes (the load-bearing fields only).
+function rawFact(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'f-1',
+    workspace_id: 'w-1',
+    area: 'discovery_pain',
+    statement: 'Founders abandon tools that feel like research software.',
+    statement_hash: 'h-1',
+    tier: 'T0',
+    confidence: 0.7,
+    last_corroborated: '2026-05-23T12:00:00Z',
+    last_administratively_touched: '2026-05-23T12:00:00Z',
+    audit_seq: 13,
+    version_chain_root_id: null,
+    superseded_by_fact_id: null,
+    contested_at: null,
+    contested_reason: null,
+    tombstoned_at: null,
+    tombstone_reason: null,
+    is_head: true,
+    is_contested: false,
+    is_tombstoned: false,
+    active_source_count: 1,
+    degraded_source_count: 0,
+    provenance_degraded: false,
+    ...overrides,
+  };
+}
+
+function rawConversation(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'c-1',
+    workspace_id: 'w-1',
+    person_name: 'Alex Founder',
+    occurred_at: '2026-05-21T12:00:00Z',
+    audience_fit: 'target',
+    conversation_type: 'discovery',
+    outcome: 'validated',
+    summary: 'Confirmed the discovery loop pain.',
+    created_at: '2026-05-23T11:50:00Z',
+    audit_seq: 12,
+    tombstoned_at: null,
+    tombstone_reason: null,
+    fact_extraction_status: 'extracted',
+    last_extracted_at: '2026-05-23T11:50:00Z',
+    is_tombstoned: false,
+    verbatim_quotes: [{ id: 'q-1', position: 0, text: 'I gave up on three other tools.' }],
+    ...overrides,
+  };
+}
+
+describe('parseFactView (R1)', () => {
+  it('passes a valid fact through unchanged', () => {
+    const out = parseFactView(rawFact());
+    expect(out.id).toBe('f-1');
+    expect(out.tier).toBe('T0');
+    expect(out.statement).toContain('Founders abandon');
+  });
+
+  it('falls back to a safe lowest-trust placeholder on malformed input', () => {
+    for (const bad of [null, undefined, 42, 'x', [], {}, { id: 'x' }]) {
+      expect(() => parseFactView(bad)).not.toThrow();
+      const out = parseFactView(bad);
+      expect(out.id).toBe('');
+      expect(out.tier).toBe('T-2');
+      expect(out.is_tombstoned).toBe(false);
+    }
+  });
+
+  it('normalizes an unknown tier to the lowest trust (never overstates)', () => {
+    expect(parseFactView(rawFact({ tier: 'GOLD' })).tier).toBe('T-2');
+    expect(parseFactView(rawFact({ tier: 123 })).tier).toBe('T-2');
+    // a known tier is preserved exactly
+    expect(parseFactView(rawFact({ tier: 'T+1' })).tier).toBe('T+1');
+  });
+
+  it('defaults missing non-enum fields without throwing', () => {
+    const out = parseFactView({ id: 'f', area: 'a', statement: 's' });
+    expect(out.confidence).toBe(0);
+    expect(out.audit_seq).toBe(0);
+    expect(out.provenance_degraded).toBe(false);
+  });
+});
+
+describe('parseListFactsResult (R1)', () => {
+  it('parses a valid list', () => {
+    const out = parseListFactsResult({ facts: [rawFact(), rawFact({ id: 'f-2' })], total: 2 });
+    expect(out.facts).toHaveLength(2);
+    expect(out.total).toBe(2);
+  });
+
+  it('falls back to an empty list on null / missing key / non-array', () => {
+    for (const bad of [null, {}, { facts: 'nope' }, 7]) {
+      expect(() => parseListFactsResult(bad)).not.toThrow();
+      expect(parseListFactsResult(bad).facts).toEqual([]);
+    }
+  });
+
+  it('drops malformed fact rows but keeps valid siblings', () => {
+    const out = parseListFactsResult({ facts: [rawFact(), { id: 'x' }, null, 5], total: 4 });
+    expect(out.facts).toHaveLength(1);
+    expect(out.facts[0]?.id).toBe('f-1');
+  });
+});
+
+describe('parseConversationView (R1)', () => {
+  it('passes a valid conversation through unchanged', () => {
+    const out = parseConversationView(rawConversation());
+    expect(out.id).toBe('c-1');
+    expect(out.outcome).toBe('validated');
+    expect(out.verbatim_quotes).toHaveLength(1);
+  });
+
+  it('falls back to a safe placeholder on malformed input', () => {
+    for (const bad of [null, 'x', 9, [], {}]) {
+      expect(() => parseConversationView(bad)).not.toThrow();
+      const out = parseConversationView(bad);
+      expect(out.id).toBe('');
+      expect(out.audience_fit).toBe('unknown');
+      expect(out.outcome).toBe('inconclusive');
+      expect(out.conversation_type).toBe('other');
+    }
+  });
+
+  it('normalizes unknown enums to safe defaults and preserves known ones', () => {
+    const drift = parseConversationView(
+      rawConversation({ audience_fit: 'ZZZ', conversation_type: 99, outcome: null }),
+    );
+    expect(drift.audience_fit).toBe('unknown');
+    expect(drift.conversation_type).toBe('other');
+    expect(drift.outcome).toBe('inconclusive');
+    const known = parseConversationView(rawConversation({ audience_fit: 'adjacent' }));
+    expect(known.audience_fit).toBe('adjacent');
+  });
+
+  it('filters malformed quote rows', () => {
+    const out = parseConversationView(
+      rawConversation({ verbatim_quotes: [{ id: 'q', position: 0, text: 't' }, null, 3, {}] }),
+    );
+    expect(out.verbatim_quotes).toHaveLength(1);
+  });
+});
+
+describe('parseListConversations (R1)', () => {
+  it('parses a valid list', () => {
+    const out = parseListConversations({
+      conversations: [rawConversation(), rawConversation({ id: 'c-2' })],
+      total: 2,
+    });
+    expect(out.conversations).toHaveLength(2);
+  });
+
+  it('falls back to an empty list on malformed input', () => {
+    for (const bad of [null, {}, { conversations: 1 }, 'x']) {
+      expect(() => parseListConversations(bad)).not.toThrow();
+      expect(parseListConversations(bad).conversations).toEqual([]);
+    }
+  });
+});
+
+describe('parseConversationFacts (R1)', () => {
+  it('parses a valid per-conversation findings response', () => {
+    const out = parseConversationFacts({ conversation_id: 'c-1', facts: [rawFact()], total: 1 });
+    expect(out.conversation_id).toBe('c-1');
+    expect(out.facts).toHaveLength(1);
+    expect(out.total).toBe(1);
+  });
+
+  it('falls back to an empty response on null / missing key / non-array', () => {
+    for (const bad of [null, {}, { facts: 'nope' }, 0]) {
+      expect(() => parseConversationFacts(bad)).not.toThrow();
+      expect(parseConversationFacts(bad)).toEqual({ conversation_id: '', facts: [], total: 0 });
+    }
+  });
+
+  it('normalizes an unknown tier inside the findings list', () => {
+    const out = parseConversationFacts({
+      conversation_id: 'c-1',
+      facts: [rawFact({ tier: 'MYSTERY' })],
+      total: 1,
+    });
+    expect(out.facts[0]?.tier).toBe('T-2');
   });
 });
