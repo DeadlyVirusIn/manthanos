@@ -78,9 +78,6 @@ export function WorkspaceHome(): JSX.Element {
     return (
       <section data-testid="workspace-home-error">
         <h1 style={{ fontSize: '1.5rem', fontWeight: 500 }}>Project</h1>
-        <p style={{ color: '#666', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-          ID: <span data-testid="workspace-id">{projectId}</span>
-        </p>
         <div style={{ marginTop: '1rem' }}>
           <PageErrorBanner
             error={query.error}
@@ -163,9 +160,6 @@ function ProjectHeader({ workspace }: ProjectHeaderProps): JSX.Element {
       <h1 data-testid="workspace-home-name" style={{ fontSize: '1.5rem', fontWeight: 500 }}>
         {name}
       </h1>
-      <p style={{ color: '#666', marginTop: '0.25rem' }}>
-        ID: <span data-testid="workspace-id">{workspace.id}</span>
-      </p>
       <p
         data-testid="workspace-home-status"
         style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#444' }}

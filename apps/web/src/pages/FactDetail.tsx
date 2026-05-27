@@ -178,9 +178,6 @@ export function FactDetail(): JSX.Element {
     return withShell(
       <section data-testid="fact-detail-error">
         <PageHeader />
-        <p style={{ color: '#666', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-          ID: <span data-testid="fact-id">{factId}</span>
-        </p>
         <div style={{ marginTop: '1rem' }}>
           <PageErrorBanner
             error={factQuery.error}

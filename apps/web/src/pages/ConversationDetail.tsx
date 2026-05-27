@@ -176,9 +176,6 @@ export function ConversationDetail(): JSX.Element {
       [],
       <section data-testid="conversation-detail-error">
         <PageHeader />
-        <p style={{ color: '#666', marginTop: '0.5rem', fontSize: '0.875rem' }}>
-          ID: <span data-testid="conv-id">{conversationId}</span>
-        </p>
         <div style={{ marginTop: '1rem' }}>
           <PageErrorBanner
             error={conversationQuery.error}

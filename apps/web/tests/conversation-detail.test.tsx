@@ -196,7 +196,7 @@ describe('ConversationDetail — error state', () => {
     expect(html).toContain('daemon-unreachable');
   });
 
-  it('still surfaces the conversation id during the error state', () => {
+  it('does not expose the raw conversation id in the error state (C3)', () => {
     const client = makeClient();
     seedQueryError(
       client,
@@ -204,8 +204,9 @@ describe('ConversationDetail — error state', () => {
       new Error('boom'),
     );
     const html = render(client);
-    expect(html).toContain('data-testid="conv-id"');
-    expect(html).toContain(CONVERSATION_ID);
+    expect(html).not.toContain('data-testid="conv-id"');
+    expect(html).not.toContain('ID:');
+    expect(html).not.toContain(CONVERSATION_ID);
   });
 });
 

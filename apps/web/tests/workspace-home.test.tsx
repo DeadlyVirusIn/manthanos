@@ -135,12 +135,23 @@ describe('WorkspaceHome — error state', () => {
     expect(html).toContain('Try again');
   });
 
-  it('still surfaces the project id while the lookup is errored', () => {
+  it('does not expose the raw project id in the error state (C3)', () => {
     const client = makeClient();
     seedError(client, new Error('boom'));
     const html = render(client);
-    expect(html).toContain('data-testid="workspace-id"');
-    expect(html).toContain(PROJECT_ID);
+    expect(html).not.toContain('data-testid="workspace-id"');
+    expect(html).not.toContain('ID:');
+    expect(html).not.toContain(PROJECT_ID);
+  });
+
+  it('does not expose the raw project id in the populated header (C3)', () => {
+    // The id legitimately remains in route hrefs; it must not be shown as a
+    // visible "ID:" row to the novice.
+    const client = makeClient();
+    client.setQueryData(workspacesKeys.detail(PROJECT_ID), makeWorkspace());
+    const html = render(client);
+    expect(html).not.toContain('data-testid="workspace-id"');
+    expect(html).not.toContain('ID:');
   });
 
   it('does not render summary cards when the load failed', () => {

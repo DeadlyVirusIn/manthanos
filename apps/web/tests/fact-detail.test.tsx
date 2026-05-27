@@ -188,12 +188,13 @@ describe('FactDetail — error state', () => {
     expect(html).toContain('daemon-unreachable');
   });
 
-  it('still surfaces the fact id during the error state', () => {
+  it('does not expose the raw finding id in the error state (C3)', () => {
     const client = makeClient();
     seedQueryError(client, factsKeys.detail(PROJECT_ID, FACT_ID), new Error('boom'));
     const html = render(client);
-    expect(html).toContain('data-testid="fact-id"');
-    expect(html).toContain(FACT_ID);
+    expect(html).not.toContain('data-testid="fact-id"');
+    expect(html).not.toContain('ID:');
+    expect(html).not.toContain(FACT_ID);
   });
 });
 
