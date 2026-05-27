@@ -31,7 +31,9 @@ export const ONBOARDED_KEY = 'manthanos.onboarded';
  *  render. No demo-Project coupling in this slice. */
 async function defaultHealthProbe(): Promise<ReadinessResult> {
   try {
-    const res = await fetch('/health');
+    // /api-prefixed so the Vite dev proxy forwards it to the daemon; a bare
+    // /health would hit the Vite server and falsely read as reachable (C1).
+    const res = await fetch('/api/v1/health');
     return res.ok ? { ok: true } : { ok: false, errorId: 'F1' };
   } catch {
     return { ok: false, errorId: 'F1' };

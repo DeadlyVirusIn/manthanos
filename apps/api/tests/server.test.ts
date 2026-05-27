@@ -188,6 +188,21 @@ describe('GET /health', () => {
     expect(body.port).toBe(TEST_PORT);
   });
 
+  it('serves the same liveness at the /api-prefixed alias /api/v1/health (C1)', async () => {
+    // The browser readiness probe must use an /api-prefixed path so the Vite
+    // dev proxy forwards it to the daemon (a bare /health hits the Vite server).
+    const response = await handle.app.inject({
+      method: 'GET',
+      url: '/api/v1/health',
+      headers: { host: '127.0.0.1' },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    expect(body.version).toBe(VERSION);
+    expect(body.port).toBe(TEST_PORT);
+  });
+
   it('returns 405 with Allow: GET on POST /health', async () => {
     const response = await handle.app.inject({
       method: 'POST',

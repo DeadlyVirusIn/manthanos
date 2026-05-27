@@ -26,7 +26,9 @@ function appBuildInfo(): { version: string; commit: string | undefined } {
 
 async function defaultProbeHealth(): Promise<boolean> {
   try {
-    const res = await fetch('/health');
+    // /api-prefixed so the Vite dev proxy forwards it to the daemon; a bare
+    // /health would hit the Vite server, making health.reachable unreliable (C1).
+    const res = await fetch('/api/v1/health');
     return res.ok;
   } catch {
     return false;

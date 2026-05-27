@@ -67,4 +67,39 @@ describe('SendFeedbackDialog', () => {
     expect(serialized).toContain('Startup: F1 shown');
     expect(serialized).toContain('It broke.');
   });
+
+  it('default health probe targets the /api-routed endpoint and feeds health.reachable (C1)', async () => {
+    // No injected probeHealth → exercises defaultProbeHealth. It must hit an
+    // /api-prefixed path (forwarded to the daemon by the Vite proxy); a bare
+    // /health would hit the Vite server, making health.reachable unreliable.
+    const fetchSpy = vi.fn(async () => ({ ok: true }) as Response);
+    vi.stubGlobal('fetch', fetchSpy);
+    let serialized = '';
+    try {
+      render(
+        <MemoryRouter initialEntries={['/projects/ws-x/conversations/conv-y']}>
+          <SendFeedbackDialog
+            isOpen
+            onClose={vi.fn()}
+            exportBundle={(s) => {
+              serialized = s;
+            }}
+            now={() => new Date('2026-05-26T10:00:00.000Z')}
+          />
+        </MemoryRouter>,
+      );
+      fireEvent.change(screen.getByTestId('send-feedback-note'), {
+        target: { value: 'probe check' },
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('send-feedback-save'));
+      });
+      await waitFor(() => expect(screen.getByTestId('send-feedback-success')).toBeTruthy());
+      expect(fetchSpy).toHaveBeenCalledWith('/api/v1/health');
+      expect(fetchSpy).not.toHaveBeenCalledWith('/health');
+      expect(serialized).toMatch(/"reachable":\s*true/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

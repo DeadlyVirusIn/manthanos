@@ -25,16 +25,25 @@ export interface HealthResponse {
 
 const NON_GET_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const;
 
+// Canonical health path + the /api-prefixed alias. The web app's readiness
+// probe runs in the browser, where the Vite dev proxy forwards ONLY /api/*
+// to the daemon; a bare /health request hits the Vite server (SPA fallback)
+// and gives a false-positive. Serving the same liveness at /api/v1/health
+// lets the browser probe actually reach the daemon (C1 fix).
+const HEALTH_PATHS = ['/health', '/api/v1/health'] as const;
+
 export function registerHealth(app: FastifyInstance, ctx: HealthContext): void {
-  app.get('/health', async (): Promise<HealthResponse> => {
-    return {
-      ok: true,
-      version: ctx.version,
-      uptime_ms: Date.now() - ctx.startedAt,
-      bound_host: ctx.boundHost,
-      port: ctx.port,
-    };
+  const buildResponse = (): HealthResponse => ({
+    ok: true,
+    version: ctx.version,
+    uptime_ms: Date.now() - ctx.startedAt,
+    bound_host: ctx.boundHost,
+    port: ctx.port,
   });
+
+  for (const url of HEALTH_PATHS) {
+    app.get(url, async (): Promise<HealthResponse> => buildResponse());
+  }
 
   // Explicit 405 for the same path on non-GET verbs. Fastify's
   // default is 404 when method doesn't match, which is technically

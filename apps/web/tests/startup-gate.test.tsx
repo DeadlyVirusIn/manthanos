@@ -7,7 +7,7 @@
 // friendly F-card on probe failure. Probe + storage are injected.
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadinessResult } from '../src/hooks/useStartupReadiness.js';
 import { ONBOARDED_KEY, StartupGate } from '../src/layout/StartupGate.js';
@@ -117,5 +117,25 @@ describe('StartupGate', () => {
     await waitFor(() => expect(screen.getByTestId('startup-error-card')).toBeTruthy());
     expect(screen.getByTestId('startup-error-card').getAttribute('data-error-id')).toBe('F1');
     expect(screen.queryByTestId('app-child')).toBeNull();
+  });
+
+  it('default probe targets the /api-routed health endpoint, not bare /health (C1)', async () => {
+    // No injected probe → exercises defaultHealthProbe. The probe must hit an
+    // /api-prefixed path (forwarded to the daemon by the Vite proxy); a bare
+    // /health would hit the Vite server and falsely read as reachable.
+    const fetchSpy = vi.fn(async () => ({ ok: true }) as Response);
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      render(
+        <StartupGate storage={memoryStore({ [ONBOARDED_KEY]: 'true' })}>
+          <Child />
+        </StartupGate>,
+      );
+      await waitFor(() => expect(screen.getByTestId('app-child')).toBeTruthy());
+      expect(fetchSpy).toHaveBeenCalledWith('/api/v1/health');
+      expect(fetchSpy).not.toHaveBeenCalledWith('/health');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
