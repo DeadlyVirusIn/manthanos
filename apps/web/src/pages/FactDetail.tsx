@@ -165,7 +165,7 @@ export function FactDetail(): JSX.Element {
       <section data-testid="fact-detail-loading">
         <PageHeader />
         <div style={{ marginTop: '1rem' }}>
-          <TextSkeleton lines={3} ariaLabel="Loading fact" />
+          <TextSkeleton lines={3} ariaLabel="Loading finding" />
         </div>
         <div style={{ marginTop: '1.5rem' }}>
           <TextSkeleton lines={4} ariaLabel="Loading evidence" />
@@ -757,7 +757,7 @@ function ProvenanceSection({ state }: ProvenanceSectionProps): JSX.Element {
           data-testid="fact-provenance-empty"
           style={{ marginTop: '0.5rem', color: '#888', fontStyle: 'italic' }}
         >
-          No recorded evidence for this fact yet.
+          No recorded evidence for this finding yet.
         </p>
       ) : (
         <ul
@@ -870,7 +870,7 @@ function HistorySection({ state }: HistorySectionProps): JSX.Element {
           data-testid="fact-history-empty"
           style={{ marginTop: '0.5rem', color: '#888', fontStyle: 'italic' }}
         >
-          No earlier versions of this fact.
+          No earlier versions of this finding.
         </p>
       ) : (
         <ol

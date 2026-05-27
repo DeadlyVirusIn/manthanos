@@ -377,7 +377,7 @@ describe('ConversationDetail — extracted facts', () => {
     seedFacts(client, makeFactsResponse([makeFact({ id: 'f-link', statement: 'Linked.' })]));
     const html = render(client);
     expect(html).toContain(`href="/projects/${PROJECT_ID}/facts/f-link"`);
-    expect(html).toContain('Open fact');
+    expect(html).toContain('Open finding');
   });
 
   it('renders the facts empty-state when no facts were extracted', () => {

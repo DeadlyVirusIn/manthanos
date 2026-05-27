@@ -839,7 +839,7 @@ function FactRow({ fact, projectId }: FactRowProps): JSX.Element {
           data-testid="conversation-fact-link"
           style={{ fontSize: '0.875rem', color: '#0066cc' }}
         >
-          Open fact
+          Open finding
         </Link>
       </div>
     </article>

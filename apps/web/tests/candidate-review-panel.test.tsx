@@ -188,7 +188,7 @@ describe('CandidateReviewPanel — accessibility (3B.6.5)', () => {
     });
     const approve = screen.getByTestId('candidate-approve-button');
     const dismiss = screen.getByTestId('candidate-dismiss-button');
-    expect(approve.getAttribute('aria-label')).toContain('Add this fact');
+    expect(approve.getAttribute('aria-label')).toContain('Keep');
     expect(approve.getAttribute('aria-label')).toContain('Founders abandon discovery tools');
     expect(dismiss.getAttribute('aria-label')).toContain('Dismiss suggestion');
     expect(dismiss.getAttribute('aria-label')).toContain('Founders abandon discovery tools');
@@ -228,7 +228,7 @@ describe('CandidateReviewPanel — duplicate warnings (advisory)', () => {
 });
 
 describe('CandidateReviewPanel — approve + reject', () => {
-  it('calls onApprove with the candidate when "Add this fact" is clicked', () => {
+  it('calls onApprove with the candidate when "Keep" is clicked', () => {
     const candidate = makeCandidate();
     const onApprove = vi.fn();
     render(

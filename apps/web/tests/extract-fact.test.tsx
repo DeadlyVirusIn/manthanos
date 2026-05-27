@@ -495,7 +495,7 @@ describe('Extract Fact — error envelopes', () => {
     );
     const link = screen.getByTestId('mutation-error-link') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe(`/projects/${PROJECT_ID}/facts/fact-existing-123`);
-    expect(link.textContent).toContain('Open the existing fact');
+    expect(link.textContent).toContain('Open the existing finding');
     expect(screen.getByTestId('mutation-dialog')).toBeTruthy();
   });
 

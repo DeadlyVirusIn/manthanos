@@ -110,13 +110,13 @@ describe('MutationErrorBanner — link slot', () => {
           if (body.error !== 'duplicate_fact') return null;
           const existing = (body as { existing_fact_id?: unknown }).existing_fact_id;
           if (typeof existing !== 'string') return null;
-          return { href: `/projects/proj-1/facts/${existing}`, label: 'Open the existing fact' };
+          return { href: `/projects/proj-1/facts/${existing}`, label: 'Open the existing finding' };
         }}
       />,
     );
     expect(html).toContain('data-testid="mutation-error-link"');
     expect(html).toContain('href="/projects/proj-1/facts/f-existing-id"');
-    expect(html).toContain('Open the existing fact');
+    expect(html).toContain('Open the existing finding');
   });
 
   it('omits the link when linkBuilder returns null', () => {

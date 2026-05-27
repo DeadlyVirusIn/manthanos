@@ -161,7 +161,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
       if (typeof existing !== 'string' || existing.length === 0) return null;
       return {
         href: `/projects/${workspaceId}/facts/${existing}`,
-        label: 'Open the existing fact',
+        label: 'Open the existing finding',
       };
     },
     [workspaceId],
