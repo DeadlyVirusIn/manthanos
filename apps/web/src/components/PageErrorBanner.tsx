@@ -13,12 +13,21 @@
 //
 // Uses role="alert" so screen readers announce the error immediately
 // on appearance.
+//
+// The raw `error` is never rendered: its message can carry internal
+// paths, ports, status lines, or IDs that mean nothing to a novice and
+// leak implementation detail. We show fixed, friendly recovery copy and
+// keep the raw error for the console only (dev diagnostics).
+
+import { useEffect } from 'react';
 
 export interface PageErrorBannerProps {
   readonly error: Error;
   readonly onRetry?: () => void;
   // Default headline: "Something went wrong".
   readonly headline?: string;
+  // Friendly body copy. Never pass raw error text here.
+  readonly message?: string;
   // Default retry button label: "Try again".
   readonly retryLabel?: string;
 }
@@ -27,8 +36,16 @@ export function PageErrorBanner({
   error,
   onRetry,
   headline = 'Something went wrong',
+  message = 'Try again. If it keeps happening, save a feedback report.',
   retryLabel = 'Try again',
 }: PageErrorBannerProps): JSX.Element {
+  // Keep the raw error for developers without ever putting it on screen.
+  useEffect(() => {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[PageErrorBanner]', error);
+    }
+  }, [error]);
+
   return (
     <div
       role="alert"
@@ -46,7 +63,7 @@ export function PageErrorBanner({
     >
       <strong>{headline}</strong>
       <p data-testid="page-error-banner-message" style={{ margin: 0 }}>
-        {error.message}
+        {message}
       </p>
       {onRetry ? (
         <button

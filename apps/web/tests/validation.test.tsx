@@ -287,7 +287,8 @@ describe('Validation — full-error state', () => {
     expect(html).toContain('data-testid="validation-error"');
     expect(html).toContain('data-testid="page-error-banner"');
     expect(html).toContain('Could not load the double-check list');
-    expect(html).toContain('daemon-unreachable');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('daemon-unreachable');
   });
 
   it('keeps the page header visible in the full-error state', () => {
@@ -318,7 +319,8 @@ describe('Validation — partial-error state', () => {
     expect(html).toContain('data-testid="validation-populated"');
     expect(html).toContain('data-testid="validation-pending-error"');
     expect(html).toContain('Could not load conversations awaiting review');
-    expect(html).toContain('pending-down');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('pending-down');
   });
 
   it('renders the page when only the activity query fails', () => {

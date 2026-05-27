@@ -131,7 +131,8 @@ describe('WorkspaceHome — error state', () => {
     expect(html).toContain('data-testid="workspace-home-error"');
     expect(html).toContain('data-testid="page-error-banner"');
     expect(html).toContain('Could not load this project');
-    expect(html).toContain('daemon-unreachable');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('daemon-unreachable');
     expect(html).toContain('Try again');
   });
 

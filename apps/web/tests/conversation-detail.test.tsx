@@ -193,7 +193,8 @@ describe('ConversationDetail — error state', () => {
     expect(html).toContain('data-testid="conversation-detail-error"');
     expect(html).toContain('data-testid="page-error-banner"');
     expect(html).toContain('Could not load this conversation');
-    expect(html).toContain('daemon-unreachable');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('daemon-unreachable');
   });
 
   it('does not expose the raw conversation id in the error state (C3)', () => {
@@ -402,7 +403,8 @@ describe('ConversationDetail — extracted facts', () => {
     expect(html).toContain('data-testid="conversation-detail-populated"');
     expect(html).toContain('data-testid="conversation-facts-error"');
     expect(html).toContain('Could not load findings from this conversation');
-    expect(html).toContain('facts-down');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('facts-down');
   });
 
   it('renders a loading skeleton in the facts section while facts are pending', () => {

@@ -61,11 +61,16 @@ export interface ErrorFallbackProps {
   readonly onRetry: () => void;
 }
 
-export function ErrorFallback({ error, onRetry }: ErrorFallbackProps): JSX.Element {
+export function ErrorFallback({ onRetry }: ErrorFallbackProps): JSX.Element {
+  // The raw error is logged to the console by componentDidCatch. We never
+  // render error.message here: it can carry stack frames, file paths,
+  // ports, or IDs that confuse a novice and leak internals.
   return (
     <div role="alert" style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
       <h2 style={{ fontSize: '1.25rem', fontWeight: 500 }}>Something went wrong.</h2>
-      <p style={{ color: '#666', marginTop: '0.75rem' }}>{error.message}</p>
+      <p style={{ color: '#666', marginTop: '0.75rem' }}>
+        Try again. If it keeps happening, save a feedback report.
+      </p>
       <button
         type="button"
         onClick={onRetry}

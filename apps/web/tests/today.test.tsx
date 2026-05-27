@@ -173,7 +173,8 @@ describe('Today — all-errored state', () => {
     expect(html).toContain('data-testid="today-error"');
     expect(html).toContain('data-testid="page-error-banner"');
     expect(html).toContain('Could not load Today');
-    expect(html).toContain('daemon-unreachable');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('daemon-unreachable');
   });
 
   it('keeps the Today header visible during the all-errored state', () => {
@@ -201,7 +202,8 @@ describe('Today — partial error (hidden-not-faked rule)', () => {
     expect(html).not.toContain('data-testid="today-error"');
     expect(html).toContain('data-testid="today-timeline-error"');
     expect(html).toContain('Could not load recent activity');
-    expect(html).toContain('audit-down');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('audit-down');
     expect(html).toContain('data-testid="today-count-conversations"');
     expect(html).toContain('data-testid="today-count-facts"');
   });

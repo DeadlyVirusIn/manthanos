@@ -185,7 +185,8 @@ describe('FactDetail — error state', () => {
     expect(html).toContain('data-testid="fact-detail-error"');
     expect(html).toContain('data-testid="page-error-banner"');
     expect(html).toContain('Could not load this finding');
-    expect(html).toContain('daemon-unreachable');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('daemon-unreachable');
   });
 
   it('does not expose the raw finding id in the error state (C3)', () => {
@@ -346,7 +347,8 @@ describe('FactDetail — provenance', () => {
     expect(html).toContain('data-testid="fact-detail-populated"');
     expect(html).toContain('data-testid="fact-provenance-error"');
     expect(html).toContain('Could not load the evidence for this finding');
-    expect(html).toContain('prov-down');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('prov-down');
   });
 });
 
@@ -413,7 +415,8 @@ describe('FactDetail — history', () => {
     expect(html).toContain('data-testid="fact-detail-populated"');
     expect(html).toContain('data-testid="fact-history-error"');
     expect(html).toContain('Could not load the history of this finding');
-    expect(html).toContain('history-down');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    expect(html).not.toContain('history-down');
   });
 });
 

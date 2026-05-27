@@ -19,10 +19,33 @@ describe('PageErrorBanner — default render', () => {
     expect(html).toContain('data-testid="page-error-banner"');
   });
 
-  it('renders the error message verbatim', () => {
+  it('renders friendly recovery copy, never the raw error message', () => {
     const html = renderToString(<PageErrorBanner error={new Error('specific-failure-text')} />);
-    expect(html).toContain('specific-failure-text');
     expect(html).toContain('data-testid="page-error-banner-message"');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
+    // The raw error message must never reach the DOM.
+    expect(html).not.toContain('specific-failure-text');
+  });
+
+  it('does not leak internal paths, ports, stack frames, or IDs', () => {
+    const leaky = new Error(
+      'ECONNREFUSED 127.0.0.1:7717 at /home/kunal/manthanos/apps/api/src/server.ts:42 conv_01HXYZ',
+    );
+    const html = renderToString(<PageErrorBanner error={leaky} />);
+    expect(html).not.toContain('127.0.0.1');
+    expect(html).not.toContain('7717');
+    expect(html).not.toContain('/home/kunal');
+    expect(html).not.toContain('server.ts');
+    expect(html).not.toContain('conv_01HXYZ');
+    expect(html).not.toContain('ECONNREFUSED');
+  });
+
+  it('honours a caller-supplied friendly message', () => {
+    const html = renderToString(
+      <PageErrorBanner error={new Error('boom')} message="We could not load this yet." />,
+    );
+    expect(html).toContain('We could not load this yet.');
+    expect(html).not.toContain('boom');
   });
 
   it('omits the retry button when no onRetry is provided', () => {

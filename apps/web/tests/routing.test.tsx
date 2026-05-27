@@ -20,7 +20,7 @@
 //   - Navigation shell: <AppShell> renders nav links, marks the active
 //     route with aria-current, and renders Today/Validation as
 //     aria-disabled when no projectId is in the URL (J.3 / J.5).
-//   - Error boundary: <ErrorFallback> renders the message and retry;
+//   - Error boundary: <ErrorFallback> renders friendly recovery copy + retry;
 //     <ErrorBoundary.getDerivedStateFromError> sets hasError;
 //     <ErrorBoundary> passes children through when no error.
 //   - Loading fallback: <LoadingFallback> renders an accessible
@@ -238,14 +238,22 @@ describe('Error boundary (M2 C2.1)', () => {
     expect(next.error?.message).toBe('boom');
   });
 
-  it('ErrorFallback renders the error message and a retry control', () => {
+  it('ErrorFallback renders friendly recovery copy and a retry control, never the raw error', () => {
     const html = renderToString(
-      <ErrorFallback error={new Error('test-boom-message')} onRetry={() => undefined} />,
+      <ErrorFallback
+        error={new Error('test-boom-message at /home/kunal/app/server.ts:42 :7717')}
+        onRetry={() => undefined}
+      />,
     );
     expect(html).toContain('Something went wrong');
-    expect(html).toContain('test-boom-message');
+    expect(html).toContain('Try again. If it keeps happening, save a feedback report.');
     expect(html).toContain('Try again');
     expect(html).toContain('role="alert"');
+    // The raw error message and any internal detail must never render.
+    expect(html).not.toContain('test-boom-message');
+    expect(html).not.toContain('/home/kunal');
+    expect(html).not.toContain('server.ts');
+    expect(html).not.toContain('7717');
   });
 });
 
