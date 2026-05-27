@@ -129,6 +129,22 @@ describe('demo seed — golden snapshot', () => {
     expect(contested).toBe(DEMO_GOLDEN.doubleCheckCount);
   });
 
+  it('leaves exactly one conversation un-extracted (pending) for the Suggest walkthrough (C2)', async () => {
+    const { demoWorkspaceId } = await seedDemo(substrate(), workspaceRoot, { now: FIXED_NOW });
+    const sub = substrate();
+    const convs = listConversations(sub.ctx.db, demoWorkspaceId, { limit: 100 }).conversations;
+
+    const pending = convs.filter((c) => c.fact_extraction_status === 'pending');
+    // Exactly one truly un-extracted conversation — the "Suggest findings" target.
+    expect(pending.length).toBe(1);
+    // It is reachable (listed) and usable for Suggest (has quotes to suggest from).
+    expect(pending[0]?.verbatim_quotes.length).toBeGreaterThan(0);
+    // Every other conversation is a fact source and was extracted on seed.
+    expect(convs.filter((c) => c.fact_extraction_status === 'extracted').length).toBe(
+      DEMO_GOLDEN.conversationCount - 1,
+    );
+  });
+
   it('writes a durable demo marker pointing at the seeded workspace', async () => {
     const { demoWorkspaceId } = await seedDemo(substrate(), workspaceRoot, { now: FIXED_NOW });
     const marker = readDemoMarker(workspaceRoot);

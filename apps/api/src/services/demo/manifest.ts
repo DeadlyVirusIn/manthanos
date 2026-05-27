@@ -115,7 +115,9 @@ const CONVERSATIONS: readonly DemoConversation[] = [
     outcome: 'inconclusive',
     audience_fit: 'target',
     occurred_days_ago: 5,
-    // Left un-extracted on load so the tour can say "try Suggest findings here".
+    // Source for several seeded findings (F1/F2/F3/F6), so it IS extracted on
+    // load. The "try Suggest findings here" tour target is demo-conv-5, which
+    // is intentionally left un-extracted (see below).
     summary: 'Studio owner; mixed signal. Cares about QuickBooks sync and pricing clarity.',
     quotes: [
       { key: 'q4', text: 'We probably waste five or six hours a month on payment follow-ups.' },
@@ -153,6 +155,24 @@ const CONVERSATIONS: readonly DemoConversation[] = [
     quotes: [
       { key: 'q12', text: 'Most of my clients are late because they simply forget.' },
       { key: 'q13', text: 'A friendly reminder a few days early fixes ninety percent of it.' },
+    ],
+  },
+  {
+    // C4.4 C2 fix: this conversation is intentionally NOT a source for any
+    // seeded fact, so it stays un-extracted (pending) after the seed. It is
+    // the conversation the walkthrough points at for "Suggest findings" — a
+    // fresh conversation with nothing kept yet, on topics distinct from the
+    // six seeded findings so suggestions read as new drafts, not duplicates.
+    key: 'demo-conv-5',
+    person_name: 'Sam Rivera',
+    conversation_type: 'discovery',
+    outcome: 'follow_up',
+    audience_fit: 'target',
+    occurred_days_ago: 1,
+    summary: 'Agency lead; wants a quick weekly summary and reminders on mobile.',
+    quotes: [
+      { key: 'q14', text: 'I would love a simple weekly summary of who still owes me money.' },
+      { key: 'q15', text: 'Most of my chasing happens on my phone between meetings.' },
     ],
   },
 ];
@@ -248,8 +268,10 @@ export interface DemoGoldenSummary {
 }
 
 export const DEMO_GOLDEN: DemoGoldenSummary = {
-  conversationCount: 4,
-  quoteCount: 13,
+  // 5 conversations: 4 are fact sources (extracted) + demo-conv-5 left pending
+  // for the "Suggest findings" walkthrough (C4.4 C2 fix).
+  conversationCount: 5,
+  quoteCount: 15,
   factCount: 6,
   tierCounts: { 'T+1': 1, T0: 2, 'T-1': 2, 'T-2': 1 },
   doubleCheckCount: 1,
