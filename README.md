@@ -1,487 +1,248 @@
 <div align="center">
 
 <img src="./docs/assets/brand/lockup/manthanos-lockup.png"
-     alt="ManthanOS — continuity infrastructure for multi-model AI engineering"
+     alt="ManthanOS"
      width="560" />
 
-A local CLI for solo engineers maintaining project continuity across
-multiple AI tools — Claude, ChatGPT, Codex, Gemini. It records what each
-AI session produces, lets you promote the project facts and operational
-lessons worth keeping, and presents that record to whichever AI tool
-you open next.
+# Turn customer conversations into findings you can trust.
+
+A local-first app for founders and researchers: capture what people told you,
+let ManthanOS suggest the findings inside each conversation, keep the ones that
+matter, and see — at a glance — how well-backed each finding actually is.
+
+It's built for customer interviews, discovery calls, usability sessions, and
+other research conversations.
 
 </div>
 
 ---
 
-## Status
+## What is ManthanOS?
 
-Research-grade prototype, written by a solo engineer.
-Local-first, audit-first, single-user. Currently honest about what it has and has not proven.
+ManthanOS helps you make sense of customer and user conversations. You record
+what was said, and the app pulls out candidate **findings** — short, reviewable
+statements like *"Pricing is the main blocker for small teams."* You decide
+which ones to keep. Each finding you keep carries a **trust** level so you can
+tell a well-supported insight from a shaky guess at a glance.
 
-- **Code:** Phase 1 substrate + Phase 2 promotion UX are in tree and tested.
-- **Phase 3 measurement:** the CpT harness ships; live cross-model results have not been run yet.
-- **License:** BSL 1.1, converts to Apache 2.0 after four years.
+It runs entirely on your own computer. Nothing is uploaded, and there is no
+account to create.
 
-**Operating principles** (what ManthanOS is, said in three lines):
+## What you can do today
 
-- The **human is the operator.** No autonomous execution, no
-  background mutation, no agent identity.
-- The **AI tools are interchangeable collaborators.** Claude, ChatGPT,
-  Codex, Gemini — none of them owns the project's state.
-- The **repository is the unit of continuity.** Project facts and
-  decisions persist with the repo; they do not follow any specific
-  tool, model, or assistant.
+- **Capture a conversation** — add who you talked to, what kind of conversation
+  it was, and the notes or quotes.
+- **Get suggested findings** — open a conversation and use **Suggest findings**;
+  the app scans what was said and proposes findings for you to review.
+- **Keep or dismiss** — accept the suggestions that hold up, skip the ones that
+  don't. You are always in control of what gets kept.
+- **See how well-backed each finding is** — every kept finding shows a **Trust**
+  level (Well-supported → Noted → Shaky → Doubted).
+- **Flag things to double-check** — mark a finding you're unsure about so you
+  remember to revisit it.
+- **Send feedback safely** — export a small, redacted report to share with the
+  team, with no private conversation text in it.
 
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for how the
-substrate is built and [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md)
-for the measurement design. Full public-docs index at
-[`docs/NOTES.md`](./docs/NOTES.md).
+> ManthanOS is **an early-stage app under active development.** It does what the
+> list above describes today; it does not promise more. Broader testing is
+> ongoing, so you may hit rough edges — the **Send feedback** button exists
+> precisely so you can tell us about them.
 
----
+## Screenshots / walkthrough
 
-## 1. The workflow this exists for
+_Screenshots are not captured yet. The placeholders below mark what each image
+will show; see the [Suggested screenshots](#suggested-screenshots) list._
 
-Most engineers using AI seriously on a real codebase don't stay in one tool.
-A representative day:
+| Screen | What it shows |
+|--------|---------------|
+| ![Today](docs/assets/screens/today.png) | **Today** — your starting screen: recent conversations and findings. |
+| ![Conversation + Suggest](docs/assets/screens/suggest.png) | A **conversation** with the **Suggest findings** panel open. |
+| ![Finding + Trust](docs/assets/screens/finding.png) | A **finding** with its **Trust** meter and the plain-language explainer. |
+| ![Send feedback](docs/assets/screens/feedback.png) | The **Send feedback** dialog and what the exported report contains. |
 
-- ChatGPT for early framing.
-- Claude (CLI or API) for implementation.
-- Codex CLI for second-opinion review.
-- Gemini CLI for adversarial critique.
-- Four to eight browser tabs of half-finished sessions.
-- A scratchpad of decisions none of those sessions know about.
+## Requirements
 
-The structural cost of this is small per action and large in aggregate:
+- **Operating system:** macOS, Windows, or Linux.
+- **[Node.js](https://nodejs.org) 22.13 or newer.**
+- **[pnpm](https://pnpm.io) 11.x** (`npm install -g pnpm`).
+- **git**, to download the project.
+- A modern web browser (Chrome, Edge, Firefox, or Safari).
 
-- **Re-priming.** Every new session begins with a paragraph of
-  "here is the project, here is what we decided, here is what is current."
-  Each retelling is slightly different.
-- **Contradiction.** Tool B confidently states something tool A
-  explicitly rejected last week; the human is the only arbiter,
-  and is doing it from memory.
-- **Lossy handoff.** Taking a plan from one tool to another involves
-  re-pasting context; the second tool reasons against whatever the
-  human remembered to paste.
-- **Decision archaeology.** "Did we decide X, or did we just consider X?"
-  is answerable only by re-reading chat logs.
+Everything runs locally. You do **not** need an API key, an account, or an
+internet connection to use the app.
 
-No model upgrade addresses this. A longer context window inside one tool
-does not address it, because the work moves between tools. This is the
-pain ManthanOS exists to handle.
-
----
-
-## 2. What ManthanOS is today
-
-A command-line tool that runs locally and exits. There is no daemon,
-no service, and no cloud.
-
-When you run `manthan init` in a git repository, it creates a `.manthan/`
-directory with three things:
-
-- A SQLite memory file (facts, decisions, open issues).
-- An append-only JSONL audit log.
-- A blob store keyed by SHA-256.
-
-Together these form the workspace's **continuity record**. The
-`manthan brain *` CLI surface operates on the curated portion of
-that record (the trusted-facts layer the human promotes and
-reviews); the audit chain captures every effectful change so the
-record is recoverable end-to-end.
-
-The day-to-day workflow:
+## Install
 
 ```bash
-cd ~/my-project
-manthan init
-
-# use whichever AI tool fits the conversation you're having
-
-# when you want a structured plan, route it through manthan:
-manthan plan "Add OAuth login with Google"
-
-# review what the run captured into quarantine:
-manthan brain review     # promote what's worth keeping, demote what's wrong
-
-# next plan, same or different provider, sees the promoted facts:
-manthan plan "Implement OAuth refresh" --show-trusted
-```
-
-Supported providers in the tree today:
-
-| Adapter | How it's invoked |
-|---|---|
-| Claude (API) | `manthan plan --adapter=api` (needs `ANTHROPIC_API_KEY`) |
-| Claude (CLI subscription) | `manthan plan` (default) |
-| Codex CLI | `manthan plan --adapter=codex-cli` |
-| Gemini CLI | `manthan plan --adapter=gemini-cli` |
-| OpenAI | used by the measurement harness; not currently exposed as a `--adapter=` flag |
-
-Capability surface:
-
-- **Plan workflow.** Sends a deterministic context bundle to the chosen
-  adapter, parses a structured plan, and extracts candidate facts into
-  T0 (quarantine).
-- **Trust ladder.** Six tiers, T-2 through T+3. Every promotion and
-  demotion is human-gated and recorded with provenance.
-- **Promotion UX.** `manthan brain review`, `manthan brain trust-log`,
-  `manthan brain undo-correction <seq>` (7-day undo window).
-- **Dedup.** Conservative Jaccard similarity, same-area only,
-  human-confirmed merge.
-- **Decay / aging.** With the `last_administratively_touched`
-  migration that fixed the prior semantic bug.
-- **Queue health.** `manthan brain queue-health` reports backlog,
-  aging buckets, drain rate, and a degraded/stressed/healthy verdict.
-- **Replay (integrity verification of recorded artifacts).**
-  `manthan replay <runId>` reports one of four statuses:
-  `verified` / `legacy` / `unverifiable` / `corrupted`. It
-  recomputes the audit-chain hashes, each audit event's payload
-  blob hash, the canonical-response hash inside the `agent.invoke`
-  blob, and the bundle hash from stored per-layer metadata in
-  `context_snapshots`. Corruption always wins (any explicit hash
-  mismatch resolves the overall status to `corrupted`, even if
-  other checks pass). What replay does **not** do: re-invoke the
-  model, claim the model would produce the same response today,
-  or check whether the underlying source / git state is unchanged
-  since the run. No network calls.
-- **CpT measurement harness.** `manthan experiments cpt-probe` runs the
-  same brief across multiple workspaces and records objective
-  shared-vocabulary metrics. Phase 3 only; produces signal, not scores.
-- **Long-horizon simulator.** Synthetic stress-test that ages, decays,
-  and triages months of activity in seconds.
-- **Cross-platform.** Windows, macOS, Linux are equal targets;
-  a single platform abstraction layer with genuine per-OS code.
-- **Audit chain + startup recovery.** Hash-chained JSONL, SHA-256.
-  On startup, recovery resolves to `clean` / `partial` /
-  `corrupted` / `unrecoverable` and refuses mutating operations on
-  the latter two. Detects chain hash mismatch, interior sequence
-  gaps, genesis-anchor violation, JSONL parity mismatch with
-  SQLite, and missing blob files; preserves findings to
-  `.manthan/audit-corruption.log` outside the chain. Not tamper-
-  proof against an attacker with workspace write access.
-
----
-
-## 3. Validated vs unvalidated
-
-Treating evidence as load-bearing is one of the project's working
-disciplines. The current evidence boundary, as of the most recent
-checkpoint:
-
-### Validated
-
-- **The substrate runs and persists state.** Workspaces survive crashes,
-  the audit chain reconstructs across restarts, and `manthan replay`
-  mechanically verifies the integrity of recorded artifacts (chain,
-  blob hashes, canonical-response hash, bundle hash).
-- **Trust transitions are deterministic and human-gated.** Promote,
-  demote, undo, and dedup-merge are all chain entries with full
-  provenance. The undo-correction path has an `INTERVENING_CORRECTION`
-  safety check.
-- **Dedup is conservative.** Jaccard threshold tuned so it surfaces
-  contradictions without auto-merging real duplicates that share
-  vocabulary by coincidence.
-- **Long-horizon synthetic pressure does not break the substrate.**
-  The simulator confirms the trusted layer self-bounds under months
-  of synthetic introductions, corrections, and decay.
-- **Cross-platform PAL is genuine.** Per-OS code paths exist for
-  filesystem, locking, paths, and signals — not a thin wrapper.
-- **Trusted facts shape subsequent plan output.** In single-operator
-  measurements, promoted facts cause measurable steering in the
-  model's plan — including when the trusted fact contradicts
-  existing workspace evidence. Cross-adapter validation pending.
-
-### Not yet validated (do not claim)
-
-- **Whether a healthy brain improves a second model's output.**
-  The CpT harness exists; the live cross-model run (E6.1) has not
-  been executed. Until it has, the project does **not** claim that
-  populating the brain with one tool makes the next tool's output
-  better. See [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) and
-  [`docs/TRUTH_CHECKPOINT.md` §6.4](./docs/TRUTH_CHECKPOINT.md#64-measurement).
-- **Whether real users will use the promotion queue at the cadence
-  the design assumes.** The promotion UX has not been used by
-  anyone other than the author.
-- **Cost dynamics across multiple providers in a single workflow.**
-  Single-provider cost is visible per run; multi-provider cost
-  patterns have not been studied.
-- **Whether trusted continuity carries operational rules and
-  project-specific workflow disciplines as reliably as it carries
-  factual choices.** The substrate's mechanism is the same;
-  experimental evidence is in flight.
-
-### Honest sentence
-
-> What ManthanOS records and presents is real.
-> What that does to the next model's output is currently being measured.
-
-If any sentence in this README or elsewhere conflicts with that one,
-the conflicting sentence is overclaiming.
-
----
-
-## 4. What is intentionally deferred
-
-These are not on the roadmap. They were considered and explicitly
-deferred. Reintroducing any of them requires a checkpoint memo with
-a reason.
-
-| Deferred | Reason |
-|---|---|
-| **Autonomous agents** | No demonstrated benefit over human-gated workflows in this codebase. |
-| **Swarms / multi-agent panels** | Coordination cost dominates result quality at the scale a solo engineer operates. |
-| **"AI Operating System" framing** | Vague, hype-coded, indefensible under technical review. |
-| **Full orchestration runtime** | We have one workflow (`plan`). Generalizing before the first one has users is premature. |
-| **Hidden automation** | No auto-promote, no auto-dedup, no auto-classify. Every trust-ladder transition is human-gated by design. |
-| **Real-time daemons** | The CLI runs and exits. Adding a long-lived process is its own product. |
-| **Cloud sync / SaaS / multi-tenant** | Local-first is a deliberate constraint. Multi-tenant changes the threat model. |
-| **MCP server packaging** | Possible later. Not today. |
-| **A UI** | Terminal only. UI work is on the long-term map below, but the README does not pretend it exists. |
-| **Self-improving / learned shaping** | Shaping rules are deterministic and explainable. No semantic retrieval, no learned ranking. |
-
-If you arrived here expecting any of those, you are in the wrong place —
-deliberately. ManthanOS exists because the workflow pain in §1 is
-addressable without any of them.
-
----
-
-## 5. Long-term direction
-
-This is direction, not promise. Every item listed here is *plausible
-to grow into without breaking what's already correct*. None of it is
-implemented. None of it is committed to a date.
-
-### A shared continuity layer that survives between tools
-
-Today the workspace already survives across `manthan plan` invocations
-regardless of adapter — facts you promote while using Claude appear in
-the next bundle even if the next bundle is sent to Codex or Gemini.
-The aspirational direction here is **making that explicit and tested**:
-once E6.1 produces a measured number, the README can say more than
-"the facts are presented to the next model." Until then, the claim
-stops at "presented."
-
-### Cross-model handoff as a deliberate workflow step
-
-Strategy in tool A → implementation plan in tool B → adversarial review
-in tool C, with the workspace as the connective tissue. The substrate
-supports this today (every adapter writes into the same audit chain
-and reads from the same trusted-facts layer). What's missing is
-**workflow ergonomics**: better stitching commands, better cross-run
-diffing, better visualization of which session decided what.
-This is design work, not research.
-
-### Review workflows alongside plan workflows
-
-The current `manthan plan` is one workflow. A `manthan review` workflow —
-take a unit of work, hand it to a different adapter than the one that
-produced it, capture critique into the same trust ladder — is a natural
-next workflow, not a new product. Same trust ladder, same audit chain,
-same human-gated promotion. The orchestrator package is structured to
-support more workflows; only `plan` is wired today.
-
-### Continuity across sessions and across tools — with the same primitives
-
-The same audit chain, trust ladder, and dedup that handle within-tool
-session-to-session continuity should handle tool-to-tool continuity.
-The fact that this is already true at the code level is the reason
-the README can describe a multi-tool workflow honestly; the fact that
-it has not been *measured* end-to-end is the reason the README does
-not claim it makes any specific tool's output better.
-
-### Human-guided collaboration loops
-
-Two or more humans working on one workspace is a known case the design
-does not preclude. `.manthan/` is a directory; `git` already knows how
-to synchronize directories. The conflict-resolution semantics for
-trust-event interleaving across collaborators are not designed yet —
-they are deferrable until a real two-person workflow needs them.
-
-### What the long-term direction is *not*
-
-- Not autonomous code generation.
-- Not a multi-agent debate engine that picks the winner.
-- Not a continuously running service.
-- Not a hosted product.
-- Not a model.
-- Not a replacement for any AI tool you currently use.
-- Not the "operating system of AI engineering." If that phrase shows
-  up in any README revision, it should be reverted.
-
----
-
-## 6. Why local-first and trust-gated matter
-
-Both are constraints. Constraints are what keep a small tool useful.
-
-**Local-first.** The workspace lives in `.manthan/` inside your repo.
-A SQLite file, a JSONL audit log, a blob directory. No network calls
-to ManthanOS infrastructure exist — because no ManthanOS infrastructure
-exists. The only outbound network is the one your chosen adapter makes
-to its provider when you run a plan. Consequences:
-
-- You can read your own state with `sqlite3` or `cat`.
-- You can `rm -rf .manthan` and start over with no obligation.
-- `.manthan/` is local-only by default — `manthan init` writes a
-  `.manthan/.gitignore` that excludes the workspace state from your
-  repo. If you want to version it (rare; useful for shared brains),
-  remove or edit that file and add `.manthan/` to your project
-  tracking explicitly.
-- Your project's decisions don't depend on this project being maintained.
-- There is no account, no login, no "cloud sync paused" failure mode.
-
-**Trust-gated.** No fact promotes itself. Every per-event transition
-records an explicit `decision` field: `human-approved` for transitions
-a human reviewed (promote, demote, undo, interactive dedup-merge), and
-`auto-approve` for transitions an algorithm decided (decay sweeps,
-T0 quarantine from plan extraction, system-bootstrap charter facts).
-Decay can demote and archive facts, but it never *promotes*; new trust
-only enters the system through a human-approved event. Consequences:
-
-- A wrong fact in T0 cannot poison future prompts.
-- A wrong promotion is undoable for 7 days with `manthan brain undo-correction`.
-- The audit log can answer "why does the model think X about this project?"
-  in a way that points at a specific human-approved event with a `seq`.
-- The blast radius of a bad AI suggestion is bounded by the trust
-  ladder — quarantined facts cannot leave T0 without you.
-
-Without those two constraints, this project would either be a
-hosted product with a different threat model, or an autonomous agent
-with a different blast radius. With them, it is small enough to
-read end-to-end and audit end-to-end.
-
----
-
-## 7. Quickstart
-
-### Prerequisites
-
-```bash
-node --version    # need v22.13+ (pnpm 11 requirement)
-pnpm --version    # if missing: `npm install -g pnpm`
-claude --version  # Claude Code CLI: https://claude.com/code
-git --version
-```
-
-### Install
-
-The CLI is not yet published to the npm registry. Two install paths
-are supported today.
-
-**A. From a local bundled tarball** (no source build on the user's
-machine — fastest path for testers).
-
-```bash
-git clone https://github.com/DeadlyVirusIn/manthanos
+git clone https://github.com/DeadlyVirusIn/manthanos.git
 cd manthanos
 pnpm install
-pnpm --filter @manthanos/cli pack:bundled    # produces apps/cli/manthanos-cli-X.Y.Z.tgz
-npm install -g apps/cli/manthanos-cli-0.0.0.tgz
-which manthan   # should resolve to your global npm bin dir
 ```
 
-The bundled tarball inlines every workspace package; only
-`better-sqlite3`, `@anthropic-ai/sdk`, `openai`, `commander`, and
-`env-paths` are fetched from npm at install time.
-`better-sqlite3` builds its native binding on first install; a C++
-toolchain is required (xcode-tools on macOS, build-essential on
-Debian/Ubuntu, MSVC build tools on Windows).
+That installs everything the app needs. The next section starts it.
 
-**B. From source** (contributor path).
+## Start the app
+
+From the project folder, run:
 
 ```bash
-git clone https://github.com/DeadlyVirusIn/manthanos
-cd manthanos
-pnpm install
-pnpm build
-cd apps/cli
-npm link
-which manthan
+pnpm cli:dev start
 ```
 
-### Sanity check the install
+This is the `manthan start` launcher. It will:
 
-```bash
-manthan doctor    # reports environment + adapter availability without running an LLM call
-```
+1. start the local engine (the part that stores your data),
+2. set up the **Demo — Customer discovery** project on first run,
+3. start the web app, and
+4. open it in your browser at **http://127.0.0.1:7374**.
 
-If `manthan doctor` reports clean, the install is good. If it flags
-missing adapters or PATH issues, fix those before the loop below.
+You'll see a friendly *"Starting ManthanOS…"* message while it gets ready. When
+the browser opens, you're all set. (Under the hood the engine listens on port
+`7373` and the web app on `7374`; you don't need to think about either.)
 
-### 60-second loop
+> First startup may take 10–20 seconds while the local engine and web app come
+> online.
 
-> `manthan init` must run inside a git repository. If `~/my-project`
-> isn't one yet, run `git init` there first.
+To stop the app, return to the terminal and press **Ctrl + C**.
 
-```bash
-cd ~/my-project
-manthan init
-manthan plan "Add OAuth login with Google"   # ~$0.10 if --adapter=api; covered by your Claude Code subscription otherwise
-manthan brain review                          # promote facts you want to keep
-manthan plan "Implement OAuth refresh" --show-trusted
-```
+## First 5-minute walkthrough
 
-Inside `manthan brain review`: `p N M …` promotes facts, `d N` demotes,
-`s N` skips, `q` commits and exits, `?` shows full help.
+The first launch drops you into a ready-made **Demo — Customer discovery**
+project so you can try the whole loop without entering any of your own data.
 
-Plan → review → next plan uses what you promoted.
+1. **Land on Today.** After the welcome line, you arrive in the demo project.
+2. **Open a conversation.** Pick one from the list to read what was said.
+3. **Suggest findings.** One conversation in the demo is still waiting for
+   findings. Open it and choose **Suggest findings** — the app proposes a few.
+4. **Keep one.** Review a suggestion and **Keep** it if it holds up. It becomes
+   a finding in the project.
+5. **Look at its Trust.** Open the finding and read its **Trust** meter and the
+   one-line explainer — that's how you'll judge every finding later.
+6. **Flag something to double-check.** If a finding seems uncertain, mark it
+   **to double-check** so it's easy to revisit.
 
-`--adapter api`, `--adapter codex-cli`, and `--adapter gemini-cli`
-are supported alternatives. See `manthan plan --help`.
+That's the core loop: **capture → suggest → keep → trust → double-check.**
 
-### Demo
+> Want to start over? While the app is running, you can reset the demo to its
+> original state with `pnpm cli:dev reset-demo`.
 
-[![manthan demo](https://asciinema.org/a/Dj71EeNrZWlI6SUQ.svg)](https://asciinema.org/a/Dj71EeNrZWlI6SUQ?autoplay=1)
+## Understanding the interface
 
-90 seconds. Two `manthan plan` calls on the same project. The second
-one continues the first one's framework decisions instead of inventing
-new ones.
+Four words do most of the work in ManthanOS:
 
-Note: this demo uses a single adapter. A multi-tool demo will appear
-once the cross-tool benefit has been measured rather than asserted.
+- **Findings** — short statements pulled from your conversations (for example,
+  *"Onboarding takes too long for new users."*). A finding is something you've
+  chosen to keep, not raw notes.
+
+- **Trust** — how well-backed a finding is, shown as a meter (more dots = more
+  evidence). There are **four levels**:
+
+  | Level | Meaning |
+  |-------|---------|
+  | **Well-supported** | Several sources back this up. |
+  | **Noted** | Recorded, with limited backing so far. |
+  | **Shaky** | Thin or mixed evidence. |
+  | **Doubted** | Contradicted by what you heard. |
+
+  > *"How well-backed this finding is. More dots = more evidence.
+  > 'Well-supported' has several sources; 'Doubted' is contradicted by what you
+  > heard."*
+
+- **Confidence** — a separate nudge shown on **suggestions** (before you keep
+  them) about how clearly something reads as a finding. It's a prompt to review,
+  not a verdict, and it's deliberately different from Trust:
+  **Strong signal**, **Looks reasonable**, or **Needs your eyes**.
+
+  > *"How clearly this reads as a finding — a nudge to review, not a verdict.
+  > 'Needs your eyes' means check it; 'Strong signal' means it looks solid."*
+
+- **To double-check** — a flag you put on a finding you want to revisit. It
+  doesn't change anything; it just reminds you (and your team) to take a second
+  look.
+
+**Trust vs Confidence, in one line:** *Trust* tells you how well-backed a finding
+already is; *Confidence* only appears on suggestions and tells you how worth
+reviewing a candidate looks.
+
+## Privacy & local-first behavior
+
+- **Everything stays on your machine.** Your conversations and findings are
+  stored locally. There is no cloud sync, no account, and nothing is uploaded.
+- **Works offline.** After installation, the core app works locally without a
+  cloud connection.
+- **Send feedback is safe to share.** When you export a feedback report, it
+  contains only a small, redacted summary — app version, your browser/OS, the
+  screen pattern you were on, and any note you write. It **excludes** your raw
+  conversation text, quotes, names, file paths, ports, and internal IDs. You can
+  read the file before sending it.
+
+## Troubleshooting
+
+| Symptom | What to do |
+|---------|------------|
+| **"Starting…" never finishes / the app won't come up** | Give it a few seconds, then stop with **Ctrl + C** and run `pnpm cli:dev start` again. The launcher waits for the engine and web app and reports if either didn't start in time. |
+| **Browser didn't open** | Open **http://127.0.0.1:7374** yourself. |
+| **"Something went wrong" banner** | Choose **Try again**. If it keeps happening, use **Send feedback** to save a report. |
+| **Port already in use (7373 or 7374)** | Another copy may already be running — close it, or stop any process using those ports, then start again. |
+| **The demo project is missing** | Restart the app; the demo is set up automatically on first run. While running, you can also run `pnpm cli:dev seed-demo`. |
+| **"Suggest findings" isn't offered on a conversation** | That conversation already has findings (or was marked not useful). Open the one that's still pending, or capture a new conversation. |
+
+If something still isn't right, the **Send feedback** button produces a safe,
+redacted report you can share — that's the fastest way to get help during
+testing.
+
+## FAQ
+
+**Is my data sent anywhere?** No. ManthanOS is local-first — your data stays on
+your computer, and there's no cloud sync or account.
+
+**Do I need an API key or to pay for anything?** No. The app runs entirely
+locally with no external services.
+
+**Is there an AI doing things on its own?** No. ManthanOS never acts on its own.
+**Suggest findings** proposes candidates from the text you captured; *you* decide
+what to keep, and nothing changes without your action.
+
+**Can I use my own conversations?** Yes. The demo project is just a starting
+point — you can capture your own conversations and work the same loop.
+
+**Where is my data stored?** In local files on your machine, created the first
+time you start the app.
+
+**What does "Send feedback" share?** Only a small redacted report (see
+[Privacy & local-first behavior](#privacy--local-first-behavior)) — never your
+conversation text.
+
+## Advanced & developer docs
+
+Deeper technical material lives outside this README:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the engine, storage, and
+  web app fit together.
+- [`docs/`](docs/) — trust operations, safety model, and other deep dives.
+- [`apps/api/README.md`](apps/api/README.md) / [`apps/web/README.md`](apps/web/README.md)
+  — per-package developer notes (including the two-terminal dev flow).
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — for contributors.
+
+## Non-goals
+
+To set expectations clearly, ManthanOS deliberately does **not**:
+
+- run autonomous agents or take actions on your behalf,
+- sync to the cloud or store your data on our servers,
+- hide an AI making decisions for you — you keep, dismiss, and flag everything,
+- require accounts, logins, or API keys,
+- act as a multi-user / multi-tenant service.
+
+It's a single-user, local-first tool by design.
 
 ---
 
-## Documentation
+<div align="center">
 
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — how the substrate
-  is built.
-- [`docs/SAFETY_MODEL.md`](./docs/SAFETY_MODEL.md) — threat model and
-  honest disclaimers.
-- [`docs/CONTINUITY_THEORY.md`](./docs/CONTINUITY_THEORY.md) — why
-  trust ladder + audit chain is the design.
-- [`docs/TRUTH_CHECKPOINT.md`](./docs/TRUTH_CHECKPOINT.md) — what is
-  validated, invalidated, and unproven.
-- [`docs/PHASE3_CPT.md`](./docs/PHASE3_CPT.md) — the measurement
-  design.
-- [`docs/LICENSING_STRATEGY.md`](./docs/LICENSING_STRATEGY.md) —
-  why BSL.
+<a name="suggested-screenshots"></a>
 
-Full public-docs index at [`docs/NOTES.md`](./docs/NOTES.md).
+ManthanOS is an early-stage app under active development.
+Found a rough edge? Use **Send feedback** in the app.
 
----
-
-## License
-
-© 2026 DeadlyVirusIn. ManthanOS is released under BSL 1.1.
-See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
-
-[**BSL 1.1**](./LICENSE) — Business Source License. Source-available,
-free for personal and internal use; commercial hosting of
-ManthanOS-as-a-service requires permission until the four-year change
-date, at which point each release auto-converts to **Apache 2.0**.
-This is the same stack used by HashiCorp, Sentry, and CockroachDB.
-See [`docs/LICENSING_STRATEGY.md`](./docs/LICENSING_STRATEGY.md) for
-the full reasoning.
-
-"ManthanOS" is a project name; see [`TRADEMARKS.md`](./TRADEMARKS.md).
-
----
-
-<sub>
-If anything in this README reads as overclaim, file an issue with the
-sentence quoted. The project's working discipline is that evidence is
-load-bearing and over-narrowing is correctable; both directions can be
-wrong, and both are worth flagging.
-</sub>
+</div>
