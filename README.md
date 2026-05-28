@@ -111,7 +111,7 @@ The first launch drops you into a ready-made **Demo — Customer discovery**
 project so you can try the whole loop without entering any of your own data.
 
 1. **Land on Today.** After the welcome line, you arrive in the demo project.
-2. **Open a conversation.** Pick one from the list to read what was said.
+2. **Open a conversation.** Open the conversation waiting for findings on Today to read what was said.
 3. **Suggest findings.** One conversation in the demo is still waiting for
    findings. Open it and choose **Suggest findings** — the app proposes a few.
 4. **Keep one.** Review a suggestion and **Keep** it if it holds up. It becomes
