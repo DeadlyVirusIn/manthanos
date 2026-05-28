@@ -216,8 +216,17 @@ function defaultStartDeps(env: NodeJS.ProcessEnv = process.env): StartDeps {
 
   const openUrl = (url: string): void => {
     const { cmd, args } = browserOpenCommand(process.platform, url);
-    const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
-    child.unref();
+    // On headless Linux (WSL/SSH) the opener (xdg-open) may be absent. A
+    // missing binary emits an 'error' event; without a listener Node throws
+    // it as an unhandled exception and crashes the launcher AFTER printing
+    // "You're all set." The URL is already printed, so swallow the failure.
+    try {
+      const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      child.on('error', () => {});
+      child.unref();
+    } catch {
+      // ignore — the user can open the printed URL manually
+    }
   };
 
   return {

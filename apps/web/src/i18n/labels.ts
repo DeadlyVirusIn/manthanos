@@ -233,8 +233,8 @@ const FACT_ACTION_KEYS = [
 export type FactActionKey = (typeof FACT_ACTION_KEYS)[number];
 
 const FACT_ACTION_LABELS: Record<FactActionKey, string> = {
-  promote: 'Raise confidence',
-  demote: 'Lower confidence',
+  promote: 'Raise trust',
+  demote: 'Lower trust',
   revise: 'Update wording',
   // C4.1.1 D9: follow-up → double-check.
   contest: 'Mark to double-check',

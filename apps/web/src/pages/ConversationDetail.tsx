@@ -531,7 +531,7 @@ function MetaSection({ conversation }: MetaSectionProps): JSX.Element {
         />
         <MetaPill
           testId="conversation-extraction-status"
-          label="Extraction"
+          label="Status"
           value={getEnumLabel('fact_extraction_status', conversation.fact_extraction_status)}
         />
       </p>

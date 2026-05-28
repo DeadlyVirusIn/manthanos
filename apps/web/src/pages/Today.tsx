@@ -22,8 +22,10 @@
 //   - Empty state when audit chain length is 0.
 
 import { type Dispatch, type SetStateAction, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import type { AuditEventSummary, CreateConversationInput } from '../api/index.js';
+import { asFactExtractionStatus } from '../api/index.js';
 import {
   CaptureConversationDialog,
   MutationSuccessMessage,
@@ -35,6 +37,7 @@ import {
   useCaptureConversation,
   useConversationTotal,
   useFactTotal,
+  usePendingConversations,
   useRecentAuditEvents,
   useWorkspaceContext,
 } from '../hooks/index.js';
@@ -48,6 +51,10 @@ export function Today(): JSX.Element {
   const auditQuery = useRecentAuditEvents(projectId);
   const conversationQuery = useConversationTotal(projectId);
   const factQuery = useFactTotal(projectId);
+  // Novice path into the core loop: surface the conversation still waiting
+  // for findings so Suggest findings is discoverable from Today.
+  const pendingQuery = usePendingConversations(projectId, asFactExtractionStatus('pending'));
+  const pendingConversationId = pendingQuery.data?.conversations?.[0]?.id;
 
   // M2.5 C25.1: mutation state lives at the page level so the success
   // message survives the dialog closing.
@@ -81,7 +88,11 @@ export function Today(): JSX.Element {
           <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Recent activity</h2>
           <TextSkeleton lines={4} ariaLabel="Loading activity" />
         </div>
-        <QuickActions onCaptureClick={openCapture} />
+        <QuickActions
+          onCaptureClick={openCapture}
+          projectId={projectId}
+          pendingConversationId={pendingConversationId}
+        />
       </section>,
       captureStatus,
       isCaptureOpen,
@@ -199,7 +210,11 @@ export function Today(): JSX.Element {
         </div>
       ) : null}
 
-      <QuickActions onCaptureClick={openCapture} />
+      <QuickActions
+        onCaptureClick={openCapture}
+        projectId={projectId}
+        pendingConversationId={pendingConversationId}
+      />
     </section>,
     captureStatus,
     isCaptureOpen,
@@ -281,14 +296,22 @@ function AuditEventRow({ event }: AuditEventRowProps): JSX.Element {
 
 interface QuickActionsProps {
   readonly onCaptureClick: () => void;
+  readonly projectId: string;
+  readonly pendingConversationId?: string;
 }
 
-function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
+function QuickActions({
+  onCaptureClick,
+  projectId,
+  pendingConversationId,
+}: QuickActionsProps): JSX.Element {
   return (
     <section data-testid="today-quick-actions" style={{ marginTop: '1.5rem' }}>
       <h2 style={{ fontSize: '1rem', fontWeight: 500 }}>Quick actions</h2>
       <p style={{ color: '#999', marginTop: '0.25rem', fontSize: '0.875rem' }}>
-        Capture a conversation now. The other actions are coming soon.
+        {pendingConversationId !== undefined
+          ? 'Capture a conversation, or open the one waiting for findings.'
+          : 'Capture a conversation now. The other actions are coming soon.'}
       </p>
       <div
         style={{
@@ -304,11 +327,20 @@ function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
           description="Record a chat with a person you talked to."
           onClick={onCaptureClick}
         />
-        <DisabledQuickActionCard
-          testId="quick-action-extract-facts"
-          label="Suggest Findings"
-          description="Suggest findings from a conversation transcript."
-        />
+        {pendingConversationId !== undefined ? (
+          <LinkQuickActionCard
+            testId="quick-action-review-conversation"
+            to={`/projects/${projectId}/conversations/${pendingConversationId}`}
+            label="Review conversation"
+            description="Open the conversation that's waiting and suggest findings."
+          />
+        ) : (
+          <DisabledQuickActionCard
+            testId="quick-action-extract-facts"
+            label="Suggest Findings"
+            description="Suggest findings from a conversation transcript."
+          />
+        )}
         <DisabledQuickActionCard
           testId="quick-action-review-evidence"
           label="Review Evidence"
@@ -316,6 +348,40 @@ function QuickActions({ onCaptureClick }: QuickActionsProps): JSX.Element {
         />
       </div>
     </section>
+  );
+}
+
+interface LinkQuickActionCardProps {
+  readonly testId: string;
+  readonly to: string;
+  readonly label: string;
+  readonly description: string;
+}
+
+function LinkQuickActionCard({
+  testId,
+  to,
+  label,
+  description,
+}: LinkQuickActionCardProps): JSX.Element {
+  return (
+    <Link
+      to={to}
+      data-testid={testId}
+      style={{
+        display: 'block',
+        textAlign: 'left',
+        padding: '1rem',
+        border: '1px solid #cfe1ff',
+        borderRadius: '0.5rem',
+        color: '#1a3a6e',
+        textDecoration: 'none',
+        backgroundColor: '#f6faff',
+      }}
+    >
+      <strong style={{ fontSize: '1rem', display: 'block' }}>{label}</strong>
+      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>{description}</p>
+    </Link>
   );
 }
 

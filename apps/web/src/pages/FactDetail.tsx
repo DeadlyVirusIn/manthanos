@@ -365,7 +365,7 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <LifecycleButton
           testId="fact-promote-button"
-          label="Raise confidence"
+          label="Raise trust"
           disabled={promoteDisabled}
           disabledReason={promoteReason}
           isSubmitting={bundle.promote.isSubmitting}
@@ -373,7 +373,7 @@ function FactLifecycleControls({ fact, bundle }: FactLifecycleControlsProps): JS
         />
         <LifecycleButton
           testId="fact-demote-button"
-          label="Lower confidence"
+          label="Lower trust"
           disabled={demoteDisabled}
           disabledReason={demoteReason}
           isSubmitting={bundle.demote.isSubmitting}
@@ -660,7 +660,7 @@ function MetaSection({ fact }: FactSectionProps): JSX.Element {
           backgroundColor: '#f4f4f4',
         }}
       >
-        Topic: <strong>{fact.area}</strong>
+        Topic: <strong>{fact.area.replace(/_/g, ' ')}</strong>
       </span>
       <span
         data-testid="fact-lifecycle"
