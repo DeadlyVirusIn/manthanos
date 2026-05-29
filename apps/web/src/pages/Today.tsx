@@ -311,7 +311,7 @@ function QuickActions({
       <p style={{ color: '#999', marginTop: '0.25rem', fontSize: '0.875rem' }}>
         {pendingConversationId !== undefined
           ? 'Capture a conversation, or open the one waiting for findings.'
-          : 'Capture a conversation now. The other actions are coming soon.'}
+          : 'You’re all caught up — capture a new conversation to find more.'}
       </p>
       <div
         style={{
@@ -335,10 +335,10 @@ function QuickActions({
             description="Open the conversation that's waiting and suggest findings."
           />
         ) : (
-          <DisabledQuickActionCard
-            testId="quick-action-extract-facts"
-            label="Suggest Findings"
-            description="Suggest findings from a conversation transcript."
+          <CompletedQuickActionCard
+            testId="quick-action-suggest-complete"
+            label="All caught up"
+            description="Every conversation has its findings. Capture a new one to suggest more."
           />
         )}
         <DisabledQuickActionCard
@@ -417,6 +417,37 @@ function ActiveQuickActionCard({
       <strong style={{ fontSize: '1rem', display: 'block' }}>{label}</strong>
       <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>{description}</p>
     </button>
+  );
+}
+
+interface CompletedQuickActionCardProps {
+  readonly testId: string;
+  readonly label: string;
+  readonly description: string;
+}
+
+// Friendly completed-state shown in place of the pending-conversation link
+// once every conversation already has its findings. Informational, not a
+// disabled/dead control — the active Capture card remains the next step.
+function CompletedQuickActionCard({
+  testId,
+  label,
+  description,
+}: CompletedQuickActionCardProps): JSX.Element {
+  return (
+    <div
+      data-testid={testId}
+      style={{
+        padding: '1rem',
+        border: '1px solid #cfe9d6',
+        borderRadius: '0.5rem',
+        color: '#2c6b43',
+        backgroundColor: '#f4fbf6',
+      }}
+    >
+      <strong style={{ fontSize: '1rem', display: 'block' }}>{label}</strong>
+      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>{description}</p>
+    </div>
   );
 }
 

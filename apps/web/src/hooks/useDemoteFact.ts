@@ -35,6 +35,6 @@ export function useDemoteFact(
         auditKeys.lists(workspaceId),
       ];
     },
-    successMessage: 'Confidence lowered.',
+    successMessage: 'Trust lowered.',
   });
 }

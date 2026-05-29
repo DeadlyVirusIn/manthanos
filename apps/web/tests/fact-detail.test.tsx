@@ -495,7 +495,7 @@ describe('FactDetail — tombstoned / erased state', () => {
     const html = render(client);
     expect(html).toContain('data-testid="fact-detail-tombstoned"');
     expect(html).toContain('data-testid="fact-tombstone-banner"');
-    expect(html).toContain('This fact was erased.');
+    expect(html).toContain('This finding was erased.');
     expect(html).toContain('data-testid="fact-tombstone-reason"');
     expect(html).toContain('Was a duplicate.');
     expect(html).toContain('data-testid="fact-tombstone-time"');

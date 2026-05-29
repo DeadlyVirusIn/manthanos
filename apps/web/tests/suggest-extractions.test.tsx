@@ -368,7 +368,7 @@ describe('Suggest facts — approval reuses the extract mutation/dialog', () => 
     });
     await waitFor(() =>
       expect(screen.getByTestId('conversation-mutation-success').textContent).toContain(
-        'Fact pulled.',
+        'Finding added.',
       ),
     );
   });

@@ -655,7 +655,7 @@ describe('Validation — audit translation rendering', () => {
     const html = render(client);
     const visible = visibleText(html);
     expect(visible).toContain('Started this project.');
-    expect(visible).toContain('Raised confidence on');
+    expect(visible).toContain('Raised trust on');
     expect(visible).toContain('Marked');
     expect(visible).toContain('to double-check');
     expect(visible).not.toContain('workspace.create');

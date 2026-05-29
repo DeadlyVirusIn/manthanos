@@ -273,9 +273,7 @@ describe('Promote happy path', () => {
     expect(factArg).toBe(FACT_ID);
 
     await waitFor(() =>
-      expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe(
-        'Confidence raised.',
-      ),
+      expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe('Trust raised.'),
     );
 
     expect(invalidate).toHaveBeenCalledWith({
@@ -309,9 +307,7 @@ describe('Demote happy path', () => {
     expect(factArg).toBe(FACT_ID);
 
     await waitFor(() =>
-      expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe(
-        'Confidence lowered.',
-      ),
+      expect(screen.getByTestId('fact-mutation-success-text').textContent).toBe('Trust lowered.'),
     );
 
     expect(invalidate).toHaveBeenCalledWith({

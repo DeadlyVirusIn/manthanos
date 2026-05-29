@@ -80,7 +80,7 @@ export function SkipExtractionDialog(props: SkipExtractionDialogProps): JSX.Elem
         data-testid="skip-extraction-explainer"
         style={{ margin: '0 0 0.75rem 0', color: '#444', fontSize: '0.95rem' }}
       >
-        The conversation will stay, but no facts will be pulled from it. You can still capture
+        The conversation will stay, but no findings will be pulled from it. You can still capture
         another conversation later.
       </p>
       <div data-testid="skip-extraction-field-reason" style={{ marginBottom: '0.25rem' }}>

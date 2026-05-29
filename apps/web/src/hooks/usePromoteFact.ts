@@ -39,6 +39,6 @@ export function usePromoteFact(
         auditKeys.lists(workspaceId),
       ];
     },
-    successMessage: 'Confidence raised.',
+    successMessage: 'Trust raised.',
   });
 }

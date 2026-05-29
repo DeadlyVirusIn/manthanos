@@ -50,9 +50,6 @@ account to create.
 
 ## Screenshots / walkthrough
 
-_Screenshots are not captured yet. The placeholders below mark what each image
-will show; see the [Suggested screenshots](#suggested-screenshots) list._
-
 | Screen | What it shows |
 |--------|---------------|
 | ![Today](docs/assets/screens/today.png) | **Today** — your starting screen: recent conversations and findings. |
@@ -103,7 +100,10 @@ the browser opens, you're all set. (Under the hood the engine listens on port
 > First startup may take 10–20 seconds while the local engine and web app come
 > online.
 
-To stop the app, return to the terminal and press **Ctrl + C**.
+The launcher hands off to your browser, and the local engine and web app keep
+running in the background. To stop them, stop whatever is using ports **7373**
+and **7374** (see [Troubleshooting](#troubleshooting)). Starting again with
+`pnpm cli:dev start` is always safe — it just reconnects to what's already running.
 
 ## First 5-minute walkthrough
 

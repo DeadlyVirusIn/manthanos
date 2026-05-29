@@ -153,7 +153,7 @@ describe('Today — loading state', () => {
     const html = render(client);
     expect(html).toContain('data-testid="today-quick-actions"');
     expect(html).toContain('data-testid="quick-action-capture-conversation"');
-    expect(html).toContain('data-testid="quick-action-extract-facts"');
+    expect(html).toContain('data-testid="quick-action-suggest-complete"');
     expect(html).toContain('data-testid="quick-action-review-evidence"');
   });
 });
@@ -318,17 +318,22 @@ describe('Today — populated state', () => {
 describe('Today — quick actions disabled / enabled posture', () => {
   // Sprint 2 M2.5 C25.1 enabled Capture Conversation; the other two
   // remain disabled until later commits.
-  it('renders extract-facts and review-evidence as aria-disabled (not buttons, not links)', () => {
+  it('renders review-evidence as aria-disabled (not a button, not a link)', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(1));
     seedFacts(client, makeFactResult(1));
     const html = render(client);
-    for (const id of ['quick-action-extract-facts', 'quick-action-review-evidence']) {
+    for (const id of ['quick-action-review-evidence']) {
       expect(html).toMatch(new RegExp(`<div[^>]*aria-disabled="true"[^>]*data-testid="${id}"`));
       expect(html).not.toMatch(new RegExp(`<a[^>]*data-testid="${id}"`));
       expect(html).not.toMatch(new RegExp(`<button[^>]*data-testid="${id}"`));
     }
+    // The middle slot is a friendly completed-state, NOT a disabled control.
+    expect(html).toContain('data-testid="quick-action-suggest-complete"');
+    expect(html).not.toMatch(
+      /<div[^>]*aria-disabled="true"[^>]*data-testid="quick-action-suggest-complete"/,
+    );
   });
 
   it('renders capture-conversation as an enabled button (M2.5 C25.1)', () => {
@@ -343,23 +348,24 @@ describe('Today — quick actions disabled / enabled posture', () => {
     );
   });
 
-  it('includes explanatory copy that the other actions are coming soon', () => {
+  it('shows a friendly caught-up state when no conversation is waiting for findings', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const html = render(client);
-    expect(html).toContain('are coming soon');
+    expect(html).toContain('caught up');
+    expect(html).toContain('data-testid="quick-action-suggest-complete"');
   });
 
-  it('renders the action labels: Capture Conversation, Suggest Findings, Review Evidence', () => {
+  it('renders the action labels: Capture Conversation, All caught up, Review Evidence', () => {
     const client = makeClient();
     seedAudit(client, makeAuditResult([makeEvent()]));
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const html = render(client);
     expect(html).toContain('Capture Conversation');
-    expect(html).toContain('Suggest Findings');
+    expect(html).toContain('All caught up');
     expect(html).toContain('Review Evidence');
   });
 });
@@ -387,7 +393,7 @@ describe('Today — translation correctness', () => {
     seedConvs(client, makeConvResult(0));
     seedFacts(client, makeFactResult(0));
     const html = render(client);
-    expect(html).toContain('Raised confidence on');
+    expect(html).toContain('Raised trust on');
   });
 
   it('renders fact.contest as "Marked X to double-check" (the rename, not "contest")', () => {

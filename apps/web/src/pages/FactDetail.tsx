@@ -1000,7 +1000,7 @@ function TombstoneBanner({ fact }: FactBannerProps): JSX.Element {
         color: '#444',
       }}
     >
-      <strong data-testid="fact-tombstone-headline">This fact was erased.</strong>
+      <strong data-testid="fact-tombstone-headline">This finding was erased.</strong>
       {erasedAgo !== '' ? (
         <p
           data-testid="fact-tombstone-time"

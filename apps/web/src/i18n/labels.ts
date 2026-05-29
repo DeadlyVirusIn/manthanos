@@ -299,8 +299,8 @@ const AUDIT_ACTION_LABELS: Record<AuditActionKey, AuditActionLabelEntry> = {
   'fact.update': (p) => `Edited a finding: "${coerce(p.statement, 'a claim')}".`,
   'fact.revise': (p) =>
     `Made a new version of "${coerce(p.previous_statement ?? p.statement, 'a claim')}".`,
-  'fact.promote': (p) => `Raised confidence on "${coerce(p.statement, 'a claim')}".`,
-  'fact.demote': (p) => `Lowered confidence on "${coerce(p.statement, 'a claim')}".`,
+  'fact.promote': (p) => `Raised trust on "${coerce(p.statement, 'a claim')}".`,
+  'fact.demote': (p) => `Lowered trust on "${coerce(p.statement, 'a claim')}".`,
   'fact.contest': (p) => `Marked "${coerce(p.statement, 'a claim')}" to double-check.`,
   'fact.uncontest': (p) => `Checked "${coerce(p.statement, 'a claim')}".`,
   'fact.corroborate': (p) =>

@@ -53,6 +53,6 @@ export function useExtractFact(
       ];
     },
     successMessage: (result) =>
-      result.was_created ? 'Fact pulled.' : 'Linked to an existing fact.',
+      result.was_created ? 'Finding added.' : 'Linked to an existing finding.',
   });
 }

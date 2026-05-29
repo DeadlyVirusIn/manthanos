@@ -370,7 +370,7 @@ describe('Extract Fact — happy path', () => {
     await waitFor(() => expect(screen.queryByTestId('mutation-dialog')).toBeNull());
     await waitFor(() =>
       expect(screen.getByTestId('conversation-mutation-success-text').textContent).toBe(
-        'Fact pulled.',
+        'Finding added.',
       ),
     );
 
@@ -386,7 +386,7 @@ describe('Extract Fact — happy path', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['audit', 'list', PROJECT_ID] });
   });
 
-  it('shows the "Linked to an existing fact." message when was_created is false', async () => {
+  it('shows the "Linked to an existing finding." message when was_created is false', async () => {
     const user = userEvent.setup();
     const client = makeClient();
     seedConversation(client, makeConv());
@@ -407,7 +407,7 @@ describe('Extract Fact — happy path', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('conversation-mutation-success-text').textContent).toBe(
-        'Linked to an existing fact.',
+        'Linked to an existing finding.',
       ),
     );
   });

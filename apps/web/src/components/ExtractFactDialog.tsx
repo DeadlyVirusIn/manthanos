@@ -223,7 +223,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
         />
         {showStatementError ? (
           <FieldError id="extract-statement-error" testId="extract-statement-error">
-            Write the fact — it can’t be blank or only spaces.
+            Write the finding — it can’t be blank or only spaces.
           </FieldError>
         ) : null}
       </FormRow>
@@ -256,7 +256,7 @@ export function ExtractFactDialog(props: ExtractFactDialogProps): JSX.Element {
       {orderedQuotes.length > 0 ? (
         <div data-testid="extract-field-quote" style={{ marginBottom: '0.75rem' }}>
           <label htmlFor="extract-quote" style={labelStyle}>
-            Tie this fact to a specific quote? (optional)
+            Tie this finding to a specific quote? (optional)
           </label>
           <select
             id="extract-quote"
